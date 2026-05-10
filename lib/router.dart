@@ -12,8 +12,9 @@ import 'presentation/pages/plugins_page.dart';
 import 'presentation/pages/search_page.dart';
 import 'presentation/pages/settings_page.dart';
 import 'presentation/pages/title_page.dart';
-import 'presentation/pages/watch_placeholder_page.dart';
+import 'presentation/pages/watch_page.dart';
 import 'presentation/widgets/authenticated_shell.dart';
+import 'domain/models/playback_request.dart';
 import 'state/auth_provider.dart';
 import 'state/github_token_provider.dart';
 
@@ -79,12 +80,16 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/watch/:tmdbId',
-            builder: (ctx, state) => WatchPlaceholderPage(
-              tmdbId: int.parse(state.pathParameters['tmdbId']!),
-              mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
-              season: int.tryParse(state.uri.queryParameters['season'] ?? ''),
-              episode:
-                  int.tryParse(state.uri.queryParameters['episode'] ?? ''),
+            builder: (ctx, state) => WatchPage(
+              request: PlaybackRequest(
+                tmdbId: int.parse(state.pathParameters['tmdbId']!),
+                mediaType:
+                    state.uri.queryParameters['media_type'] ?? 'movie',
+                season: int.tryParse(
+                    state.uri.queryParameters['season'] ?? ''),
+                episode: int.tryParse(
+                    state.uri.queryParameters['episode'] ?? ''),
+              ),
             ),
           ),
         ],
