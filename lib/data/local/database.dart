@@ -34,7 +34,7 @@ part 'database.g.dart';
 ])
 class StreamloadDatabase extends _$StreamloadDatabase {
   StreamloadDatabase() : super(_open());
-  StreamloadDatabase.test(QueryExecutor executor) : super(executor);
+  StreamloadDatabase.test(super.executor);
 
   @override
   int get schemaVersion => 1;

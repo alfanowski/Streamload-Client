@@ -9,7 +9,7 @@ part 'user_settings_dao.g.dart';
 @DriftAccessor(tables: [UserSettings])
 class UserSettingsDao extends DatabaseAccessor<StreamloadDatabase>
     with _$UserSettingsDaoMixin {
-  UserSettingsDao(StreamloadDatabase db) : super(db);
+  UserSettingsDao(super.db);
 
   /// The single-row settings record. Returns the inserted defaults if absent.
   Future<UserSettingsRow> getOrSeed() async {

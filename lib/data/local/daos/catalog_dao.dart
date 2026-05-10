@@ -8,7 +8,7 @@ part 'catalog_dao.g.dart';
 
 @DriftAccessor(tables: [CatalogItems])
 class CatalogDao extends DatabaseAccessor<StreamloadDatabase> with _$CatalogDaoMixin {
-  CatalogDao(StreamloadDatabase db) : super(db);
+  CatalogDao(super.db);
 
   Future<CatalogItemRow?> get(int tmdbId, String mediaType) {
     return (select(catalogItems)
