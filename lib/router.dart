@@ -5,10 +5,12 @@ import 'package:go_router/go_router.dart';
 
 import 'presentation/pages/home_page.dart';
 import 'presentation/pages/login_page.dart';
+import 'presentation/pages/plugin_onboarding_page.dart';
 import 'presentation/pages/profile_page.dart';
 import 'presentation/pages/register_page.dart';
 import 'presentation/pages/settings_page.dart';
 import 'state/auth_provider.dart';
+import 'state/github_pat_provider.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -16,14 +18,24 @@ final routerProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final auth = ref.read(authProvider);
-      final isAuthRoute = state.matchedLocation == '/login' ||
-          state.matchedLocation == '/register';
-      if (auth is AuthLoading) return null; // wait
+      final pat = ref.read(githubPatProvider).value;
+      final loc = state.matchedLocation;
+      final isAuthRoute = loc == '/login' || loc == '/register';
+      final isOnboarding = loc == '/onboarding/plugins';
+
+      if (auth is AuthLoading) return null;
       if (auth is AuthUnauthenticated || auth is AuthError) {
         return isAuthRoute ? null : '/login';
       }
       if (auth is AuthAuthenticated) {
-        return isAuthRoute ? '/home' : null;
+        // Authenticated but no PAT yet → onboarding wizard.
+        if ((pat == null || pat.isEmpty) && !isOnboarding) {
+          return '/onboarding/plugins';
+        }
+        // Authenticated with PAT → leave login/register, send to home.
+        if (isAuthRoute) return '/home';
+        // Authenticated and at /onboarding/plugins but PAT now exists → home.
+        if (isOnboarding && pat != null && pat.isNotEmpty) return '/home';
       }
       return null;
     },
@@ -31,6 +43,10 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
+      GoRoute(
+        path: '/onboarding/plugins',
+        builder: (_, __) => const PluginOnboardingPage(),
+      ),
       GoRoute(path: '/home', builder: (_, __) => const HomePage()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
@@ -41,5 +57,8 @@ final routerProvider = Provider<GoRouter>((ref) {
 class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(Ref ref) {
     ref.listen<AuthState>(authProvider, (_, __) => notifyListeners());
+    ref.listen<AsyncValue<String?>>(
+      githubPatProvider, (_, __) => notifyListeners(),
+    );
   }
 }
