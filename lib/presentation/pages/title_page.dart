@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../domain/models/catalog_item.dart';
 import '../../state/episodes_provider.dart';
+import '../../state/plugin_access_provider.dart';
 import '../../state/title_provider.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
@@ -98,14 +99,15 @@ class _TitleHeader extends StatelessWidget {
 // Movie variant — header + Watch button
 // ---------------------------------------------------------------------------
 
-class _TitleMovieBody extends StatelessWidget {
+class _TitleMovieBody extends ConsumerWidget {
   const _TitleMovieBody({required this.tmdbId, required this.item});
 
   final int tmdbId;
   final CatalogItemResponse item;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final access = ref.watch(pluginAccessProvider);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: ConstrainedBox(
@@ -115,12 +117,13 @@ class _TitleMovieBody extends StatelessWidget {
           children: [
             _TitleHeader(item: item),
             const SizedBox(height: 24),
-            PrimaryButton(
-              label: 'Guarda',
-              onPressed: () => context.go(
-                '/watch/$tmdbId?media_type=${item.mediaType}',
+            if (access == PluginAccess.available)
+              PrimaryButton(
+                label: 'Guarda',
+                onPressed: () => context.go(
+                  '/watch/$tmdbId?media_type=${item.mediaType}',
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -148,6 +151,7 @@ class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
   @override
   Widget build(BuildContext context) {
     final ep = ref.watch(episodesProvider(widget.tmdbId));
+    final access = ref.watch(pluginAccessProvider);
     return ep.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(child: Text('Errore episodi: $e')),
@@ -158,12 +162,13 @@ class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
             children: [
               _TitleHeader(item: widget.item),
               const SizedBox(height: 24),
-              PrimaryButton(
-                label: 'Guarda',
-                onPressed: () => context.go(
-                  '/watch/${widget.tmdbId}?media_type=tv',
+              if (access == PluginAccess.available)
+                PrimaryButton(
+                  label: 'Guarda',
+                  onPressed: () => context.go(
+                    '/watch/${widget.tmdbId}?media_type=tv',
+                  ),
                 ),
-              ),
               const SizedBox(height: 24),
               const Center(child: Text('Nessuna stagione disponibile.')),
             ],
@@ -178,12 +183,13 @@ class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
           children: [
             _TitleHeader(item: widget.item),
             const SizedBox(height: 24),
-            PrimaryButton(
-              label: 'Guarda',
-              onPressed: () => context.go(
-                '/watch/${widget.tmdbId}?media_type=tv',
+            if (access == PluginAccess.available)
+              PrimaryButton(
+                label: 'Guarda',
+                onPressed: () => context.go(
+                  '/watch/${widget.tmdbId}?media_type=tv',
+                ),
               ),
-            ),
             const SizedBox(height: 24),
             // Season picker
             Wrap(
@@ -198,35 +204,40 @@ class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
               }),
             ),
             const SizedBox(height: 16),
-            // Episode list
+            // Episode list — tappable only when plugin access is available.
             for (final e in season.episodes)
-              ListTile(
-                leading: e.stillUrl != null
-                    ? SizedBox(
-                        width: 96,
-                        child: AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: Image.network(
-                              e.stillUrl!,
-                              fit: BoxFit.cover,
+              Opacity(
+                opacity: access == PluginAccess.available ? 1.0 : 0.5,
+                child: ListTile(
+                  leading: e.stillUrl != null
+                      ? SizedBox(
+                          width: 96,
+                          child: AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.network(
+                                e.stillUrl!,
+                                fit: BoxFit.cover,
+                              ),
                             ),
                           ),
-                        ),
-                      )
-                    : null,
-                title: Text('${e.episode}. ${e.title}'),
-                subtitle: e.overview != null
-                    ? Text(
-                        e.overview!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    : null,
-                onTap: () => context.go(
-                  '/watch/${widget.tmdbId}?media_type=tv'
-                  '&season=${e.season}&episode=${e.episode}',
+                        )
+                      : null,
+                  title: Text('${e.episode}. ${e.title}'),
+                  subtitle: e.overview != null
+                      ? Text(
+                          e.overview!,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        )
+                      : null,
+                  onTap: access == PluginAccess.available
+                      ? () => context.go(
+                            '/watch/${widget.tmdbId}?media_type=tv'
+                            '&season=${e.season}&episode=${e.episode}',
+                          )
+                      : null,
                 ),
               ),
           ],

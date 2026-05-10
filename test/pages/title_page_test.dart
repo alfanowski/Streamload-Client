@@ -9,6 +9,7 @@ import 'package:streamload_client/domain/models/catalog_item.dart';
 import 'package:streamload_client/presentation/pages/title_page.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/database_provider.dart';
+import 'package:streamload_client/state/plugin_access_provider.dart';
 import 'package:drift/native.dart';
 import 'package:streamload_client/data/local/database.dart';
 
@@ -16,24 +17,26 @@ class _CatalogApiMock extends Mock implements CatalogApi {}
 
 class _EpisodesApiMock extends Mock implements EpisodesApi {}
 
-void main() {
-  Widget wrap({
-    required Widget child,
-    required CatalogApi catalogApi,
-    EpisodesApi? episodesApi,
-    required StreamloadDatabase db,
-  }) {
-    return ProviderScope(
-      overrides: [
-        catalogApiProvider.overrideWith((_) async => catalogApi),
-        if (episodesApi != null)
-          episodesApiProvider.overrideWith((_) async => episodesApi),
-        databaseProvider.overrideWith((_) => db),
-      ],
-      child: MaterialApp(home: child),
-    );
-  }
+Widget wrap({
+  required Widget child,
+  required CatalogApi catalogApi,
+  EpisodesApi? episodesApi,
+  required StreamloadDatabase db,
+  PluginAccess access = PluginAccess.available,
+}) {
+  return ProviderScope(
+    overrides: [
+      catalogApiProvider.overrideWith((_) async => catalogApi),
+      if (episodesApi != null)
+        episodesApiProvider.overrideWith((_) async => episodesApi),
+      databaseProvider.overrideWith((_) => db),
+      pluginAccessProvider.overrideWithValue(access),
+    ],
+    child: MaterialApp(home: child),
+  );
+}
 
+void main() {
   group('TitlePage — movie variant', () {
     testWidgets('shows title, year and overview', (tester) async {
       final catalogApi = _CatalogApiMock();
@@ -59,6 +62,7 @@ void main() {
       expect(find.text('Dune'), findsOneWidget);
       expect(find.text('2021'), findsOneWidget);
       expect(find.text('A hero rises.'), findsOneWidget);
+      // Watch button shown when access is available (default in this test).
       expect(find.text('Guarda'), findsOneWidget);
     });
 
@@ -82,6 +86,52 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Untitled'), findsOneWidget);
+    });
+
+    testWidgets('Watch button hidden when access is noAccess', (tester) async {
+      final catalogApi = _CatalogApiMock();
+      final db = StreamloadDatabase.test(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      when(() => catalogApi.get(3, mediaType: 'movie'))
+          .thenAnswer((_) async => const CatalogItemResponse(
+                tmdbId: 3,
+                mediaType: 'movie',
+                title: 'Locked Film',
+              ));
+
+      await tester.pumpWidget(wrap(
+        catalogApi: catalogApi,
+        db: db,
+        access: PluginAccess.noAccess,
+        child: const TitlePage(tmdbId: 3, mediaType: 'movie'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Guarda'), findsNothing);
+    });
+
+    testWidgets('Watch button visible when access is available', (tester) async {
+      final catalogApi = _CatalogApiMock();
+      final db = StreamloadDatabase.test(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      when(() => catalogApi.get(4, mediaType: 'movie'))
+          .thenAnswer((_) async => const CatalogItemResponse(
+                tmdbId: 4,
+                mediaType: 'movie',
+                title: 'Open Film',
+              ));
+
+      await tester.pumpWidget(wrap(
+        catalogApi: catalogApi,
+        db: db,
+        access: PluginAccess.available,
+        child: const TitlePage(tmdbId: 4, mediaType: 'movie'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Guarda'), findsOneWidget);
     });
   });
 
