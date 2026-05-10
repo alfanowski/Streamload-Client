@@ -27,7 +27,7 @@ void main() {
 
   test('update PUTs the serialized settings', () async {
     final client = _ClientMock();
-    final input = const UserSettingsModel(theme: 'dark');
+    const input = UserSettingsModel(theme: 'dark');
     when(() => client.putJson('/api/settings', body: input.toJson()))
         .thenAnswer((_) async => input.toJson());
     final out = await SettingsApi(client).update(input);

@@ -36,7 +36,7 @@ void main() {
     ]);
     addTearDown(container.dispose);
 
-    final updated = const UserSettingsModel(theme: 'dark', audioPrefLang: 'eng');
+    const updated = UserSettingsModel(theme: 'dark', audioPrefLang: 'eng');
     final out = await container.read(settingsControllerProvider.notifier).save(updated);
     expect(out.theme, 'dark');
     expect(out.audioPrefLang, 'eng');
