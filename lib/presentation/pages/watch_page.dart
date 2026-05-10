@@ -1,0 +1,137 @@
+// lib/presentation/pages/watch_page.dart
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+
+import '../../domain/models/playback_request.dart';
+import '../../player/engine.dart';
+import '../../state/play_controller_provider.dart';
+import '../../state/player_engine_provider.dart';
+import '../theme/colors.dart';
+import '../theme/typography.dart';
+import '../widgets/player_controls.dart';
+
+/// Typedef that lets tests inject a no-op widget instead of the real
+/// media_kit [Video], which throws in headless test environments.
+typedef VideoBuilder = Widget Function(VideoController controller);
+
+Widget _defaultVideoBuilder(VideoController c) => Video(controller: c);
+
+class WatchPage extends ConsumerStatefulWidget {
+  const WatchPage({
+    super.key,
+    required this.request,
+    this.videoBuilder = _defaultVideoBuilder,
+  });
+
+  final PlaybackRequest request;
+  final VideoBuilder videoBuilder;
+
+  @override
+  ConsumerState<WatchPage> createState() => _WatchPageState();
+}
+
+enum _Phase { loading, playing, error }
+
+class _WatchPageState extends ConsumerState<WatchPage> {
+  _Phase _phase = _Phase.loading;
+  String? _error;
+  VideoController? _videoController;
+  // Cache engine reference so dispose() doesn't call ref.read after unmount.
+  PlayerEngine? _engine;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  Future<void> _start() async {
+    try {
+      final controller = await ref.read(playControllerProvider.future);
+      final url =
+          widget.request.season != null && widget.request.episode != null
+              ? await controller.startEpisode(
+                  tmdbId: widget.request.tmdbId,
+                  season: widget.request.season!,
+                  episode: widget.request.episode!,
+                )
+              : await controller.startMovie(tmdbId: widget.request.tmdbId);
+      final engine = ref.read(playerEngineProvider);
+      _engine = engine;
+      engine.open(url, headers: const {});
+      await engine.play();
+      if (mounted) {
+        _videoController = VideoController(engine.player);
+        setState(() => _phase = _Phase.playing);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _phase = _Phase.error;
+          _error = e.toString();
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    // Pause on close — autoDispose will tear down the engine itself.
+    // Fire-and-forget: dispose() must be synchronous.
+    if (_engine != null) unawaited(_engine!.pause());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            switch (_phase) {
+              _Phase.loading =>
+                const Center(child: CircularProgressIndicator()),
+              _Phase.error => Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Text(
+                      _error ?? 'Errore sconosciuto',
+                      textAlign: TextAlign.center,
+                      style: StreamloadTypography.body(
+                        fontSize: 14,
+                        color: StreamloadColors.critical,
+                      ),
+                    ),
+                  ),
+                ),
+              _Phase.playing => widget.videoBuilder(_videoController!),
+            },
+            // Always-visible top bar with close.
+            Positioned(
+              top: 8,
+              left: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: () => context.pop(),
+                tooltip: 'Chiudi',
+              ),
+            ),
+            // Bottom controls overlay only when playing.
+            if (_phase == _Phase.playing)
+              const Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: PlayerControls(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
