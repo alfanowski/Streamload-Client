@@ -6,6 +6,7 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
+import 'rewriter.dart';
 import 'session.dart';
 
 /// HTTP proxy bound to 127.0.0.1 on a system-assigned port. Exposes the
@@ -23,7 +24,30 @@ class LocalProxyServer {
   }) async {
     final dioInstance = dio ?? Dio();
     final router = Router()
-      ..get('/health', (shelf.Request _) => shelf.Response.ok('ok'));
+      ..get('/health', (shelf.Request _) => shelf.Response.ok('ok'))
+      ..get('/master/<sid>.m3u8', (shelf.Request req, String sid) async {
+        final session = registry.get(sid, touch: true);
+        if (session == null) return shelf.Response.notFound('unknown session');
+        try {
+          final resp = await dioInstance.get<String>(
+            session.upstreamMasterUrl,
+            options: Options(
+              responseType: ResponseType.plain,
+              headers: session.upstreamHeaders,
+            ),
+          );
+          final rewritten = Rewriter.rewriteMaster(
+            resp.data ?? '',
+            basePath: '/variant/$sid',
+          );
+          return shelf.Response.ok(rewritten, headers: {
+            'content-type': 'application/vnd.apple.mpegurl',
+          });
+        } on DioException catch (e) {
+          return shelf.Response.internalServerError(
+              body: 'upstream: ${e.message}');
+        }
+      });
     final server = await shelf_io.serve(
       router.call,
       InternetAddress.loopbackIPv4,
