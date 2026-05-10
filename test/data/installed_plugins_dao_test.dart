@@ -1,9 +1,7 @@
 // test/data/installed_plugins_dao_test.dart
-import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:streamload_client/data/local/database.dart';
-import 'package:streamload_client/data/local/schema/installed_plugins.dart';
 
 void main() {
   late StreamloadDatabase db;
