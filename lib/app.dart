@@ -1,11 +1,15 @@
 // lib/app.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'player/engine.dart';
 import 'plugins/updater.dart';
 import 'presentation/theme/theme.dart';
 import 'router.dart';
 import 'state/auth_provider.dart';
+import 'state/local_proxy_provider.dart';
 
 class StreamloadApp extends ConsumerStatefulWidget {
   const StreamloadApp({super.key});
@@ -25,6 +29,10 @@ class _StreamloadAppState extends ConsumerState<StreamloadApp> {
       // if the user has no PAT yet — the loader will throw and the updater
       // will skip the tick gracefully.
       ref.read(pluginUpdaterProvider).start();
+      // Initialize media_kit native libraries (no-op if already done).
+      PlayerEngine.ensureInitialized();
+      // Warm up the local HLS proxy so it is ready before the first playback.
+      unawaited(ref.read(localProxyProvider.future));
     });
   }
 
