@@ -12,7 +12,7 @@ void main() {
   test('setQuery debounces and produces a result list', () async {
     final api = _SearchApiMock();
     when(() => api.run('dune')).thenAnswer((_) async => {
-          'items': [
+          'results': [
             {
               'tmdb_id': 1,
               'media_type': 'movie',

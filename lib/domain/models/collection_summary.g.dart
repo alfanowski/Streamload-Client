@@ -11,7 +11,7 @@ _$CollectionSummaryImpl _$$CollectionSummaryImplFromJson(
     _$CollectionSummaryImpl(
       id: json['id'] as String,
       title: json['title'] as String,
-      mediaType: json['media_type'] as String,
+      mediaType: json['media_type'] as String?,
       items: (json['items'] as List<dynamic>?)
               ?.map((e) => MediaSummary.fromJson(e as Map<String, dynamic>))
               .toList() ??

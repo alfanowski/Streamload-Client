@@ -21,9 +21,10 @@ CollectionSummary _$CollectionSummaryFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$CollectionSummary {
   String get id => throw _privateConstructorUsedError;
-  String get title => throw _privateConstructorUsedError;
+  String get title =>
+      throw _privateConstructorUsedError; // Mixed-type collections (e.g. "Trending today") have null media_type.
   @JsonKey(name: 'media_type')
-  String get mediaType => throw _privateConstructorUsedError;
+  String? get mediaType => throw _privateConstructorUsedError;
   List<MediaSummary> get items => throw _privateConstructorUsedError;
 
   /// Serializes this CollectionSummary to a JSON map.
@@ -45,7 +46,7 @@ abstract class $CollectionSummaryCopyWith<$Res> {
   $Res call(
       {String id,
       String title,
-      @JsonKey(name: 'media_type') String mediaType,
+      @JsonKey(name: 'media_type') String? mediaType,
       List<MediaSummary> items});
 }
 
@@ -66,7 +67,7 @@ class _$CollectionSummaryCopyWithImpl<$Res, $Val extends CollectionSummary>
   $Res call({
     Object? id = null,
     Object? title = null,
-    Object? mediaType = null,
+    Object? mediaType = freezed,
     Object? items = null,
   }) {
     return _then(_value.copyWith(
@@ -78,10 +79,10 @@ class _$CollectionSummaryCopyWithImpl<$Res, $Val extends CollectionSummary>
           ? _value.title
           : title // ignore: cast_nullable_to_non_nullable
               as String,
-      mediaType: null == mediaType
+      mediaType: freezed == mediaType
           ? _value.mediaType
           : mediaType // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       items: null == items
           ? _value.items
           : items // ignore: cast_nullable_to_non_nullable
@@ -101,7 +102,7 @@ abstract class _$$CollectionSummaryImplCopyWith<$Res>
   $Res call(
       {String id,
       String title,
-      @JsonKey(name: 'media_type') String mediaType,
+      @JsonKey(name: 'media_type') String? mediaType,
       List<MediaSummary> items});
 }
 
@@ -120,7 +121,7 @@ class __$$CollectionSummaryImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? title = null,
-    Object? mediaType = null,
+    Object? mediaType = freezed,
     Object? items = null,
   }) {
     return _then(_$CollectionSummaryImpl(
@@ -132,10 +133,10 @@ class __$$CollectionSummaryImplCopyWithImpl<$Res>
           ? _value.title
           : title // ignore: cast_nullable_to_non_nullable
               as String,
-      mediaType: null == mediaType
+      mediaType: freezed == mediaType
           ? _value.mediaType
           : mediaType // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       items: null == items
           ? _value._items
           : items // ignore: cast_nullable_to_non_nullable
@@ -150,7 +151,7 @@ class _$CollectionSummaryImpl implements _CollectionSummary {
   const _$CollectionSummaryImpl(
       {required this.id,
       required this.title,
-      @JsonKey(name: 'media_type') required this.mediaType,
+      @JsonKey(name: 'media_type') this.mediaType,
       final List<MediaSummary> items = const <MediaSummary>[]})
       : _items = items;
 
@@ -161,9 +162,10 @@ class _$CollectionSummaryImpl implements _CollectionSummary {
   final String id;
   @override
   final String title;
+// Mixed-type collections (e.g. "Trending today") have null media_type.
   @override
   @JsonKey(name: 'media_type')
-  final String mediaType;
+  final String? mediaType;
   final List<MediaSummary> _items;
   @override
   @JsonKey()
@@ -216,7 +218,7 @@ abstract class _CollectionSummary implements CollectionSummary {
   const factory _CollectionSummary(
       {required final String id,
       required final String title,
-      @JsonKey(name: 'media_type') required final String mediaType,
+      @JsonKey(name: 'media_type') final String? mediaType,
       final List<MediaSummary> items}) = _$CollectionSummaryImpl;
 
   factory _CollectionSummary.fromJson(Map<String, dynamic> json) =
@@ -225,10 +227,11 @@ abstract class _CollectionSummary implements CollectionSummary {
   @override
   String get id;
   @override
-  String get title;
+  String
+      get title; // Mixed-type collections (e.g. "Trending today") have null media_type.
   @override
   @JsonKey(name: 'media_type')
-  String get mediaType;
+  String? get mediaType;
   @override
   List<MediaSummary> get items;
 

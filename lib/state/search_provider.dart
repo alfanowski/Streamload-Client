@@ -29,7 +29,8 @@ class SearchController extends StateNotifier<AsyncValue<List<MediaSummary>>> {
     try {
       final api = await _ref.read(searchApiProvider.future);
       final raw = await api.run(q);
-      final items = (raw['items'] as List)
+      // Backend SearchResponse returns { query, results: [...] }, not items.
+      final items = (raw['results'] as List)
           .cast<Map<String, dynamic>>()
           .map(MediaSummary.fromJson)
           .toList();

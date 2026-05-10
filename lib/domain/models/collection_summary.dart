@@ -11,7 +11,8 @@ class CollectionSummary with _$CollectionSummary {
   const factory CollectionSummary({
     required String id,
     required String title,
-    @JsonKey(name: 'media_type') required String mediaType,
+    // Mixed-type collections (e.g. "Trending today") have null media_type.
+    @JsonKey(name: 'media_type') String? mediaType,
     @Default(<MediaSummary>[]) List<MediaSummary> items,
   }) = _CollectionSummary;
 

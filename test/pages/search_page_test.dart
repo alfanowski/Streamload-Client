@@ -14,7 +14,7 @@ void main() {
       (tester) async {
     final api = _SearchApiMock();
     when(() => api.run('dune')).thenAnswer((_) async => {
-          'items': [
+          'results': [
             {
               'tmdb_id': 1,
               'media_type': 'movie',
