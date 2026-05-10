@@ -35,7 +35,7 @@ void main() {
   /// - a real LocalProxyServer using a temp disk cache
   /// - a mock PluginRuntime
   Future<({ProviderContainer container, LocalProxyServer proxy})>
-      _buildContainer(_PluginRuntimeMock mockRuntime) async {
+      buildContainer(_PluginRuntimeMock mockRuntime) async {
     // Start a real proxy to get a real port / baseUrl.
     final fetcher = SegmentFetcher(
       ram: RamRingBuffer(capacity: 30),
@@ -66,7 +66,7 @@ void main() {
     final mockRuntime = _PluginRuntimeMock();
     when(() => mockRuntime.all).thenReturn([]);
 
-    final (:container, proxy: _) = await _buildContainer(mockRuntime);
+    final (:container, proxy: _) = await buildContainer(mockRuntime);
     addTearDown(container.dispose);
 
     final controller = await container.read(playControllerProvider.future);
@@ -95,7 +95,7 @@ void main() {
     final mockRuntime = _PluginRuntimeMock();
     when(() => mockRuntime.all).thenReturn([moviePlugin, tvPlugin]);
 
-    final (:container, proxy: _) = await _buildContainer(mockRuntime);
+    final (:container, proxy: _) = await buildContainer(mockRuntime);
     addTearDown(container.dispose);
 
     final controller = await container.read(playControllerProvider.future);
@@ -119,7 +119,7 @@ void main() {
     final mockRuntime = _PluginRuntimeMock();
     when(() => mockRuntime.all).thenReturn([]);
 
-    final (:container, proxy: proxy) = await _buildContainer(mockRuntime);
+    final (:container, proxy: proxy) = await buildContainer(mockRuntime);
     addTearDown(container.dispose);
 
     final controller = await container.read(playControllerProvider.future);
