@@ -7,9 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/data/secure/secure_storage.dart';
+import 'package:streamload_client/domain/models/user.dart';
 import 'package:streamload_client/plugins/github_oauth.dart';
 import 'package:streamload_client/presentation/pages/plugin_onboarding_page.dart';
 import 'package:streamload_client/presentation/theme/theme.dart';
+import 'package:streamload_client/state/auth_provider.dart';
 import 'package:streamload_client/state/github_token_provider.dart';
 import 'package:streamload_client/state/plugins_provider.dart';
 import 'package:streamload_client/plugins/loader.dart';
@@ -32,6 +34,23 @@ class _StubRefreshController extends PluginRefreshController {
   }
 }
 
+/// AuthNotifier stub that returns a fixed User from loginWithGithub.
+class _StubAuthNotifier extends AuthNotifier {
+  _StubAuthNotifier(this._returnUser) : super(_FakeRefForAuth());
+
+  final User _returnUser;
+
+  @override
+  Future<User> loginWithGithub(String accessToken) async {
+    state = AuthAuthenticated(_returnUser);
+    return _returnUser;
+  }
+}
+
+class _FakeRefForAuth extends Fake implements Ref {
+  // AuthNotifier constructor takes Ref but we override loginWithGithub entirely.
+}
+
 const _fakeDevice = DeviceCodeRequest(
   deviceCode: 'dev-code-123',
   userCode: 'ABCD-1234',
@@ -40,11 +59,39 @@ const _fakeDevice = DeviceCodeRequest(
   pollInterval: Duration(milliseconds: 10),
 );
 
-/// Build a GoRouter-backed app so context.go('/home') succeeds.
+const _userProfileIncomplete = User(
+  id: 'u1',
+  username: 'newuser',
+  email: 'new@example.com',
+  emailVerified: true,
+  profileComplete: false,
+);
+
+const _userProfileComplete = User(
+  id: 'u1',
+  username: 'returning',
+  email: 'ret@example.com',
+  emailVerified: true,
+  profileComplete: true,
+);
+
+/// Build a GoRouter-backed app so context.go('/...') succeeds.
 Widget buildApp({
   required SecureStorage storage,
   required GithubOAuth mockOauth,
+  User returnUser = _userProfileIncomplete,
+  List<GoRoute> extraRoutes = const [],
 }) {
+  final defaultExtraRoutes = [
+    GoRoute(
+      path: '/home',
+      builder: (_, __) => const Scaffold(body: Text('Home')),
+    ),
+    GoRoute(
+      path: '/onboarding/profile',
+      builder: (_, __) => const Scaffold(body: Text('ProfileCompletion')),
+    ),
+  ];
   final router = GoRouter(
     initialLocation: '/onboarding',
     routes: [
@@ -53,10 +100,8 @@ Widget buildApp({
         builder: (_, __) =>
             PluginOnboardingPage(oauthFactory: () => mockOauth),
       ),
-      GoRoute(
-        path: '/home',
-        builder: (_, __) => const Scaffold(body: Text('Home')),
-      ),
+      ...defaultExtraRoutes,
+      ...extraRoutes,
     ],
   );
   return ProviderScope(
@@ -64,6 +109,9 @@ Widget buildApp({
       secureStorageProvider.overrideWithValue(storage),
       pluginRefreshControllerProvider.overrideWith(
         (_) => _StubRefreshController(),
+      ),
+      authProvider.overrideWith(
+        (_) => _StubAuthNotifier(returnUser),
       ),
     ],
     child: MaterialApp.router(
@@ -145,7 +193,8 @@ void main() {
     verify(() => oauth.requestDeviceCode()).called(1);
   });
 
-  testWidgets('successful polling saves token', (tester) async {
+  testWidgets('successful polling saves token and routes to /onboarding/profile for incomplete profile',
+      (tester) async {
     final storage = _StorageMock();
     final oauth = _OAuthMock();
     when(storage.githubToken).thenAnswer((_) async => null);
@@ -157,16 +206,53 @@ void main() {
           timeout: any(named: 'timeout'),
         )).thenAnswer((_) async => 'ghu_test_token');
 
-    await tester.pumpWidget(buildApp(storage: storage, mockOauth: oauth));
+    await tester.pumpWidget(buildApp(
+      storage: storage,
+      mockOauth: oauth,
+      returnUser: _userProfileIncomplete,
+    ));
     await tester.pump();
 
     await tester.runAsync(() async {
       await tester.tap(find.byKey(const Key('onboarding.github_login')));
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     verify(() => storage.setGithubToken('ghu_test_token')).called(1);
+    // Should have navigated to /onboarding/profile (profile incomplete)
+    expect(find.text('ProfileCompletion'), findsOneWidget);
+  });
+
+  testWidgets('successful polling routes to /home for complete profile',
+      (tester) async {
+    final storage = _StorageMock();
+    final oauth = _OAuthMock();
+    when(storage.githubToken).thenAnswer((_) async => null);
+    when(() => storage.setGithubToken(any())).thenAnswer((_) async {});
+    when(() => oauth.requestDeviceCode()).thenAnswer((_) async => _fakeDevice);
+    when(() => oauth.pollForToken(
+          deviceCode: any(named: 'deviceCode'),
+          interval: any(named: 'interval'),
+          timeout: any(named: 'timeout'),
+        )).thenAnswer((_) async => 'ghu_returning_token');
+
+    await tester.pumpWidget(buildApp(
+      storage: storage,
+      mockOauth: oauth,
+      returnUser: _userProfileComplete,
+    ));
+    await tester.pump();
+
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('onboarding.github_login')));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pumpAndSettle();
+
+    verify(() => storage.setGithubToken('ghu_returning_token')).called(1);
+    // Should have navigated to /home (profile complete)
+    expect(find.text('Home'), findsOneWidget);
   });
 
   testWidgets('DeviceFlowDenied shows error message and Riprova button',

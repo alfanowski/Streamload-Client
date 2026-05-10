@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../plugins/github_oauth.dart';
 import '../../plugins/github_oauth_config.dart';
+import '../../state/auth_provider.dart';
 import '../../state/github_token_provider.dart';
 import '../../state/plugins_provider.dart';
 import '../theme/colors.dart';
@@ -66,10 +67,13 @@ class _PluginOnboardingPageState extends ConsumerState<PluginOnboardingPage> {
       if (!mounted) return;
       // Save the token.
       await ref.read(githubTokenProvider.notifier).save(token);
-      // Kick off a registry refresh — don't block the UI on its result.
+      // Exchange the GitHub token for a backend session.
+      final user = await ref.read(authProvider.notifier).loginWithGithub(token);
+      // Plugin refresh in background regardless.
       // ignore: unawaited_futures
       unawaited(ref.read(pluginRefreshControllerProvider.notifier).refresh());
-      if (mounted) context.go('/home');
+      if (!mounted) return;
+      context.go(user.profileComplete ? '/home' : '/onboarding/profile');
     } on DeviceFlowDenied {
       _setError("Hai annullato l'accesso. Riprova quando vuoi.");
     } on DeviceFlowExpired {
