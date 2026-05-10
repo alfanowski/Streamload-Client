@@ -35,13 +35,23 @@ class _FallbackSecureBackend implements SecureKvBackend {
     if (_prefsFallback.contains(key)) {
       return (await _getPrefs()).getString('secure.$key');
     }
+    String? fromKeychain;
     try {
-      return await _keychain.read(key: key);
+      fromKeychain = await _keychain.read(key: key);
     } on PlatformException catch (e) {
       _log.warn('keychain read failed for $key (${e.code}); using prefs');
       _prefsFallback.add(key);
-      return (await _getPrefs()).getString('secure.$key');
     }
+    if (fromKeychain != null) return fromKeychain;
+    // Keychain returned null OR threw. Either it genuinely has no value, or
+    // the entitlement is missing and the platform silently failed. Check the
+    // prefs fallback as well — if a previous run wrote there, that's our value.
+    final prefsValue = (await _getPrefs()).getString('secure.$key');
+    if (prefsValue != null) {
+      // Sticky for the rest of this process so writes also go to prefs.
+      _prefsFallback.add(key);
+    }
+    return prefsValue;
   }
 
   @override
