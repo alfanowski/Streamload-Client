@@ -2,6 +2,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 
 import '../data/local/daos/installed_plugins_dao.dart';
 import '../data/local/database.dart';
@@ -10,12 +11,17 @@ import 'github_client.dart';
 import 'registry.dart';
 import 'runtime.dart';
 
-class RefreshResult {
-  RefreshResult({
+enum RefreshOutcome { success, noAccess, networkError, notRun }
+
+class RefreshSummary {
+  RefreshSummary({
+    required this.outcome,
     required this.mounted,
     required this.failed,
     required this.removed,
   });
+
+  final RefreshOutcome outcome;
 
   /// short_names that were freshly mounted (added or changed).
   final List<String> mounted;
@@ -25,6 +31,13 @@ class RefreshResult {
 
   /// short_names dropped because the remote no longer lists them.
   final List<String> removed;
+
+  factory RefreshSummary.notRun() => RefreshSummary(
+        outcome: RefreshOutcome.notRun,
+        mounted: const [],
+        failed: const [],
+        removed: const [],
+      );
 }
 
 class PluginLoader {
@@ -41,8 +54,43 @@ class PluginLoader {
 
   /// Pull the registry, diff against installed, fetch what changed, sha256-
   /// verify, mount on success / leave previous version on failure.
-  Future<RefreshResult> refresh() async {
-    final remoteJson = await github.getRegistry();
+  ///
+  /// Returns a [RefreshSummary] with the outcome:
+  /// - [RefreshOutcome.success] — registry fetched and processed.
+  /// - [RefreshOutcome.noAccess] — HTTP 403/404 from the registry endpoint.
+  /// - [RefreshOutcome.networkError] — any other network or unexpected error.
+  Future<RefreshSummary> refresh() async {
+    final Map<String, dynamic> remoteJson;
+    try {
+      remoteJson = await github.getRegistry();
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404 || e.response?.statusCode == 403) {
+        _log.info(
+            'plugin registry → ${e.response?.statusCode}; user has no access');
+        return RefreshSummary(
+          outcome: RefreshOutcome.noAccess,
+          mounted: const [],
+          failed: const [],
+          removed: const [],
+        );
+      }
+      _log.warn('plugin registry network error: $e');
+      return RefreshSummary(
+        outcome: RefreshOutcome.networkError,
+        mounted: const [],
+        failed: const [],
+        removed: const [],
+      );
+    } catch (e) {
+      _log.warn('plugin registry unexpected error: $e');
+      return RefreshSummary(
+        outcome: RefreshOutcome.networkError,
+        mounted: const [],
+        failed: const [],
+        removed: const [],
+      );
+    }
+
     final remote = (remoteJson['plugins'] as List)
         .cast<Map<String, dynamic>>()
         .map(RegistryEntry.fromJson)
@@ -108,6 +156,11 @@ class PluginLoader {
       removed.add(shortName);
     }
 
-    return RefreshResult(mounted: mounted, failed: failed, removed: removed);
+    return RefreshSummary(
+      outcome: RefreshOutcome.success,
+      mounted: mounted,
+      failed: failed,
+      removed: removed,
+    );
   }
 }

@@ -93,11 +93,12 @@ class PluginsPage extends ConsumerWidget {
                   ),
                 ),
               if (refreshState is AsyncData &&
-                  (refreshState as AsyncData).value != null) ...[
+                  (refreshState as AsyncData<RefreshSummary>).value.outcome ==
+                      RefreshOutcome.success) ...[
                 Text(
-                  'Aggiornati: ${(refreshState.value as RefreshResult).mounted.length}, '
-                  'falliti: ${(refreshState.value as RefreshResult).failed.length}, '
-                  'rimossi: ${(refreshState.value as RefreshResult).removed.length}.',
+                  'Aggiornati: ${refreshState.value.mounted.length}, '
+                  'falliti: ${refreshState.value.failed.length}, '
+                  'rimossi: ${refreshState.value.removed.length}.',
                   style: StreamloadTypography.body(
                     fontSize: 13,
                     color: StreamloadColors.textSecondary,

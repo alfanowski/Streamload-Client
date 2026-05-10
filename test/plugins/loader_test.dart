@@ -2,6 +2,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -111,6 +112,7 @@ void main() {
       installed: db.installedPluginsDao,
     );
     final result = await loader.refresh();
+    expect(result.outcome, RefreshOutcome.success);
     expect(result.mounted, ['echo']);
     expect(result.failed, isEmpty);
 
@@ -148,6 +150,7 @@ void main() {
       installed: db.installedPluginsDao,
     );
     final result = await loader.refresh();
+    expect(result.outcome, RefreshOutcome.success);
     expect(result.mounted, isEmpty);
     expect(result.failed, ['echo']);
 
@@ -190,6 +193,7 @@ void main() {
       installed: db.installedPluginsDao,
     );
     final result = await loader.refresh();
+    expect(result.outcome, RefreshOutcome.success);
     expect(result.mounted, ['echo']);
     expect(runtime.callable('echo'), isNotNull);
   });
@@ -217,8 +221,46 @@ void main() {
       installed: db.installedPluginsDao,
     );
     final result = await loader.refresh();
+    expect(result.outcome, RefreshOutcome.success);
     expect(result.removed, ['echo']);
     expect(runtime.callable('echo'), isNull);
     expect(await db.installedPluginsDao.listAll(), isEmpty);
+  });
+
+  test('refresh: 404 from getRegistry → outcome noAccess', () async {
+    when(gh.getRegistry).thenThrow(DioException(
+      requestOptions: RequestOptions(path: ''),
+      response: Response(
+        requestOptions: RequestOptions(path: ''),
+        statusCode: 404,
+      ),
+    ));
+    final loader = PluginLoader(
+      github: gh,
+      runtime: runtime,
+      installed: db.installedPluginsDao,
+    );
+    final result = await loader.refresh();
+    expect(result.outcome, RefreshOutcome.noAccess);
+    expect(result.mounted, isEmpty);
+    expect(result.failed, isEmpty);
+    expect(result.removed, isEmpty);
+  });
+
+  test('refresh: connection error → outcome networkError', () async {
+    when(gh.getRegistry).thenThrow(DioException(
+      requestOptions: RequestOptions(path: ''),
+      type: DioExceptionType.connectionError,
+    ));
+    final loader = PluginLoader(
+      github: gh,
+      runtime: runtime,
+      installed: db.installedPluginsDao,
+    );
+    final result = await loader.refresh();
+    expect(result.outcome, RefreshOutcome.networkError);
+    expect(result.mounted, isEmpty);
+    expect(result.failed, isEmpty);
+    expect(result.removed, isEmpty);
   });
 }

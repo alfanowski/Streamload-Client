@@ -35,8 +35,8 @@ final pluginLoaderProvider = FutureProvider<PluginLoader>((ref) async {
 });
 
 /// One-shot refresh trigger; UI shows a spinner while in-flight.
-class PluginRefreshController extends StateNotifier<AsyncValue<RefreshResult?>> {
-  PluginRefreshController(this._ref) : super(const AsyncData(null));
+class PluginRefreshController extends StateNotifier<AsyncValue<RefreshSummary>> {
+  PluginRefreshController(this._ref) : super(AsyncData(RefreshSummary.notRun()));
 
   final Ref _ref;
 
@@ -53,6 +53,6 @@ class PluginRefreshController extends StateNotifier<AsyncValue<RefreshResult?>> 
 }
 
 final pluginRefreshControllerProvider = StateNotifierProvider<
-    PluginRefreshController, AsyncValue<RefreshResult?>>((ref) {
+    PluginRefreshController, AsyncValue<RefreshSummary>>((ref) {
   return PluginRefreshController(ref);
 });

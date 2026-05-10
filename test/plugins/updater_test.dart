@@ -27,7 +27,12 @@ class _SyncRefreshController extends PluginRefreshController {
     if (shouldThrow) {
       return Future<void>.error(StateError('no PAT'));
     }
-    state = AsyncData(RefreshResult(mounted: [], failed: [], removed: []));
+    state = AsyncData(RefreshSummary(
+      outcome: RefreshOutcome.success,
+      mounted: [],
+      failed: [],
+      removed: [],
+    ));
     return Future<void>.value();
   }
 }
@@ -68,7 +73,12 @@ class _SyncRefreshController extends PluginRefreshController {
 void main() {
   setUpAll(() {
     registerFallbackValue(
-      RefreshResult(mounted: [], failed: [], removed: []),
+      RefreshSummary(
+        outcome: RefreshOutcome.success,
+        mounted: [],
+        failed: [],
+        removed: [],
+      ),
     );
   });
 

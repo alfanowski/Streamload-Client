@@ -24,7 +24,12 @@ class _EmptyBackend implements SecureKvBackend {
 void main() {
   setUpAll(() {
     registerFallbackValue(
-      RefreshResult(mounted: [], failed: [], removed: []),
+      RefreshSummary(
+        outcome: RefreshOutcome.success,
+        mounted: [],
+        failed: [],
+        removed: [],
+      ),
     );
   });
 
@@ -73,7 +78,12 @@ void main() {
 
     final loader = _MockPluginLoader();
     when(loader.refresh).thenAnswer(
-      (_) async => RefreshResult(mounted: ['p1'], failed: [], removed: []),
+      (_) async => RefreshSummary(
+        outcome: RefreshOutcome.success,
+        mounted: ['p1'],
+        failed: [],
+        removed: [],
+      ),
     );
 
     final container = ProviderContainer(overrides: [
@@ -85,9 +95,9 @@ void main() {
     await container.read(pluginRefreshControllerProvider.notifier).refresh();
 
     final state = container.read(pluginRefreshControllerProvider);
-    expect(state, isA<AsyncData<RefreshResult?>>());
-    final result = (state as AsyncData<RefreshResult?>).value;
-    expect(result?.mounted, ['p1']);
+    expect(state, isA<AsyncData<RefreshSummary>>());
+    final result = (state as AsyncData<RefreshSummary>).value;
+    expect(result.mounted, ['p1']);
     verify(loader.refresh).called(1);
   });
 
