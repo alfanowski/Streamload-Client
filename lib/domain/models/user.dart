@@ -11,7 +11,6 @@ class User with _$User {
     required String username,
     required String email,
     @JsonKey(name: 'email_verified') required bool emailVerified,
-    required String role,
   }) = _User;
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);

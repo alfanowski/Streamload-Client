@@ -2,7 +2,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/remote/api_client.dart';
-import '../data/remote/endpoints/admin_api.dart';
 import '../data/remote/endpoints/auth_api.dart';
 import '../data/remote/endpoints/catalog_api.dart';
 import '../data/remote/endpoints/collections_api.dart';
@@ -86,9 +85,4 @@ final settingsApiProvider = FutureProvider<SettingsApi>((ref) async {
 final eventsApiProvider = FutureProvider<EventsApi>((ref) async {
   final c = await ref.watch(apiClientProvider.future);
   return EventsApi(c);
-});
-
-final adminApiProvider = FutureProvider<AdminApi>((ref) async {
-  final c = await ref.watch(apiClientProvider.future);
-  return AdminApi(c);
 });

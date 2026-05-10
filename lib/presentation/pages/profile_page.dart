@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../state/auth_provider.dart';
-import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../widgets/eyebrow.dart';
 import '../widgets/primary_button.dart';
@@ -48,16 +47,6 @@ class ProfilePage extends ConsumerWidget {
                     style: StreamloadTypography.mono(fontSize: 11)),
                 Text(user?.email ?? '—',
                     style: StreamloadTypography.body(fontSize: 14)),
-                const SizedBox(height: 16),
-                Text('Ruolo',
-                    style: StreamloadTypography.mono(fontSize: 11)),
-                Text(user?.role ?? '—',
-                    style: StreamloadTypography.body(
-                      fontSize: 14,
-                      color: user?.role == 'admin'
-                          ? StreamloadColors.accent
-                          : StreamloadColors.textSecondary,
-                    )),
                 const SizedBox(height: 32),
                 PrimaryButton(
                   label: 'Esci',

@@ -25,7 +25,6 @@ mixin _$User {
   String get email => throw _privateConstructorUsedError;
   @JsonKey(name: 'email_verified')
   bool get emailVerified => throw _privateConstructorUsedError;
-  String get role => throw _privateConstructorUsedError;
 
   /// Serializes this User to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -45,8 +44,7 @@ abstract class $UserCopyWith<$Res> {
       {String id,
       String username,
       String email,
-      @JsonKey(name: 'email_verified') bool emailVerified,
-      String role});
+      @JsonKey(name: 'email_verified') bool emailVerified});
 }
 
 /// @nodoc
@@ -68,7 +66,6 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? username = null,
     Object? email = null,
     Object? emailVerified = null,
-    Object? role = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -87,10 +84,6 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
           ? _value.emailVerified
           : emailVerified // ignore: cast_nullable_to_non_nullable
               as bool,
-      role: null == role
-          ? _value.role
-          : role // ignore: cast_nullable_to_non_nullable
-              as String,
     ) as $Val);
   }
 }
@@ -106,8 +99,7 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
       {String id,
       String username,
       String email,
-      @JsonKey(name: 'email_verified') bool emailVerified,
-      String role});
+      @JsonKey(name: 'email_verified') bool emailVerified});
 }
 
 /// @nodoc
@@ -126,7 +118,6 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? username = null,
     Object? email = null,
     Object? emailVerified = null,
-    Object? role = null,
   }) {
     return _then(_$UserImpl(
       id: null == id
@@ -145,10 +136,6 @@ class __$$UserImplCopyWithImpl<$Res>
           ? _value.emailVerified
           : emailVerified // ignore: cast_nullable_to_non_nullable
               as bool,
-      role: null == role
-          ? _value.role
-          : role // ignore: cast_nullable_to_non_nullable
-              as String,
     ));
   }
 }
@@ -160,8 +147,7 @@ class _$UserImpl implements _User {
       {required this.id,
       required this.username,
       required this.email,
-      @JsonKey(name: 'email_verified') required this.emailVerified,
-      required this.role});
+      @JsonKey(name: 'email_verified') required this.emailVerified});
 
   factory _$UserImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserImplFromJson(json);
@@ -175,12 +161,10 @@ class _$UserImpl implements _User {
   @override
   @JsonKey(name: 'email_verified')
   final bool emailVerified;
-  @override
-  final String role;
 
   @override
   String toString() {
-    return 'User(id: $id, username: $username, email: $email, emailVerified: $emailVerified, role: $role)';
+    return 'User(id: $id, username: $username, email: $email, emailVerified: $emailVerified)';
   }
 
   @override
@@ -193,14 +177,13 @@ class _$UserImpl implements _User {
                 other.username == username) &&
             (identical(other.email, email) || other.email == email) &&
             (identical(other.emailVerified, emailVerified) ||
-                other.emailVerified == emailVerified) &&
-            (identical(other.role, role) || other.role == role));
+                other.emailVerified == emailVerified));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode =>
-      Object.hash(runtimeType, id, username, email, emailVerified, role);
+      Object.hash(runtimeType, id, username, email, emailVerified);
 
   /// Create a copy of User
   /// with the given fields replaced by the non-null parameter values.
@@ -220,11 +203,11 @@ class _$UserImpl implements _User {
 
 abstract class _User implements User {
   const factory _User(
-      {required final String id,
-      required final String username,
-      required final String email,
-      @JsonKey(name: 'email_verified') required final bool emailVerified,
-      required final String role}) = _$UserImpl;
+          {required final String id,
+          required final String username,
+          required final String email,
+          @JsonKey(name: 'email_verified') required final bool emailVerified}) =
+      _$UserImpl;
 
   factory _User.fromJson(Map<String, dynamic> json) = _$UserImpl.fromJson;
 
@@ -237,8 +220,6 @@ abstract class _User implements User {
   @override
   @JsonKey(name: 'email_verified')
   bool get emailVerified;
-  @override
-  String get role;
 
   /// Create a copy of User
   /// with the given fields replaced by the non-null parameter values.

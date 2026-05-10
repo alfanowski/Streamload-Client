@@ -17,7 +17,7 @@ void main() {
     when(() => api.login(username: 'alice', password: 'pw'))
         .thenAnswer((_) async => const User(
               id: 'u1', username: 'alice', email: 'a@x.com',
-              emailVerified: true, role: 'user',
+              emailVerified: true,
             ));
 
     await tester.pumpWidget(ProviderScope(

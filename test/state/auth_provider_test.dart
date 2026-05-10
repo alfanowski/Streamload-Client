@@ -15,7 +15,7 @@ void main() {
     final auth = _AuthApiMock();
     when(() => auth.me()).thenAnswer((_) async => const User(
           id: 'u1', username: 'alice', email: 'a@x.com',
-          emailVerified: true, role: 'user',
+          emailVerified: true,
         ));
     final container = ProviderContainer(overrides: [
       authApiProvider.overrideWith((_) async => auth),
@@ -46,7 +46,7 @@ void main() {
     when(() => auth.login(username: 'alice', password: 'pw'))
         .thenAnswer((_) async => const User(
               id: 'u1', username: 'alice', email: 'a@x.com',
-              emailVerified: true, role: 'user',
+              emailVerified: true,
             ));
     final container = ProviderContainer(overrides: [
       authApiProvider.overrideWith((_) async => auth),

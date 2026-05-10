@@ -24,11 +24,10 @@ void main() {
               'username': 'alice',
               'email': 'a@x.com',
               'email_verified': true,
-              'role': 'user',
+
             });
     final u = await api.login(username: 'alice', password: 'pw');
     expect(u.username, 'alice');
-    expect(u.role, 'user');
   });
 
   test('register posts to /auth/register', () async {
@@ -40,7 +39,7 @@ void main() {
               'username': 'bob',
               'email': 'b@x.com',
               'email_verified': true,
-              'role': 'user',
+
             });
     final u = await api.register(username: 'bob', email: 'b@x.com', password: 'pw');
     expect(u.username, 'bob');
@@ -52,7 +51,7 @@ void main() {
           'username': 'alice',
           'email': 'a@x.com',
           'email_verified': true,
-          'role': 'user',
+
         });
     final u = await api.me();
     expect(u.id, 'u1');
