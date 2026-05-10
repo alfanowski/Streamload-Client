@@ -8,8 +8,10 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../domain/models/playback_request.dart';
 import '../../player/engine.dart';
+import '../../state/api_client_provider.dart';
 import '../../state/play_controller_provider.dart';
 import '../../state/player_engine_provider.dart';
+import '../../state/progress_tracker.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../widgets/player_controls.dart';
@@ -42,6 +44,7 @@ class _WatchPageState extends ConsumerState<WatchPage> {
   VideoController? _videoController;
   // Cache engine reference so dispose() doesn't call ref.read after unmount.
   PlayerEngine? _engine;
+  ProgressTracker? _tracker;
 
   @override
   void initState() {
@@ -64,6 +67,17 @@ class _WatchPageState extends ConsumerState<WatchPage> {
       _engine = engine;
       engine.open(url, headers: const {});
       await engine.play();
+      // Start progress tracking after successful play.
+      final progressApi = await ref.read(progressApiProvider.future);
+      _tracker = ProgressTracker(
+        api: progressApi,
+        tmdbId: widget.request.tmdbId,
+        mediaType: widget.request.mediaType,
+        seasonNumber: widget.request.season,
+        episodeNumber: widget.request.episode,
+        positionStream: engine.positionStream,
+        durationStream: engine.durationStream,
+      )..start();
       if (mounted) {
         _videoController = VideoController(engine.player);
         setState(() => _phase = _Phase.playing);
@@ -80,6 +94,8 @@ class _WatchPageState extends ConsumerState<WatchPage> {
 
   @override
   void dispose() {
+    // Stop tracker before pausing engine so the final flush can read position.
+    _tracker?.stop();
     // Pause on close — autoDispose will tear down the engine itself.
     // Fire-and-forget: dispose() must be synchronous.
     if (_engine != null) unawaited(_engine!.pause());
