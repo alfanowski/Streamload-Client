@@ -12,6 +12,8 @@ import 'schema/tv_episodes.dart';
 import 'schema/user_settings.dart';
 import 'schema/watch_progress.dart';
 import 'schema/watchlist.dart';
+import 'daos/catalog_dao.dart';
+import 'daos/user_settings_dao.dart';
 
 part 'database.g.dart';
 
@@ -26,6 +28,9 @@ part 'database.g.dart';
   Outbox,
   InstalledPlugins,
   PluginKv,
+], daos: [
+  CatalogDao,
+  UserSettingsDao,
 ])
 class StreamloadDatabase extends _$StreamloadDatabase {
   StreamloadDatabase() : super(_open());
