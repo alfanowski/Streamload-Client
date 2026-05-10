@@ -36,11 +36,45 @@ class LocalProxyServer {
               headers: session.upstreamHeaders,
             ),
           );
-          final rewritten = Rewriter.rewriteMaster(
+          final result = Rewriter.rewriteMaster(
             resp.data ?? '',
             basePath: '/variant/$sid',
           );
-          return shelf.Response.ok(rewritten, headers: {
+          session.renditionUpstream.addAll(result.renditionUrls);
+          return shelf.Response.ok(result.body, headers: {
+            'content-type': 'application/vnd.apple.mpegurl',
+          });
+        } on DioException catch (e) {
+          return shelf.Response.internalServerError(
+              body: 'upstream: ${e.message}');
+        }
+      })
+      ..get('/variant/<sid>/video/<label>.m3u8',
+          (shelf.Request req, String sid, String label) async {
+        final session = registry.get(sid, touch: true);
+        if (session == null) return shelf.Response.notFound('unknown session');
+        final upstream = session.renditionUpstream[label];
+        if (upstream == null) {
+          return shelf.Response.notFound('unknown rendition $label');
+        }
+        try {
+          final resp = await dioInstance.get<String>(
+            upstream,
+            options: Options(
+              responseType: ResponseType.plain,
+              headers: session.upstreamHeaders,
+            ),
+          );
+          final result = Rewriter.rewriteMedia(
+            resp.data ?? '',
+            rendition: label,
+            basePath: '/variant/$sid',
+          );
+          if (result.keyUrl != null) {
+            session.keyUrlByRendition[label] = result.keyUrl!;
+          }
+          session.segmentUrlsByRendition[label] = result.segmentUrls;
+          return shelf.Response.ok(result.body, headers: {
             'content-type': 'application/vnd.apple.mpegurl',
           });
         } on DioException catch (e) {

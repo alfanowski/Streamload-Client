@@ -74,4 +74,52 @@ http://127.0.0.1:${fixtureServer.port}/v?rendition=480p
       expect(resp.headers['content-type'], contains('mpegurl'));
     });
   });
+
+  test('GET /variant/{sid}/video/{label}.m3u8 fetches + rewrites', () async {
+    late HttpServer fixture;
+    fixture = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    fixture.listen((req) {
+      if (req.uri.path == '/master') {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480
+http://127.0.0.1:${fixture.port}/v?rendition=480p
+''')
+          ..close();
+      } else {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXTINF:5.5,
+http://127.0.0.1:${fixture.port}/seg-0.ts
+#EXT-X-ENDLIST
+''')
+          ..close();
+      }
+    });
+    addTearDown(() => fixture.close(force: true));
+
+    final s = PlaybackSession.create(
+      tmdbId: 1,
+      mediaType: 'movie',
+      pluginShortName: 'p',
+      upstreamMasterUrl: 'http://127.0.0.1:${fixture.port}/master',
+      upstreamHeaders: const {},
+    );
+    registry.put(s);
+
+    // Hit master first to populate renditionUpstream.
+    await http.get(Uri.parse('${proxy.baseUrl}/master/${s.id}.m3u8'));
+
+    final resp = await http.get(
+      Uri.parse('${proxy.baseUrl}/variant/${s.id}/video/480p.m3u8'),
+    );
+    expect(resp.statusCode, 200);
+    expect(resp.body, contains('/variant/${s.id}/seg/480p/0.ts'));
+  });
 }
