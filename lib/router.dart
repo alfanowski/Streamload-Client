@@ -4,12 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'presentation/pages/home_page.dart';
+import 'presentation/pages/library_page.dart';
 import 'presentation/pages/login_page.dart';
 import 'presentation/pages/plugin_onboarding_page.dart';
 import 'presentation/pages/profile_page.dart';
 import 'presentation/pages/register_page.dart';
 import 'presentation/pages/plugins_page.dart';
+import 'presentation/pages/search_page.dart';
 import 'presentation/pages/settings_page.dart';
+import 'presentation/pages/title_page.dart';
+import 'presentation/pages/watch_placeholder_page.dart';
+import 'presentation/widgets/authenticated_shell.dart';
 import 'state/auth_provider.dart';
 import 'state/github_pat_provider.dart';
 
@@ -48,10 +53,35 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/onboarding/plugins',
         builder: (_, __) => const PluginOnboardingPage(),
       ),
-      GoRoute(path: '/home', builder: (_, __) => const HomePage()),
-      GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
-      GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
-      GoRoute(path: '/plugins', builder: (_, __) => const PluginsPage()),
+      ShellRoute(
+        builder: (context, state, child) => AuthenticatedShell(child: child),
+        routes: [
+          GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+          GoRoute(path: '/library', builder: (_, __) => const LibraryPage()),
+          GoRoute(path: '/search', builder: (_, __) => const SearchPage()),
+          GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
+          GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+          GoRoute(path: '/plugins', builder: (_, __) => const PluginsPage()),
+          GoRoute(
+            path: '/title/:tmdbId',
+            builder: (ctx, state) => TitlePage(
+              tmdbId: int.parse(state.pathParameters['tmdbId']!),
+              mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+            ),
+          ),
+          GoRoute(
+            path: '/watch/:tmdbId',
+            builder: (ctx, state) => WatchPlaceholderPage(
+              tmdbId: int.parse(state.pathParameters['tmdbId']!),
+              mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+              season: int.tryParse(
+                  state.uri.queryParameters['season'] ?? ''),
+              episode: int.tryParse(
+                  state.uri.queryParameters['episode'] ?? ''),
+            ),
+          ),
+        ],
+      ),
     ],
   );
 });
