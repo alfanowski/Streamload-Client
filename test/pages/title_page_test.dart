@@ -154,12 +154,11 @@ void main() {
       when(() => episodesApi.list(99)).thenAnswer((_) async => {
             'seasons': [
               {
-                'number': 1,
+                'season_number': 1,
                 'name': 'Stagione 1',
                 'episodes': [
                   {
-                    'season': 1,
-                    'episode': 1,
+                    'episode_number': 1,
                     'title': 'Pilot',
                     'overview': null,
                     'still_url': null,
@@ -167,8 +166,7 @@ void main() {
                     'air_date': '2008-01-20',
                   },
                   {
-                    'season': 1,
-                    'episode': 2,
+                    'episode_number': 2,
                     'title': "Cat's in the Bag",
                     'overview': null,
                     'still_url': null,

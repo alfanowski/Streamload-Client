@@ -17,8 +17,7 @@ class EpisodesResponse with _$EpisodesResponse {
 @freezed
 class SeasonInfo with _$SeasonInfo {
   const factory SeasonInfo({
-    required int number,
-    String? name,
+    @JsonKey(name: 'season_number') required int number,
     @Default(<EpisodeInfo>[]) List<EpisodeInfo> episodes,
   }) = _SeasonInfo;
 
@@ -29,9 +28,11 @@ class SeasonInfo with _$SeasonInfo {
 @freezed
 class EpisodeInfo with _$EpisodeInfo {
   const factory EpisodeInfo({
-    required int season,
-    required int episode,
-    required String title,
+    // Backend keys: episode_number is required; title is nullable.
+    // The season number isn't repeated per episode — derive from the parent
+    // SeasonInfo when constructing watch URLs.
+    @JsonKey(name: 'episode_number') required int episode,
+    String? title,
     String? overview,
     @JsonKey(name: 'still_url') String? stillUrl,
     @JsonKey(name: 'runtime_minutes') int? runtimeMinutes,

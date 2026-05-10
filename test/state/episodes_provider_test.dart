@@ -15,12 +15,10 @@ void main() {
     when(() => api.list(99)).thenAnswer((_) async => {
           'seasons': [
             {
-              'number': 1,
-              'name': 'Stagione 1',
+              'season_number': 1,
               'episodes': [
                 {
-                  'season': 1,
-                  'episode': 1,
+                  'episode_number': 1,
                   'title': 'Pilot',
                   'overview': 'An intro.',
                   'still_url': null,
@@ -40,7 +38,7 @@ void main() {
     final result = await container.read(episodesProvider(99).future);
 
     expect(result.seasons, hasLength(1));
-    expect(result.seasons.first.name, 'Stagione 1');
+    expect(result.seasons.first.number, 1);
     expect(result.seasons.first.episodes, hasLength(1));
     expect(result.seasons.first.episodes.first.title, 'Pilot');
     expect(result.seasons.first.episodes.first.runtimeMinutes, 42);

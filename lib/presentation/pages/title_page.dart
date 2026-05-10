@@ -197,7 +197,7 @@ class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
               children: List.generate(resp.seasons.length, (i) {
                 final s = resp.seasons[i];
                 return ChoiceChip(
-                  label: Text(s.name ?? 'Stagione ${s.number}'),
+                  label: Text('Stagione ${s.number}'),
                   selected: i == clampedIdx,
                   onSelected: (_) => setState(() => _seasonIdx = i),
                 );
@@ -224,7 +224,7 @@ class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
                           ),
                         )
                       : null,
-                  title: Text('${e.episode}. ${e.title}'),
+                  title: Text('${e.episode}. ${e.title ?? "—"}'),
                   subtitle: e.overview != null
                       ? Text(
                           e.overview!,
@@ -235,7 +235,7 @@ class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
                   onTap: access == PluginAccess.available
                       ? () => context.go(
                             '/watch/${widget.tmdbId}?media_type=tv'
-                            '&season=${e.season}&episode=${e.episode}',
+                            '&season=${season.number}&episode=${e.episode}',
                           )
                       : null,
                 ),

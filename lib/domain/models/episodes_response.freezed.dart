@@ -180,8 +180,8 @@ SeasonInfo _$SeasonInfoFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$SeasonInfo {
+  @JsonKey(name: 'season_number')
   int get number => throw _privateConstructorUsedError;
-  String? get name => throw _privateConstructorUsedError;
   List<EpisodeInfo> get episodes => throw _privateConstructorUsedError;
 
   /// Serializes this SeasonInfo to a JSON map.
@@ -200,7 +200,8 @@ abstract class $SeasonInfoCopyWith<$Res> {
           SeasonInfo value, $Res Function(SeasonInfo) then) =
       _$SeasonInfoCopyWithImpl<$Res, SeasonInfo>;
   @useResult
-  $Res call({int number, String? name, List<EpisodeInfo> episodes});
+  $Res call(
+      {@JsonKey(name: 'season_number') int number, List<EpisodeInfo> episodes});
 }
 
 /// @nodoc
@@ -219,7 +220,6 @@ class _$SeasonInfoCopyWithImpl<$Res, $Val extends SeasonInfo>
   @override
   $Res call({
     Object? number = null,
-    Object? name = freezed,
     Object? episodes = null,
   }) {
     return _then(_value.copyWith(
@@ -227,10 +227,6 @@ class _$SeasonInfoCopyWithImpl<$Res, $Val extends SeasonInfo>
           ? _value.number
           : number // ignore: cast_nullable_to_non_nullable
               as int,
-      name: freezed == name
-          ? _value.name
-          : name // ignore: cast_nullable_to_non_nullable
-              as String?,
       episodes: null == episodes
           ? _value.episodes
           : episodes // ignore: cast_nullable_to_non_nullable
@@ -247,7 +243,8 @@ abstract class _$$SeasonInfoImplCopyWith<$Res>
       __$$SeasonInfoImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({int number, String? name, List<EpisodeInfo> episodes});
+  $Res call(
+      {@JsonKey(name: 'season_number') int number, List<EpisodeInfo> episodes});
 }
 
 /// @nodoc
@@ -264,7 +261,6 @@ class __$$SeasonInfoImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? number = null,
-    Object? name = freezed,
     Object? episodes = null,
   }) {
     return _then(_$SeasonInfoImpl(
@@ -272,10 +268,6 @@ class __$$SeasonInfoImplCopyWithImpl<$Res>
           ? _value.number
           : number // ignore: cast_nullable_to_non_nullable
               as int,
-      name: freezed == name
-          ? _value.name
-          : name // ignore: cast_nullable_to_non_nullable
-              as String?,
       episodes: null == episodes
           ? _value._episodes
           : episodes // ignore: cast_nullable_to_non_nullable
@@ -288,8 +280,7 @@ class __$$SeasonInfoImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$SeasonInfoImpl implements _SeasonInfo {
   const _$SeasonInfoImpl(
-      {required this.number,
-      this.name,
+      {@JsonKey(name: 'season_number') required this.number,
       final List<EpisodeInfo> episodes = const <EpisodeInfo>[]})
       : _episodes = episodes;
 
@@ -297,9 +288,8 @@ class _$SeasonInfoImpl implements _SeasonInfo {
       _$$SeasonInfoImplFromJson(json);
 
   @override
+  @JsonKey(name: 'season_number')
   final int number;
-  @override
-  final String? name;
   final List<EpisodeInfo> _episodes;
   @override
   @JsonKey()
@@ -311,7 +301,7 @@ class _$SeasonInfoImpl implements _SeasonInfo {
 
   @override
   String toString() {
-    return 'SeasonInfo(number: $number, name: $name, episodes: $episodes)';
+    return 'SeasonInfo(number: $number, episodes: $episodes)';
   }
 
   @override
@@ -320,14 +310,13 @@ class _$SeasonInfoImpl implements _SeasonInfo {
         (other.runtimeType == runtimeType &&
             other is _$SeasonInfoImpl &&
             (identical(other.number, number) || other.number == number) &&
-            (identical(other.name, name) || other.name == name) &&
             const DeepCollectionEquality().equals(other._episodes, _episodes));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, number, name,
-      const DeepCollectionEquality().hash(_episodes));
+  int get hashCode => Object.hash(
+      runtimeType, number, const DeepCollectionEquality().hash(_episodes));
 
   /// Create a copy of SeasonInfo
   /// with the given fields replaced by the non-null parameter values.
@@ -347,17 +336,15 @@ class _$SeasonInfoImpl implements _SeasonInfo {
 
 abstract class _SeasonInfo implements SeasonInfo {
   const factory _SeasonInfo(
-      {required final int number,
-      final String? name,
+      {@JsonKey(name: 'season_number') required final int number,
       final List<EpisodeInfo> episodes}) = _$SeasonInfoImpl;
 
   factory _SeasonInfo.fromJson(Map<String, dynamic> json) =
       _$SeasonInfoImpl.fromJson;
 
   @override
+  @JsonKey(name: 'season_number')
   int get number;
-  @override
-  String? get name;
   @override
   List<EpisodeInfo> get episodes;
 
@@ -375,9 +362,12 @@ EpisodeInfo _$EpisodeInfoFromJson(Map<String, dynamic> json) {
 
 /// @nodoc
 mixin _$EpisodeInfo {
-  int get season => throw _privateConstructorUsedError;
+// Backend keys: episode_number is required; title is nullable.
+// The season number isn't repeated per episode — derive from the parent
+// SeasonInfo when constructing watch URLs.
+  @JsonKey(name: 'episode_number')
   int get episode => throw _privateConstructorUsedError;
-  String get title => throw _privateConstructorUsedError;
+  String? get title => throw _privateConstructorUsedError;
   String? get overview => throw _privateConstructorUsedError;
   @JsonKey(name: 'still_url')
   String? get stillUrl => throw _privateConstructorUsedError;
@@ -403,9 +393,8 @@ abstract class $EpisodeInfoCopyWith<$Res> {
       _$EpisodeInfoCopyWithImpl<$Res, EpisodeInfo>;
   @useResult
   $Res call(
-      {int season,
-      int episode,
-      String title,
+      {@JsonKey(name: 'episode_number') int episode,
+      String? title,
       String? overview,
       @JsonKey(name: 'still_url') String? stillUrl,
       @JsonKey(name: 'runtime_minutes') int? runtimeMinutes,
@@ -427,27 +416,22 @@ class _$EpisodeInfoCopyWithImpl<$Res, $Val extends EpisodeInfo>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? season = null,
     Object? episode = null,
-    Object? title = null,
+    Object? title = freezed,
     Object? overview = freezed,
     Object? stillUrl = freezed,
     Object? runtimeMinutes = freezed,
     Object? airDate = freezed,
   }) {
     return _then(_value.copyWith(
-      season: null == season
-          ? _value.season
-          : season // ignore: cast_nullable_to_non_nullable
-              as int,
       episode: null == episode
           ? _value.episode
           : episode // ignore: cast_nullable_to_non_nullable
               as int,
-      title: null == title
+      title: freezed == title
           ? _value.title
           : title // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       overview: freezed == overview
           ? _value.overview
           : overview // ignore: cast_nullable_to_non_nullable
@@ -477,9 +461,8 @@ abstract class _$$EpisodeInfoImplCopyWith<$Res>
   @override
   @useResult
   $Res call(
-      {int season,
-      int episode,
-      String title,
+      {@JsonKey(name: 'episode_number') int episode,
+      String? title,
       String? overview,
       @JsonKey(name: 'still_url') String? stillUrl,
       @JsonKey(name: 'runtime_minutes') int? runtimeMinutes,
@@ -499,27 +482,22 @@ class __$$EpisodeInfoImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? season = null,
     Object? episode = null,
-    Object? title = null,
+    Object? title = freezed,
     Object? overview = freezed,
     Object? stillUrl = freezed,
     Object? runtimeMinutes = freezed,
     Object? airDate = freezed,
   }) {
     return _then(_$EpisodeInfoImpl(
-      season: null == season
-          ? _value.season
-          : season // ignore: cast_nullable_to_non_nullable
-              as int,
       episode: null == episode
           ? _value.episode
           : episode // ignore: cast_nullable_to_non_nullable
               as int,
-      title: null == title
+      title: freezed == title
           ? _value.title
           : title // ignore: cast_nullable_to_non_nullable
-              as String,
+              as String?,
       overview: freezed == overview
           ? _value.overview
           : overview // ignore: cast_nullable_to_non_nullable
@@ -544,9 +522,8 @@ class __$$EpisodeInfoImplCopyWithImpl<$Res>
 @JsonSerializable()
 class _$EpisodeInfoImpl implements _EpisodeInfo {
   const _$EpisodeInfoImpl(
-      {required this.season,
-      required this.episode,
-      required this.title,
+      {@JsonKey(name: 'episode_number') required this.episode,
+      this.title,
       this.overview,
       @JsonKey(name: 'still_url') this.stillUrl,
       @JsonKey(name: 'runtime_minutes') this.runtimeMinutes,
@@ -555,12 +532,14 @@ class _$EpisodeInfoImpl implements _EpisodeInfo {
   factory _$EpisodeInfoImpl.fromJson(Map<String, dynamic> json) =>
       _$$EpisodeInfoImplFromJson(json);
 
+// Backend keys: episode_number is required; title is nullable.
+// The season number isn't repeated per episode — derive from the parent
+// SeasonInfo when constructing watch URLs.
   @override
-  final int season;
-  @override
+  @JsonKey(name: 'episode_number')
   final int episode;
   @override
-  final String title;
+  final String? title;
   @override
   final String? overview;
   @override
@@ -575,7 +554,7 @@ class _$EpisodeInfoImpl implements _EpisodeInfo {
 
   @override
   String toString() {
-    return 'EpisodeInfo(season: $season, episode: $episode, title: $title, overview: $overview, stillUrl: $stillUrl, runtimeMinutes: $runtimeMinutes, airDate: $airDate)';
+    return 'EpisodeInfo(episode: $episode, title: $title, overview: $overview, stillUrl: $stillUrl, runtimeMinutes: $runtimeMinutes, airDate: $airDate)';
   }
 
   @override
@@ -583,7 +562,6 @@ class _$EpisodeInfoImpl implements _EpisodeInfo {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$EpisodeInfoImpl &&
-            (identical(other.season, season) || other.season == season) &&
             (identical(other.episode, episode) || other.episode == episode) &&
             (identical(other.title, title) || other.title == title) &&
             (identical(other.overview, overview) ||
@@ -597,8 +575,8 @@ class _$EpisodeInfoImpl implements _EpisodeInfo {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, season, episode, title, overview,
-      stillUrl, runtimeMinutes, airDate);
+  int get hashCode => Object.hash(
+      runtimeType, episode, title, overview, stillUrl, runtimeMinutes, airDate);
 
   /// Create a copy of EpisodeInfo
   /// with the given fields replaced by the non-null parameter values.
@@ -618,9 +596,8 @@ class _$EpisodeInfoImpl implements _EpisodeInfo {
 
 abstract class _EpisodeInfo implements EpisodeInfo {
   const factory _EpisodeInfo(
-      {required final int season,
-      required final int episode,
-      required final String title,
+      {@JsonKey(name: 'episode_number') required final int episode,
+      final String? title,
       final String? overview,
       @JsonKey(name: 'still_url') final String? stillUrl,
       @JsonKey(name: 'runtime_minutes') final int? runtimeMinutes,
@@ -629,12 +606,14 @@ abstract class _EpisodeInfo implements EpisodeInfo {
   factory _EpisodeInfo.fromJson(Map<String, dynamic> json) =
       _$EpisodeInfoImpl.fromJson;
 
+// Backend keys: episode_number is required; title is nullable.
+// The season number isn't repeated per episode — derive from the parent
+// SeasonInfo when constructing watch URLs.
   @override
-  int get season;
-  @override
+  @JsonKey(name: 'episode_number')
   int get episode;
   @override
-  String get title;
+  String? get title;
   @override
   String? get overview;
   @override

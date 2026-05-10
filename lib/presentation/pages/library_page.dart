@@ -1,6 +1,7 @@
 // lib/presentation/pages/library_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../state/library_provider.dart';
 import '../widgets/media_grid.dart';
@@ -51,7 +52,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
             error: (e, _) => Center(child: Text('Errore: $e')),
             data: (page) => MediaGrid(
               items: page.items,
-              onTap: (_) {},
+              onTap: (m) => context.go(
+                '/title/${m.tmdbId}?media_type=${m.mediaType}',
+              ),
             ),
           );
         }).toList(),
