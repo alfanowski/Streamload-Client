@@ -15,49 +15,69 @@ void main() {
     api = AuthApi(client);
   });
 
-  test('login posts to /auth/login and parses User', () async {
+  test('loginWithGithub posts to /api/auth/github and parses User', () async {
     when(() => client.postJson(
-          '/api/auth/login',
-          body: {'username': 'alice', 'password': 'pw'},
+          '/api/auth/github',
+          body: {'access_token': 'ghu_abc'},
         )).thenAnswer((_) async => {
               'id': 'u1',
-              'username': 'alice',
+              'username': 'alfanowski',
               'email': 'a@x.com',
               'email_verified': true,
-
+              'github_username': 'alfanowski',
+              'profile_complete': false,
             });
-    final u = await api.login(username: 'alice', password: 'pw');
-    expect(u.username, 'alice');
+    final u = await api.loginWithGithub('ghu_abc');
+    expect(u.username, 'alfanowski');
+    expect(u.githubUsername, 'alfanowski');
+    expect(u.profileComplete, false);
   });
 
-  test('register posts to /auth/register', () async {
-    when(() => client.postJson(
-          '/api/auth/register',
-          body: {'username': 'bob', 'email': 'b@x.com', 'password': 'pw'},
+  test('updateProfile patches /api/me/profile and parses User', () async {
+    final birthDate = DateTime(1990, 1, 15);
+    when(() => client.patchJson(
+          '/api/me/profile',
+          body: {
+            'first_name': 'Andrea',
+            'last_name': 'Alfano',
+            'birth_date': '1990-01-15',
+            'gender': 'male',
+          },
         )).thenAnswer((_) async => {
-              'id': 'u2',
-              'username': 'bob',
-              'email': 'b@x.com',
+              'id': 'u1',
+              'username': 'alfanowski',
+              'email': 'a@x.com',
               'email_verified': true,
-
+              'first_name': 'Andrea',
+              'last_name': 'Alfano',
+              'birth_date': '1990-01-15',
+              'gender': 'male',
+              'profile_complete': true,
             });
-    final u = await api.register(username: 'bob', email: 'b@x.com', password: 'pw');
-    expect(u.username, 'bob');
+    final u = await api.updateProfile(
+      firstName: 'Andrea',
+      lastName: 'Alfano',
+      birthDate: birthDate,
+      gender: 'male',
+    );
+    expect(u.firstName, 'Andrea');
+    expect(u.lastName, 'Alfano');
+    expect(u.gender, 'male');
+    expect(u.profileComplete, true);
   });
 
-  test('me hits /me', () async {
+  test('me hits /api/me', () async {
     when(() => client.getJson('/api/me')).thenAnswer((_) async => {
           'id': 'u1',
           'username': 'alice',
           'email': 'a@x.com',
           'email_verified': true,
-
         });
     final u = await api.me();
     expect(u.id, 'u1');
   });
 
-  test('logout calls /auth/logout', () async {
+  test('logout calls /api/auth/logout', () async {
     when(() => client.postJson('/api/auth/logout')).thenAnswer((_) async => {});
     await api.logout();
     verify(() => client.postJson('/api/auth/logout')).called(1);
