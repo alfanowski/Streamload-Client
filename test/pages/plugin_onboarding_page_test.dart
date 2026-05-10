@@ -1,63 +1,226 @@
 // test/pages/plugin_onboarding_page_test.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/data/secure/secure_storage.dart';
+import 'package:streamload_client/plugins/github_oauth.dart';
 import 'package:streamload_client/presentation/pages/plugin_onboarding_page.dart';
 import 'package:streamload_client/presentation/theme/theme.dart';
 import 'package:streamload_client/state/github_token_provider.dart';
+import 'package:streamload_client/state/plugins_provider.dart';
+import 'package:streamload_client/plugins/loader.dart';
 
 class _StorageMock extends Mock implements SecureStorage {}
 
-void main() {
-  testWidgets('valid PAT is saved via SecureStorage', (tester) async {
-    final storage = _StorageMock();
-    when(storage.githubToken).thenAnswer((_) async => null);
-    when(() => storage.setGithubToken(any())).thenAnswer((_) async {});
+class _OAuthMock extends Mock implements GithubOAuth {}
 
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        secureStorageProvider.overrideWithValue(storage),
-      ],
-      child: MaterialApp(
-        theme: streamloadTheme(),
-        home: PluginOnboardingPage(verifyPat: (t) async => t == 'github_pat_xyz'),
+class _FakeRef extends Fake implements Ref {}
+
+/// A no-op PluginRefreshController so tests don't need the full plugin stack.
+class _StubRefreshController extends PluginRefreshController {
+  _StubRefreshController() : super(_FakeRef()) {
+    state = AsyncData(RefreshSummary.notRun());
+  }
+
+  @override
+  Future<void> refresh() async {
+    // no-op in tests
+  }
+}
+
+final _fakeDevice = DeviceCodeRequest(
+  deviceCode: 'dev-code-123',
+  userCode: 'ABCD-1234',
+  verificationUri: 'https://github.com/login/device',
+  expiresIn: const Duration(seconds: 900),
+  pollInterval: const Duration(milliseconds: 10),
+);
+
+/// Build a GoRouter-backed app so context.go('/home') succeeds.
+Widget buildApp({
+  required SecureStorage storage,
+  required GithubOAuth mockOauth,
+}) {
+  final router = GoRouter(
+    initialLocation: '/onboarding',
+    routes: [
+      GoRoute(
+        path: '/onboarding',
+        builder: (_, __) =>
+            PluginOnboardingPage(oauthFactory: () => mockOauth),
       ),
-    ));
-    await tester.pumpAndSettle();
+      GoRoute(
+        path: '/home',
+        builder: (_, __) => const Scaffold(body: Text('Home')),
+      ),
+    ],
+  );
+  return ProviderScope(
+    overrides: [
+      secureStorageProvider.overrideWithValue(storage),
+      pluginRefreshControllerProvider.overrideWith(
+        (_) => _StubRefreshController(),
+      ),
+    ],
+    child: MaterialApp.router(
+      theme: streamloadTheme(),
+      routerConfig: router,
+    ),
+  );
+}
 
-    await tester.enterText(
-      find.byKey(const Key('onboarding.pat')), 'github_pat_xyz',
-    );
-    await tester.tap(find.byKey(const Key('onboarding.submit')));
-    await tester.pumpAndSettle();
+/// Simple widget without GoRouter for tests that don't trigger navigation.
+Widget buildSimplePage({
+  required SecureStorage storage,
+  required GithubOAuth mockOauth,
+}) {
+  return ProviderScope(
+    overrides: [
+      secureStorageProvider.overrideWithValue(storage),
+      pluginRefreshControllerProvider.overrideWith(
+        (_) => _StubRefreshController(),
+      ),
+    ],
+    child: MaterialApp(
+      theme: streamloadTheme(),
+      home: PluginOnboardingPage(oauthFactory: () => mockOauth),
+    ),
+  );
+}
 
-    verify(() => storage.setGithubToken('github_pat_xyz')).called(1);
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    registerFallbackValue(Duration.zero);
   });
 
-  testWidgets('invalid PAT shows error and does not save', (tester) async {
+  testWidgets('idle state shows Accedi con GitHub button', (tester) async {
     final storage = _StorageMock();
+    final oauth = _OAuthMock();
     when(storage.githubToken).thenAnswer((_) async => null);
 
-    await tester.pumpWidget(ProviderScope(
-      overrides: [
-        secureStorageProvider.overrideWithValue(storage),
-      ],
-      child: MaterialApp(
-        theme: streamloadTheme(),
-        home: PluginOnboardingPage(verifyPat: (_) async => false),
-      ),
-    ));
-    await tester.pumpAndSettle();
+    await tester.pumpWidget(
+        buildSimplePage(storage: storage, mockOauth: oauth));
+    await tester.pump();
 
-    await tester.enterText(
-      find.byKey(const Key('onboarding.pat')), 'wrong',
-    );
-    await tester.tap(find.byKey(const Key('onboarding.submit')));
-    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('onboarding.github_login')), findsOneWidget);
+    expect(find.text('Accedi con GitHub'), findsWidgets);
+  });
 
-    verifyNever(() => storage.setGithubToken(any()));
-    expect(find.textContaining('non valido'), findsOneWidget);
+  testWidgets('tap login button shows user_code after requestDeviceCode',
+      (tester) async {
+    final storage = _StorageMock();
+    final oauth = _OAuthMock();
+    when(storage.githubToken).thenAnswer((_) async => null);
+    // requestDeviceCode returns the fake device immediately.
+    when(() => oauth.requestDeviceCode()).thenAnswer((_) async => _fakeDevice);
+    // pollForToken never resolves in this test.
+    final pollCompleter = Completer<String>();
+    when(() => oauth.pollForToken(
+          deviceCode: any(named: 'deviceCode'),
+          interval: any(named: 'interval'),
+          timeout: any(named: 'timeout'),
+        )).thenAnswer((_) => pollCompleter.future);
+
+    await tester.pumpWidget(
+        buildSimplePage(storage: storage, mockOauth: oauth));
+    await tester.pump();
+
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('onboarding.github_login')));
+      // Let requestDeviceCode complete.
+      await Future<void>.delayed(Duration.zero);
+    });
+    // Rebuild the widget tree to reflect state changes.
+    await tester.pump();
+    await tester.pump();
+
+    // The user code should be displayed.
+    expect(find.text('ABCD-1234'), findsOneWidget);
+    verify(() => oauth.requestDeviceCode()).called(1);
+  });
+
+  testWidgets('successful polling saves token', (tester) async {
+    final storage = _StorageMock();
+    final oauth = _OAuthMock();
+    when(storage.githubToken).thenAnswer((_) async => null);
+    when(() => storage.setGithubToken(any())).thenAnswer((_) async {});
+    when(() => oauth.requestDeviceCode()).thenAnswer((_) async => _fakeDevice);
+    when(() => oauth.pollForToken(
+          deviceCode: any(named: 'deviceCode'),
+          interval: any(named: 'interval'),
+          timeout: any(named: 'timeout'),
+        )).thenAnswer((_) async => 'ghu_test_token');
+
+    await tester.pumpWidget(buildApp(storage: storage, mockOauth: oauth));
+    await tester.pump();
+
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('onboarding.github_login')));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
+
+    verify(() => storage.setGithubToken('ghu_test_token')).called(1);
+  });
+
+  testWidgets('DeviceFlowDenied shows error message and Riprova button',
+      (tester) async {
+    final storage = _StorageMock();
+    final oauth = _OAuthMock();
+    when(storage.githubToken).thenAnswer((_) async => null);
+    when(() => oauth.requestDeviceCode()).thenAnswer((_) async => _fakeDevice);
+    when(() => oauth.pollForToken(
+          deviceCode: any(named: 'deviceCode'),
+          interval: any(named: 'interval'),
+          timeout: any(named: 'timeout'),
+        )).thenAnswer((_) async => throw const DeviceFlowDenied());
+
+    await tester.pumpWidget(
+        buildSimplePage(storage: storage, mockOauth: oauth));
+    await tester.pump();
+
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('onboarding.github_login')));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    });
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('annullato'), findsOneWidget);
+    expect(find.byKey(const Key('onboarding.retry')), findsOneWidget);
+  });
+
+  testWidgets('copy button is present when code is displayed', (tester) async {
+    final storage = _StorageMock();
+    final oauth = _OAuthMock();
+    when(storage.githubToken).thenAnswer((_) async => null);
+    when(() => oauth.requestDeviceCode()).thenAnswer((_) async => _fakeDevice);
+    final pollCompleter = Completer<String>();
+    when(() => oauth.pollForToken(
+          deviceCode: any(named: 'deviceCode'),
+          interval: any(named: 'interval'),
+          timeout: any(named: 'timeout'),
+        )).thenAnswer((_) => pollCompleter.future);
+
+    await tester.pumpWidget(
+        buildSimplePage(storage: storage, mockOauth: oauth));
+    await tester.pump();
+
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const Key('onboarding.github_login')));
+      await Future<void>.delayed(Duration.zero);
+    });
+    await tester.pump();
+    await tester.pump();
+
+    // The user_code and copy button should both be visible.
+    expect(find.text('ABCD-1234'), findsOneWidget);
+    expect(find.byKey(const Key('onboarding.copy_code')), findsOneWidget);
   });
 }

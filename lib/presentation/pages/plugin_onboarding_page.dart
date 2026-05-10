@@ -1,36 +1,30 @@
 // lib/presentation/pages/plugin_onboarding_page.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-import '../../plugins/github_client.dart';
+import '../../plugins/github_oauth.dart';
+import '../../plugins/github_oauth_config.dart';
 import '../../state/github_token_provider.dart';
+import '../../state/plugins_provider.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../widgets/eyebrow.dart';
 import '../widgets/primary_button.dart';
-import '../widgets/streamload_text_field.dart';
 
-const _kRepoOwner = 'alfanowski';
-const _kRepoName = 'streamload-plugins';
+typedef OAuthFactory = GithubOAuth Function();
 
-typedef PatVerifier = Future<bool> Function(String token);
+GithubOAuth _defaultFactory() => GithubOAuth(clientId: kGithubOAuthClientId);
 
-Future<bool> _defaultVerifier(String token) async {
-  // GithubClient's own constructor wires baseUrl + Authorization + GitHub
-  // headers — passing a stripped-down dio instance here would bypass all of
-  // that and the request would go out without host or auth.
-  final gh = GithubClient(
-    owner: _kRepoOwner,
-    repo: _kRepoName,
-    token: token,
-  );
-  return gh.verifyAccess();
-}
+enum _OnboardingState { idle, awaitingUser, error }
 
 class PluginOnboardingPage extends ConsumerStatefulWidget {
-  const PluginOnboardingPage({super.key, this.verifyPat = _defaultVerifier});
-  final PatVerifier verifyPat;
+  const PluginOnboardingPage({super.key, this.oauthFactory = _defaultFactory});
+  final OAuthFactory oauthFactory;
 
   @override
   ConsumerState<PluginOnboardingPage> createState() =>
@@ -38,35 +32,72 @@ class PluginOnboardingPage extends ConsumerStatefulWidget {
 }
 
 class _PluginOnboardingPageState extends ConsumerState<PluginOnboardingPage> {
-  final _patCtrl = TextEditingController();
-  bool _busy = false;
+  _OnboardingState _state = _OnboardingState.idle;
+  DeviceCodeRequest? _device;
   String? _error;
 
-  @override
-  void dispose() {
-    _patCtrl.dispose();
-    super.dispose();
+  Future<void> _start() async {
+    setState(() {
+      _state = _OnboardingState.awaitingUser;
+      _error = null;
+      _device = null;
+    });
+    final oauth = widget.oauthFactory();
+    try {
+      final dev = await oauth.requestDeviceCode();
+      if (!mounted) return;
+      setState(() => _device = dev);
+      // Open the verification page in the browser to nudge the user.
+      // Wrap in try/catch — some test platforms don't have url_launcher binding.
+      try {
+        await launchUrl(
+          Uri.parse(dev.verificationUri),
+          mode: LaunchMode.externalApplication,
+        );
+      } catch (_) {
+        // Proceed even if the browser launch fails (e.g., in tests).
+      }
+      // Begin polling.
+      final token = await oauth.pollForToken(
+        deviceCode: dev.deviceCode,
+        interval: dev.pollInterval,
+        timeout: dev.expiresIn,
+      );
+      if (!mounted) return;
+      // Save the token.
+      await ref.read(githubTokenProvider.notifier).save(token);
+      // Kick off a registry refresh — don't block the UI on its result.
+      // ignore: unawaited_futures
+      unawaited(ref.read(pluginRefreshControllerProvider.notifier).refresh());
+      if (mounted) context.go('/home');
+    } on DeviceFlowDenied {
+      _setError("Hai annullato l'accesso. Riprova quando vuoi.");
+    } on DeviceFlowExpired {
+      _setError('Il codice è scaduto. Riprova.');
+    } catch (e) {
+      _setError('Errore: $e');
+    }
   }
 
-  Future<void> _submit() async {
+  void _setError(String msg) {
+    if (!mounted) return;
     setState(() {
-      _busy = true;
-      _error = null;
+      _state = _OnboardingState.error;
+      _error = msg;
     });
+  }
+
+  Future<void> _copyCode() async {
+    if (_device == null) return;
     try {
-      final ok = await widget.verifyPat(_patCtrl.text.trim());
-      if (!ok) {
-        setState(() => _error = 'Token non valido o senza accesso al repo.');
-        return;
-      }
-      await ref
-          .read(githubTokenProvider.notifier)
-          .save(_patCtrl.text.trim());
-      if (mounted) context.go('/home');
-    } catch (e) {
-      setState(() => _error = 'Verifica fallita: $e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
+      await Clipboard.setData(ClipboardData(text: _device!.userCode));
+    } catch (_) {
+      // Proceed even if clipboard is unavailable (e.g., in some test envs).
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Codice copiato')),
+      );
     }
   }
 
@@ -76,57 +107,159 @@ class _PluginOnboardingPageState extends ConsumerState<PluginOnboardingPage> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
-          child: SingleChildScrollView(
+          child: Padding(
             padding: const EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Eyebrow('Pacchetto plugin'),
-                const SizedBox(height: 8),
-                Text(
-                  'Incolla il token GitHub',
-                  style: StreamloadTypography.display(fontSize: 36),
+            child: switch (_state) {
+              _OnboardingState.idle => _IdleView(onStart: _start),
+              _OnboardingState.awaitingUser => _AwaitingView(
+                  device: _device,
+                  onCopy: _copyCode,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  "L'amministratore ti ha fornito un Personal Access Token con "
-                  'accesso in sola lettura al repo dei plugin. Incollalo qui sotto.',
-                  style: StreamloadTypography.body(
-                    fontSize: 14,
-                    color: StreamloadColors.textSecondary,
-                  ),
+              _OnboardingState.error => _ErrorView(
+                  message: _error ?? '',
+                  onRetry: () {
+                    setState(() {
+                      _state = _OnboardingState.idle;
+                      _error = null;
+                      _device = null;
+                    });
+                  },
                 ),
-                const SizedBox(height: 24),
-                StreamloadTextField(
-                  key: const Key('onboarding.pat'),
-                  controller: _patCtrl,
-                  label: 'GitHub PAT',
-                  hint: 'github_pat_…',
-                  autofocus: true,
-                  obscure: true,
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    _error!,
-                    style: StreamloadTypography.body(
-                      fontSize: 13,
-                      color: StreamloadColors.critical,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                PrimaryButton(
-                  key: const Key('onboarding.submit'),
-                  label: _busy ? 'Verifica…' : 'Verifica e installa',
-                  busy: _busy,
-                  onPressed: _busy ? null : _submit,
-                ),
-              ],
-            ),
+            },
           ),
         ),
       ),
+    );
+  }
+}
+
+class _IdleView extends StatelessWidget {
+  const _IdleView({required this.onStart});
+  final VoidCallback onStart;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Eyebrow('Pacchetto plugin'),
+        const SizedBox(height: 8),
+        Text(
+          'Accedi con GitHub',
+          style: StreamloadTypography.display(fontSize: 36),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Streamload usa GitHub per autenticarti e — se sei stato invitato — '
+          'scaricare il pacchetto plugin. Se non hai invito, '
+          'potrai comunque sfogliare il catalogo.',
+          style: StreamloadTypography.body(
+            fontSize: 14,
+            color: StreamloadColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 24),
+        PrimaryButton(
+          key: const Key('onboarding.github_login'),
+          label: 'Accedi con GitHub',
+          onPressed: onStart,
+        ),
+      ],
+    );
+  }
+}
+
+class _AwaitingView extends StatelessWidget {
+  const _AwaitingView({required this.device, required this.onCopy});
+  final DeviceCodeRequest? device;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    if (device == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Eyebrow('Autorizzazione'),
+        const SizedBox(height: 8),
+        Text(
+          'Inserisci il codice',
+          style: StreamloadTypography.display(fontSize: 32),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Apri ${device!.verificationUri} (dovrebbe già essersi aperto) '
+          'e incolla questo codice:',
+          style: StreamloadTypography.body(fontSize: 14),
+        ),
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          decoration: BoxDecoration(
+            color: StreamloadColors.surface2,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            device!.userCode,
+            key: const Key('onboarding.user_code'),
+            style: StreamloadTypography.mono(fontSize: 32, letterSpacing: 4),
+          ),
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          key: const Key('onboarding.copy_code'),
+          onPressed: onCopy,
+          icon: const Icon(Icons.copy, size: 16),
+          label: const Text('Copia codice'),
+        ),
+        const SizedBox(height: 24),
+        const Center(child: CircularProgressIndicator()),
+        const SizedBox(height: 8),
+        Text(
+          'In attesa di autorizzazione…',
+          textAlign: TextAlign.center,
+          style: StreamloadTypography.body(
+            fontSize: 12,
+            color: StreamloadColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({required this.message, required this.onRetry});
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Eyebrow('Errore'),
+        const SizedBox(height: 8),
+        Text(
+          message,
+          style: StreamloadTypography.body(
+            fontSize: 14,
+            color: StreamloadColors.critical,
+          ),
+        ),
+        const SizedBox(height: 24),
+        PrimaryButton(
+          key: const Key('onboarding.retry'),
+          label: 'Riprova',
+          onPressed: onRetry,
+        ),
+      ],
     );
   }
 }
