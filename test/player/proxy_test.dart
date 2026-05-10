@@ -1,5 +1,6 @@
 // test/player/proxy_test.dart
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -121,5 +122,67 @@ http://127.0.0.1:${fixture.port}/seg-0.ts
     );
     expect(resp.statusCode, 200);
     expect(resp.body, contains('/variant/${s.id}/seg/480p/0.ts'));
+  });
+
+  test('GET /key/{sid}/{rendition} proxies AES-128 key bytes', () async {
+    // 16-byte fake key.
+    final fakeKey = Uint8List(16)..fillRange(0, 16, 0xAB);
+
+    late HttpServer fixture;
+    fixture = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    fixture.listen((req) {
+      if (req.uri.path == '/master') {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480
+http://127.0.0.1:${fixture.port}/v?rendition=480p
+''')
+          ..close();
+      } else if (req.uri.path == '/v') {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-KEY:METHOD=AES-128,URI="http://127.0.0.1:${fixture.port}/key.bin",IV=0x00000000000000000000000000000001
+#EXTINF:5.5,
+http://127.0.0.1:${fixture.port}/seg-0.ts
+#EXT-X-ENDLIST
+''')
+          ..close();
+      } else if (req.uri.path == '/key.bin') {
+        req.response
+          ..statusCode = 200
+          ..headers.contentType = ContentType.binary
+          ..add(fakeKey)
+          ..close();
+      } else {
+        req.response
+          ..statusCode = 404
+          ..close();
+      }
+    });
+    addTearDown(() => fixture.close(force: true));
+
+    final s = PlaybackSession.create(
+      tmdbId: 1,
+      mediaType: 'movie',
+      pluginShortName: 'p',
+      upstreamMasterUrl: 'http://127.0.0.1:${fixture.port}/master',
+      upstreamHeaders: const {},
+    );
+    registry.put(s);
+
+    // Trigger master → variant to populate keyUrlByRendition.
+    await http.get(Uri.parse('${proxy.baseUrl}/master/${s.id}.m3u8'));
+    await http
+        .get(Uri.parse('${proxy.baseUrl}/variant/${s.id}/video/480p.m3u8'));
+
+    final keyResp =
+        await http.get(Uri.parse('${proxy.baseUrl}/key/${s.id}/480p'));
+    expect(keyResp.statusCode, 200);
+    expect(keyResp.bodyBytes.length, 16);
+    expect(keyResp.bodyBytes, equals(fakeKey));
   });
 }

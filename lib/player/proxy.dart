@@ -1,5 +1,6 @@
 // lib/player/proxy.dart
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:shelf/shelf.dart' as shelf;
@@ -77,6 +78,34 @@ class LocalProxyServer {
           return shelf.Response.ok(result.body, headers: {
             'content-type': 'application/vnd.apple.mpegurl',
           });
+        } on DioException catch (e) {
+          return shelf.Response.internalServerError(
+              body: 'upstream: ${e.message}');
+        }
+      })
+      ..get('/key/<sid>/<label>',
+          (shelf.Request req, String sid, String label) async {
+        final session = registry.get(sid, touch: true);
+        if (session == null) return shelf.Response.notFound('unknown session');
+        final keyUrl = session.keyUrlByRendition[label];
+        if (keyUrl == null) {
+          return shelf.Response.notFound('no key for rendition $label');
+        }
+        try {
+          final resp = await dioInstance.get<List<int>>(
+            keyUrl,
+            options: Options(
+              responseType: ResponseType.bytes,
+              headers: session.upstreamHeaders,
+            ),
+          );
+          final keyBytes = Uint8List.fromList(resp.data ?? const []);
+          // Store for segment decryption.
+          session.keyBytesByRendition[label] = keyBytes;
+          return shelf.Response.ok(
+            keyBytes,
+            headers: {'content-type': 'application/octet-stream'},
+          );
         } on DioException catch (e) {
           return shelf.Response.internalServerError(
               body: 'upstream: ${e.message}');
