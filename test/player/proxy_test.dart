@@ -185,4 +185,68 @@ http://127.0.0.1:${fixture.port}/seg-0.ts
     expect(keyResp.bodyBytes.length, 16);
     expect(keyResp.bodyBytes, equals(fakeKey));
   });
+
+  test('GET /seg/{sid}/{rendition}/{n}.ts returns segment bytes', () async {
+    // 1 KB fake segment.
+    final fakeSegment = Uint8List(1024)..fillRange(0, 1024, 0x47);
+
+    late HttpServer fixture;
+    fixture = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    fixture.listen((req) {
+      if (req.uri.path == '/master') {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1200000,RESOLUTION=854x480
+http://127.0.0.1:${fixture.port}/v?rendition=480p
+''')
+          ..close();
+      } else if (req.uri.path == '/v') {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXTINF:5.5,
+http://127.0.0.1:${fixture.port}/seg-0.ts
+#EXT-X-ENDLIST
+''')
+          ..close();
+      } else if (req.uri.path == '/seg-0.ts') {
+        req.response
+          ..statusCode = 200
+          ..headers.contentType =
+              ContentType('video', 'mp2t')
+          ..add(fakeSegment)
+          ..close();
+      } else {
+        req.response
+          ..statusCode = 404
+          ..close();
+      }
+    });
+    addTearDown(() => fixture.close(force: true));
+
+    final s = PlaybackSession.create(
+      tmdbId: 1,
+      mediaType: 'movie',
+      pluginShortName: 'p',
+      upstreamMasterUrl: 'http://127.0.0.1:${fixture.port}/master',
+      upstreamHeaders: const {},
+    );
+    registry.put(s);
+
+    // Prime master + variant to populate segmentUrlsByRendition.
+    await http.get(Uri.parse('${proxy.baseUrl}/master/${s.id}.m3u8'));
+    await http
+        .get(Uri.parse('${proxy.baseUrl}/variant/${s.id}/video/480p.m3u8'));
+
+    final segResp = await http
+        .get(Uri.parse('${proxy.baseUrl}/seg/${s.id}/480p/0.ts'));
+    expect(segResp.statusCode, 200);
+    expect(segResp.bodyBytes.length, 1024);
+    expect(segResp.bodyBytes, equals(fakeSegment));
+  });
 }
