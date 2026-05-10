@@ -11,7 +11,9 @@ import '../../state/title_provider.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../widgets/eyebrow.dart';
+import '../widgets/favorite_button.dart';
 import '../widgets/primary_button.dart';
+import '../widgets/watchlist_button.dart';
 
 class TitlePage extends ConsumerWidget {
   const TitlePage({
@@ -29,7 +31,17 @@ class TitlePage extends ConsumerWidget {
       titleProvider(TitleKey(tmdbId: tmdbId, mediaType: mediaType)),
     );
     return Scaffold(
-      appBar: AppBar(),
+      appBar: AppBar(
+        actions: [
+          FavoriteButton(
+            target: TitleKey(tmdbId: tmdbId, mediaType: mediaType),
+          ),
+          WatchlistButton(
+            target: TitleKey(tmdbId: tmdbId, mediaType: mediaType),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Errore: $e')),
