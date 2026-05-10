@@ -9,9 +9,9 @@ import 'plugin.dart';
 
 /// Hosts the QuickJS / JSCore runtime + every mounted plugin. One instance per app.
 ///
-/// Plugin source is vanilla ESM; we transform `export ` declarations into
-/// assignments on a per-plugin exports object, then evaluate the result and
-/// stash it under `globalThis.__sl_plugins[shortName]`.
+/// Plugin source is vanilla ESM; we strip `export ` declarations and re-eval the
+/// stripped body inside an IIFE that injects a per-plugin `host` bound by
+/// closure. The resulting exports object lives at `globalThis.__sl_plugins[name]`.
 class PluginRuntime {
   PluginRuntime._(this._js, this._hostApi);
 
@@ -33,86 +33,88 @@ class PluginRuntime {
 
   final Map<String, Plugin> _plugins = {};
 
-  /// Install the per-runtime shim that makes `host.*` Promise-based and
-  /// gives plugins a scoped `exports` object to write into.
+  /// Install the per-runtime shim. Defines `__sl_makeHost(plugin)` which
+  /// returns a host object with `plugin` captured in closure — every host.*
+  /// call from that object carries the correct plugin name regardless of
+  /// async re-entry.
   Future<void> _installShim() async {
     const shim = r'''
       (function() {
         if (globalThis.__sl_plugins) return;
         globalThis.__sl_plugins = {};
-        globalThis.__sl_currentPlugin = null;
-        function call(module, method, args) {
-          const plugin = globalThis.__sl_currentPlugin;
-          const payload = JSON.stringify({plugin, module, method, args});
-          return sendMessage('host_call', payload).then(function(raw) {
-            const out = JSON.parse(raw);
-            if (out.error) throw new Error(out.error);
-            return out.value;
-          });
-        }
-        globalThis.host = {
-          log: {
-            debug: (m) => call('log', 'debug', [m]),
-            info:  (m) => call('log', 'info',  [m]),
-            warn:  (m) => call('log', 'warn',  [m]),
-            error: (m) => call('log', 'error', [m]),
-          },
-          http: {
-            fetch: (url, init) => call('http', 'fetch', [url, init || {}]),
-          },
-          storage: {
-            get:    (k)    => call('storage', 'get',    [k]),
-            set:    (k, v) => call('storage', 'set',    [k, v]),
-            delete: (k)    => call('storage', 'delete', [k]),
-          },
-          json: {
-            parse:     (s) => call('json', 'parse',     [s]),
-            stringify: (o) => call('json', 'stringify', [o]),
-          },
-          url: {
-            absolute: (rel, base) => call('url', 'absolute', [rel, base]),
-          },
-          crypto: {
-            sha256Hex:    (s)         => call('crypto', 'sha256Hex',    [s]),
-            md5Hex:       (s)         => call('crypto', 'md5Hex',       [s]),
-            hmacHex:      (algo, k, d)=> call('crypto', 'hmacHex',      [algo, Array.from(k), Array.from(d)]),
-            base64Encode: (s)         => call('crypto', 'base64Encode', [s]),
-            aesDecryptCbc:(ct, k, iv) => call('crypto', 'aesDecryptCbc',[Array.from(ct), Array.from(k), Array.from(iv)]).then(arr => new Uint8Array(arr)),
-          },
-          html: {
-            parse: function(text) {
-              return call('html', 'parse', [text]).then(function(ref) {
-                return wrapDoc(ref.__doc);
-              });
+        globalThis.__sl_makeHost = function(plugin) {
+          function call(module, method, args) {
+            var payload = JSON.stringify({plugin: plugin, module: module, method: method, args: args});
+            return sendMessage('host_call', payload).then(function(raw) {
+              var out = JSON.parse(raw);
+              if (out.error) throw new Error(out.error);
+              return out.value;
+            });
+          }
+          function wrapDoc(h) {
+            return {
+              find: function(sel) {
+                return call('html', 'doc.find', [h, sel]).then(function(rs) {
+                  return rs.map(function(r) { return wrapEl(r.__el); });
+                });
+              },
+              querySelector: function(sel) {
+                return call('html', 'doc.querySelector', [h, sel]).then(function(ref) {
+                  return ref == null ? null : wrapEl(ref.__el);
+                });
+              },
+            };
+          }
+          function wrapEl(h) {
+            return {
+              find: function(sel) {
+                return call('html', 'el.find', [h, sel]).then(function(rs) {
+                  return rs.map(function(r) { return wrapEl(r.__el); });
+                });
+              },
+              text: function() { return call('html', 'el.text', [h]); },
+              html: function() { return call('html', 'el.html', [h]); },
+              attr: function(n) { return call('html', 'el.attr', [h, n]); },
+            };
+          }
+          return {
+            log: {
+              debug: function(m) { return call('log', 'debug', [m]); },
+              info:  function(m) { return call('log', 'info',  [m]); },
+              warn:  function(m) { return call('log', 'warn',  [m]); },
+              error: function(m) { return call('log', 'error', [m]); },
             },
-          },
+            http: {
+              fetch: function(url, init) { return call('http', 'fetch', [url, init || {}]); },
+            },
+            storage: {
+              get:    function(k)    { return call('storage', 'get',    [k]); },
+              set:    function(k, v) { return call('storage', 'set',    [k, v]); },
+              delete: function(k)    { return call('storage', 'delete', [k]); },
+            },
+            json: {
+              parse:     function(s) { return call('json', 'parse',     [s]); },
+              stringify: function(o) { return call('json', 'stringify', [o]); },
+            },
+            url: {
+              absolute: function(rel, base) { return call('url', 'absolute', [rel, base]); },
+            },
+            crypto: {
+              sha256Hex:    function(s)         { return call('crypto', 'sha256Hex',    [s]); },
+              md5Hex:       function(s)         { return call('crypto', 'md5Hex',       [s]); },
+              hmacHex:      function(algo, k, d){ return call('crypto', 'hmacHex',      [algo, Array.from(k), Array.from(d)]); },
+              base64Encode: function(s)         { return call('crypto', 'base64Encode', [s]); },
+              aesDecryptCbc:function(ct, k, iv) { return call('crypto', 'aesDecryptCbc',[Array.from(ct), Array.from(k), Array.from(iv)]).then(function(arr){ return new Uint8Array(arr); }); },
+            },
+            html: {
+              parse: function(text) {
+                return call('html', 'parse', [text]).then(function(ref) {
+                  return wrapDoc(ref.__doc);
+                });
+              },
+            },
+          };
         };
-        function wrapDoc(h) {
-          return {
-            find: function(sel) {
-              return call('html', 'doc.find', [h, sel]).then(function(rs) {
-                return rs.map(function(r) { return wrapEl(r.__el); });
-              });
-            },
-            querySelector: function(sel) {
-              return call('html', 'doc.querySelector', [h, sel]).then(function(ref) {
-                return ref == null ? null : wrapEl(ref.__el);
-              });
-            },
-          };
-        }
-        function wrapEl(h) {
-          return {
-            find: function(sel) {
-              return call('html', 'el.find', [h, sel]).then(function(rs) {
-                return rs.map(function(r) { return wrapEl(r.__el); });
-              });
-            },
-            text: function() { return call('html', 'el.text', [h]); },
-            html: function() { return call('html', 'el.html', [h]); },
-            attr: function(n) { return call('html', 'el.attr', [h, n]); },
-          };
-        }
       })();
     ''';
     final result = _js.evaluate(shim);
@@ -124,12 +126,15 @@ class PluginRuntime {
   /// Mount a plugin from raw ESM source. Atomic: if anything fails (parse,
   /// meta validation, evaluation), the previous version (if any) stays active.
   Future<Plugin> mount(String source) async {
-    // Phase 1: extract & validate meta by evaluating in isolation.
+    // Phase 1: probe — eval in an isolated IIFE just to extract meta.
+    // Plugin functions reference `host` lexically but aren't invoked here,
+    // so a missing `host` binding is fine; meta is a top-level constant.
+    final stripped = _stripExports(source);
     final probeId = '__sl_probe_${DateTime.now().microsecondsSinceEpoch}';
     final probeBlock = '''
       (function() {
         var exports = {};
-        ${_stripExports(source)}
+        $stripped
         globalThis.$probeId = exports;
         return JSON.stringify(exports.meta);
       })();
@@ -155,17 +160,23 @@ class PluginRuntime {
 
     final err = PluginMeta.validate(metaJson);
     if (err != null) {
-      // Drop the probe and abort — leaves any previous version untouched.
       _js.evaluate('delete globalThis.$probeId');
       throw StateError(err);
     }
     final meta = PluginMeta.fromJson(metaJson);
 
-    // Phase 2: commit — copy probe object to the canonical slot, drop probe.
+    // Phase 2: commit — re-eval inside an IIFE that injects the per-plugin
+    // host as a parameter. Inner functions close over `host` lexically, so
+    // every host.* call carries this plugin's name regardless of async re-entry.
+    final nameLit = jsonEncode(meta.shortName);
     final commitBlock = '''
       (function() {
-        globalThis.__sl_plugins[${jsonEncode(meta.shortName)}] = globalThis.$probeId;
         delete globalThis.$probeId;
+        globalThis.__sl_plugins[$nameLit] = (function(host) {
+          var exports = {};
+          $stripped
+          return exports;
+        })(globalThis.__sl_makeHost($nameLit));
         return true;
       })();
     ''';
@@ -202,14 +213,10 @@ class PluginRuntime {
     String functionName,
     List<Object?> args,
   ) async {
-    // Set current plugin context synchronously, call the function, reset.
     final stub = '''
       (function() {
-        globalThis.__sl_currentPlugin = ${jsonEncode(shortName)};
         var fn = globalThis.__sl_plugins[${jsonEncode(shortName)}].$functionName;
-        var result = fn.apply(null, ${jsonEncode(args)});
-        globalThis.__sl_currentPlugin = null;
-        return result;
+        return fn.apply(null, ${jsonEncode(args)});
       })();
     ''';
 
@@ -220,7 +227,6 @@ class PluginRuntime {
       );
     }
 
-    // If the function returned a Promise, resolve it through handlePromise.
     if (evalResult.isPromise || evalResult.stringResult == '[object Promise]') {
       final resolved = await _js.handlePromise(evalResult);
       if (resolved.isError) {
@@ -230,19 +236,13 @@ class PluginRuntime {
       }
       final jsonResult = resolved.stringResult;
       if (jsonResult == 'null' || jsonResult == 'undefined') return null;
-      // The promise value should be already JSON stringified by the plugin
-      // or we need to stringify it. Attempt to parse; if it fails, stringify
-      // the raw string value first.
       try {
         return jsonDecode(jsonResult);
       } catch (_) {
-        // The result is already the Dart representation (e.g. a Map/List).
-        // This happens when JSCore auto-converts objects.
         return jsonResult;
       }
     }
 
-    // Synchronous result — use the stringResult from evaluate.
     final raw = evalResult.stringResult;
     if (raw == 'null' || raw == 'undefined') return null;
     try {
@@ -252,12 +252,8 @@ class PluginRuntime {
     }
   }
 
-  /// Strip the `export ` keyword from `export const`, `export async function`,
-  /// and `export function` declarations, leaving plain assignments / function
-  /// declarations whose names land in the surrounding IIFE's scope.
-  ///
-  /// Then copy the four contract names + meta into `exports` so the IIFE
-  /// can return them.
+  /// Strip `export ` keyword from declarations and append re-exports of the
+  /// four contract functions + meta into the local `exports` object.
   static String _stripExports(String source) {
     final stripped = source
         .replaceAll(RegExp(r'^\s*export\s+const\s+', multiLine: true), 'const ')

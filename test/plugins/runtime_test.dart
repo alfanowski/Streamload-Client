@@ -91,4 +91,91 @@ void main() {
     await runtime.unmount('echo');
     expect(runtime.callable('echo'), isNull);
   });
+
+  test('plugin keeps its identity across awaits — every host call carries the plugin name', () async {
+    // Regression test for a bug where __sl_currentPlugin was reset
+    // synchronously after fn.apply returned its Promise, so any host call
+    // made AFTER the first await landed under a null plugin name.
+    final logs = <String>[];
+    final hostApi2 = HostApi(
+      http: HttpHost(),
+      storage: StorageHost(db.pluginKvDao),
+      log: LogHost(sink: (_, tag, msg) => logs.add('$tag|$msg')),
+    );
+    final rt = await PluginRuntime.create(hostApi: hostApi2);
+    addTearDown(rt.dispose);
+
+    const src = '''
+export const meta = {
+  short_name: "twocall",
+  display_name: "Two Call",
+  version: "1.0.0",
+  api_version: 1,
+  capabilities: ["movie"],
+};
+
+export async function search(_q) {
+  await host.log.info("first");
+  await host.log.info("second");
+  await host.log.info("third");
+  return [];
+}
+
+export async function getSeasons(_e) { return []; }
+export async function getEpisodes(_s) { return []; }
+export async function getStreams(_t) { return { manifest_url: "x", headers: {} }; }
+''';
+
+    final p = await rt.mount(src);
+    await p.search('q');
+    expect(logs, [
+      'plugin:twocall|first',
+      'plugin:twocall|second',
+      'plugin:twocall|third',
+    ]);
+  });
+
+  test('two plugins do not leak host identity across each other', () async {
+    // Mount two plugins that each log their own name. Even with overlapping
+    // calls, each plugin's host calls must report only its own identity.
+    final logs = <String>[];
+    final hostApi2 = HostApi(
+      http: HttpHost(),
+      storage: StorageHost(db.pluginKvDao),
+      log: LogHost(sink: (_, tag, msg) => logs.add('$tag|$msg')),
+    );
+    final rt = await PluginRuntime.create(hostApi: hostApi2);
+    addTearDown(rt.dispose);
+
+    String src(String name) => '''
+export const meta = {
+  short_name: "$name",
+  display_name: "$name",
+  version: "1.0.0",
+  api_version: 1,
+  capabilities: ["movie"],
+};
+export async function search(_q) {
+  await host.log.info("hi from $name");
+  return [];
+}
+export async function getSeasons(_e) { return []; }
+export async function getEpisodes(_s) { return []; }
+export async function getStreams(_t) { return { manifest_url: "x", headers: {} }; }
+''';
+
+    final a = await rt.mount(src('alpha'));
+    final b = await rt.mount(src('bravo'));
+
+    // Fire concurrently — both must report their own short_name.
+    await Future.wait([a.search('x'), b.search('y')]);
+
+    expect(logs, containsAll([
+      'plugin:alpha|hi from alpha',
+      'plugin:bravo|hi from bravo',
+    ]));
+    // No log should be misattributed.
+    expect(logs.where((l) => l.startsWith('plugin:alpha|') && l.contains('bravo')), isEmpty);
+    expect(logs.where((l) => l.startsWith('plugin:bravo|') && l.contains('alpha')), isEmpty);
+  });
 }
