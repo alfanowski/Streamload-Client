@@ -51,34 +51,39 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  Future<void> login({required String username, required String password}) async {
+  /// Exchange a GitHub OAuth access token for a backend session.
+  /// Returns the [User] so callers can immediately read profile_complete.
+  Future<User> loginWithGithub(String accessToken) async {
     state = const AuthLoading();
     try {
       final api = await _ref.read(authApiProvider.future);
-      final user = await api.login(username: username, password: password);
+      final user = await api.loginWithGithub(accessToken);
       state = AuthAuthenticated(user);
-    } on ApiException catch (e) {
-      state = AuthError(e.message);
+      return user;
+    } catch (e) {
+      state = AuthError(e.toString());
       rethrow;
     }
   }
 
-  Future<void> register({
-    required String username,
-    required String email,
-    required String password,
+  /// Update profile fields. Requires AuthAuthenticated state.
+  Future<void> updateProfile({
+    required String firstName,
+    required String lastName,
+    required DateTime birthDate,
+    required String gender,
   }) async {
-    state = const AuthLoading();
-    try {
-      final api = await _ref.read(authApiProvider.future);
-      final user = await api.register(
-        username: username, email: email, password: password,
-      );
-      state = AuthAuthenticated(user);
-    } on ApiException catch (e) {
-      state = AuthError(e.message);
-      rethrow;
+    if (state is! AuthAuthenticated) {
+      throw StateError('updateProfile requires AuthAuthenticated state');
     }
+    final api = await _ref.read(authApiProvider.future);
+    final user = await api.updateProfile(
+      firstName: firstName,
+      lastName: lastName,
+      birthDate: birthDate,
+      gender: gender,
+    );
+    state = AuthAuthenticated(user);
   }
 
   Future<void> logout() async {
