@@ -20,6 +20,12 @@ class CatalogDao extends DatabaseAccessor<StreamloadDatabase> with _$CatalogDaoM
     await into(catalogItems).insertOnConflictUpdate(entry);
   }
 
+  Stream<CatalogItemRow?> watchByKey(int tmdbId, String mediaType) {
+    return (select(catalogItems)
+          ..where((t) => t.tmdbId.equals(tmdbId) & t.mediaType.equals(mediaType)))
+        .watchSingleOrNull();
+  }
+
   Future<int> count() async {
     return await catalogItems.count().getSingle();
   }
