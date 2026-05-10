@@ -51,4 +51,51 @@ https://upstream/some/opaque/path/playlist.m3u8
       expect(pattern.hasMatch(out), isTrue, reason: 'output: $out');
     });
   });
+
+  group('rewriteMedia', () {
+    const mediaSample = '''
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXTINF:5.5,
+https://upstream/seg-001.ts
+#EXTINF:5.5,
+https://upstream/seg-002.ts
+#EXT-X-ENDLIST
+''';
+
+    test('replaces segment URLs with /seg/{rendition}/{n}.ts', () {
+      final out = Rewriter.rewriteMedia(mediaSample,
+          rendition: '720p', basePath: '/stream/sid');
+      expect(out, contains('/stream/sid/seg/720p/0.ts'));
+      expect(out, contains('/stream/sid/seg/720p/1.ts'));
+      expect(out, isNot(contains('upstream')));
+    });
+
+    test('preserves EXTINF durations + EXT-X-ENDLIST', () {
+      final out = Rewriter.rewriteMedia(mediaSample,
+          rendition: '720p', basePath: '/stream/sid');
+      expect(out, contains('#EXTINF:5.5'));
+      expect(out, contains('#EXT-X-ENDLIST'));
+    });
+
+    test('rewrites EXT-X-KEY URI to local key proxy', () {
+      const encrypted = '''
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXT-X-KEY:METHOD=AES-128,URI="https://upstream-keys/abc.key",IV=0xdeadbeef
+#EXTINF:5.5,
+https://upstream/seg-001.ts
+#EXT-X-ENDLIST
+''';
+      final out = Rewriter.rewriteMedia(encrypted,
+          rendition: '480p', basePath: '/stream/sid');
+      expect(out, contains('URI="/stream/sid/key/480p"'));
+      // IV preserved (player still needs it).
+      expect(out, contains('IV=0xdeadbeef'));
+      // Original key host gone.
+      expect(out, isNot(contains('upstream-keys')));
+    });
+  });
 }
