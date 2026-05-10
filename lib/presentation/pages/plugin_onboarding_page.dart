@@ -1,5 +1,4 @@
 // lib/presentation/pages/plugin_onboarding_page.dart
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -18,11 +17,13 @@ const _kRepoName = 'streamload-plugins';
 typedef PatVerifier = Future<bool> Function(String token);
 
 Future<bool> _defaultVerifier(String token) async {
+  // GithubClient's own constructor wires baseUrl + Authorization + GitHub
+  // headers — passing a stripped-down dio instance here would bypass all of
+  // that and the request would go out without host or auth.
   final gh = GithubClient(
     owner: _kRepoOwner,
     repo: _kRepoName,
     token: token,
-    dio: Dio(BaseOptions(connectTimeout: const Duration(seconds: 10))),
   );
   return gh.verifyAccess();
 }
