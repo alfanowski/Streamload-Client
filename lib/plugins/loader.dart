@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 
 import '../data/local/daos/installed_plugins_dao.dart';
 import '../data/local/database.dart';
+import '../infra/logger.dart';
 import 'github_client.dart';
 import 'registry.dart';
 import 'runtime.dart';
@@ -36,6 +37,7 @@ class PluginLoader {
   final GithubClient github;
   final PluginRuntime runtime;
   final InstalledPluginsDao installed;
+  final _log = Logger('plugin.loader');
 
   /// Pull the registry, diff against installed, fetch what changed, sha256-
   /// verify, mount on success / leave previous version on failure.
@@ -79,7 +81,8 @@ class PluginLoader {
           filePath: entry.file,
         ));
         mounted.add(entry.shortName);
-      } catch (_) {
+      } catch (e, st) {
+        _log.error('load failed for ${entry.shortName}', e, st);
         failed.add(entry.shortName);
       }
     }
@@ -89,6 +92,13 @@ class PluginLoader {
     }
     for (final e in diff.changed) {
       await handle(e);
+    }
+    // Re-mount unchanged plugins that aren't currently in the runtime — covers
+    // app restart, where installed_plugins survives but the JS runtime starts empty.
+    for (final e in diff.unchanged) {
+      if (runtime.callable(e.shortName) == null) {
+        await handle(e);
+      }
     }
 
     final removed = <String>[];

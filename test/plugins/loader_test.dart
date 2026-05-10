@@ -155,6 +155,45 @@ void main() {
     expect(await db.installedPluginsDao.listAll(), isEmpty);
   });
 
+  test('refresh: unchanged + runtime empty (app restart) → re-mount', () async {
+    // Pre-seed an installed plugin in DB but NOT in the runtime (simulates
+    // app restart: drift row survives, JS runtime starts fresh).
+    final hash = _sha256OfString(_echoSource);
+    await db.installedPluginsDao.upsert(InstalledPluginsCompanion.insert(
+      shortName: 'echo',
+      version: '1.0.0',
+      sha256: hash,
+      filePath: 'plugins/_fixture/echo.js',
+    ));
+    expect(runtime.callable('echo'), isNull);
+
+    when(gh.getRegistry).thenAnswer((_) async => {
+          'format_version': 1,
+          'updated_at': '2026-05-10T00:00:00Z',
+          'plugins': [
+            {
+              'short_name': 'echo',
+              'file': 'plugins/_fixture/echo.js',
+              'version': '1.0.0',
+              'api_version': 1,
+              'sha256': hash,
+              'capabilities': ['movie'],
+            }
+          ],
+        });
+    when(() => gh.getPluginSource('plugins/_fixture/echo.js'))
+        .thenAnswer((_) async => _echoSource);
+
+    final loader = PluginLoader(
+      github: gh,
+      runtime: runtime,
+      installed: db.installedPluginsDao,
+    );
+    final result = await loader.refresh();
+    expect(result.mounted, ['echo']);
+    expect(runtime.callable('echo'), isNotNull);
+  });
+
   test('refresh: removed-from-registry → unmount + delete row', () async {
     // Pre-seed an installed plugin.
     final hash = _sha256OfString(_echoSource);
