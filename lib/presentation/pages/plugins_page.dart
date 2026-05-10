@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../plugins/loader.dart';
 import '../../state/database_provider.dart';
-import '../../state/github_pat_provider.dart';
+import '../../state/github_token_provider.dart';
 import '../../state/plugins_provider.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
@@ -108,7 +108,7 @@ class PluginsPage extends ConsumerWidget {
               PrimaryButton(
                 label: 'Cambia token GitHub',
                 onPressed: () async {
-                  await ref.read(githubPatProvider.notifier).clear();
+                  await ref.read(githubTokenProvider.notifier).clear();
                   if (context.mounted) context.go('/onboarding/plugins');
                 },
               ),

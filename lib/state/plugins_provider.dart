@@ -5,7 +5,7 @@ import '../data/local/database.dart';
 import '../plugins/github_client.dart';
 import '../plugins/loader.dart';
 import 'database_provider.dart';
-import 'github_pat_provider.dart';
+import 'github_token_provider.dart';
 import 'plugin_runtime_provider.dart';
 
 /// Stream of installed plugins from drift. Empty until the first refresh.
@@ -19,11 +19,11 @@ final installedPluginsProvider =
 const _kRepoOwner = 'alfanowski';
 const _kRepoName = 'streamload-plugins';
 
-/// Builds a [PluginLoader] using the current PAT. Throws if no PAT.
+/// Builds a [PluginLoader] using the current token. Throws if no token.
 final pluginLoaderProvider = FutureProvider<PluginLoader>((ref) async {
-  final pat = ref.watch(githubPatProvider).value;
+  final pat = ref.watch(githubTokenProvider).value;
   if (pat == null || pat.isEmpty) {
-    throw StateError('github PAT not set');
+    throw StateError('github token not set');
   }
   final runtime = await ref.watch(pluginRuntimeProvider.future);
   final db = ref.watch(databaseProvider);

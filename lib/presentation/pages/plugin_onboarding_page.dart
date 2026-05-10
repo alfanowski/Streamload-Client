@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../plugins/github_client.dart';
-import '../../state/github_pat_provider.dart';
+import '../../state/github_token_provider.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../widgets/eyebrow.dart';
@@ -60,7 +60,7 @@ class _PluginOnboardingPageState extends ConsumerState<PluginOnboardingPage> {
         return;
       }
       await ref
-          .read(githubPatProvider.notifier)
+          .read(githubTokenProvider.notifier)
           .save(_patCtrl.text.trim());
       if (mounted) context.go('/home');
     } catch (e) {

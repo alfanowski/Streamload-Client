@@ -7,7 +7,7 @@ import 'package:streamload_client/data/local/database.dart';
 import 'package:streamload_client/data/secure/secure_storage.dart';
 import 'package:streamload_client/plugins/loader.dart';
 import 'package:streamload_client/state/database_provider.dart';
-import 'package:streamload_client/state/github_pat_provider.dart';
+import 'package:streamload_client/state/github_token_provider.dart';
 import 'package:streamload_client/state/plugins_provider.dart';
 
 class _MockPluginLoader extends Mock implements PluginLoader {}
@@ -42,12 +42,12 @@ void main() {
     expect(rows, isEmpty);
   });
 
-  test('pluginLoaderProvider throws StateError when no PAT set', () async {
+  test('pluginLoaderProvider throws StateError when no token set', () async {
     final db = StreamloadDatabase.test(NativeDatabase.memory());
     addTearDown(db.close);
 
     // Override secureStorageProvider with a backend that always returns null
-    // so githubPatProvider resolves to AsyncData(null).
+    // so githubTokenProvider resolves to AsyncData(null).
     final container = ProviderContainer(overrides: [
       databaseProvider.overrideWithValue(db),
       secureStorageProvider.overrideWithValue(
@@ -56,8 +56,8 @@ void main() {
     ]);
     addTearDown(container.dispose);
 
-    // Let the githubPatProvider _refresh() settle so state is AsyncData(null)
-    container.read(githubPatProvider.notifier);
+    // Let the githubTokenProvider _refresh() settle so state is AsyncData(null)
+    container.read(githubTokenProvider.notifier);
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     await expectLater(

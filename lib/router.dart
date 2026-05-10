@@ -16,7 +16,7 @@ import 'presentation/pages/title_page.dart';
 import 'presentation/pages/watch_placeholder_page.dart';
 import 'presentation/widgets/authenticated_shell.dart';
 import 'state/auth_provider.dart';
-import 'state/github_pat_provider.dart';
+import 'state/github_token_provider.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -24,7 +24,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final auth = ref.read(authProvider);
-      final pat = ref.read(githubPatProvider).value;
+      final pat = ref.read(githubTokenProvider).value;
       final loc = state.matchedLocation;
       final isAuthRoute = loc == '/login' || loc == '/register';
       final isOnboarding = loc == '/onboarding/plugins';
@@ -90,7 +90,7 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(Ref ref) {
     ref.listen<AuthState>(authProvider, (_, __) => notifyListeners());
     ref.listen<AsyncValue<String?>>(
-      githubPatProvider, (_, __) => notifyListeners(),
+      githubTokenProvider, (_, __) => notifyListeners(),
     );
   }
 }

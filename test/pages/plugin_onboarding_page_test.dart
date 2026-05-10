@@ -6,15 +6,15 @@ import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/data/secure/secure_storage.dart';
 import 'package:streamload_client/presentation/pages/plugin_onboarding_page.dart';
 import 'package:streamload_client/presentation/theme/theme.dart';
-import 'package:streamload_client/state/github_pat_provider.dart';
+import 'package:streamload_client/state/github_token_provider.dart';
 
 class _StorageMock extends Mock implements SecureStorage {}
 
 void main() {
   testWidgets('valid PAT is saved via SecureStorage', (tester) async {
     final storage = _StorageMock();
-    when(storage.githubPat).thenAnswer((_) async => null);
-    when(() => storage.setGithubPat(any())).thenAnswer((_) async {});
+    when(storage.githubToken).thenAnswer((_) async => null);
+    when(() => storage.setGithubToken(any())).thenAnswer((_) async {});
 
     await tester.pumpWidget(ProviderScope(
       overrides: [
@@ -33,12 +33,12 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.submit')));
     await tester.pumpAndSettle();
 
-    verify(() => storage.setGithubPat('github_pat_xyz')).called(1);
+    verify(() => storage.setGithubToken('github_pat_xyz')).called(1);
   });
 
   testWidgets('invalid PAT shows error and does not save', (tester) async {
     final storage = _StorageMock();
-    when(storage.githubPat).thenAnswer((_) async => null);
+    when(storage.githubToken).thenAnswer((_) async => null);
 
     await tester.pumpWidget(ProviderScope(
       overrides: [
@@ -57,7 +57,7 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding.submit')));
     await tester.pumpAndSettle();
 
-    verifyNever(() => storage.setGithubPat(any()));
+    verifyNever(() => storage.setGithubToken(any()));
     expect(find.textContaining('non valido'), findsOneWidget);
   });
 }

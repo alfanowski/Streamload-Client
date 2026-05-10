@@ -93,14 +93,28 @@ class SecureStorage {
   final SecureKvBackend _backend;
 
   static const _kSessionCookie = 'streamload.session_cookie';
-  static const _kGithubPat = 'streamload.github_pat';
+  static const _kGithubToken = 'streamload.github_token';
+  static const _kLegacyGithubPat = 'streamload.github_pat';
 
   Future<String?> sessionCookie() => _backend.read(_kSessionCookie);
   Future<void> setSessionCookie(String value) =>
       _backend.write(_kSessionCookie, value);
   Future<void> clearSessionCookie() => _backend.delete(_kSessionCookie);
 
-  Future<String?> githubPat() => _backend.read(_kGithubPat);
-  Future<void> setGithubPat(String value) => _backend.write(_kGithubPat, value);
-  Future<void> clearGithubPat() => _backend.delete(_kGithubPat);
+  /// Reads the saved token. For backwards compat with users who onboarded
+  /// via the PAT flow before OAuth landed, falls back to the legacy
+  /// 'streamload.github_pat' key if the new key is empty.
+  Future<String?> githubToken() async {
+    final fresh = await _backend.read(_kGithubToken);
+    if (fresh != null) return fresh;
+    return _backend.read(_kLegacyGithubPat);
+  }
+
+  Future<void> setGithubToken(String value) =>
+      _backend.write(_kGithubToken, value);
+
+  Future<void> clearGithubToken() async {
+    await _backend.delete(_kGithubToken);
+    await _backend.delete(_kLegacyGithubPat);
+  }
 }

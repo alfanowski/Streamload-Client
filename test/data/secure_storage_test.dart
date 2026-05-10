@@ -33,10 +33,18 @@ void main() {
     expect(await s.sessionCookie(), isNull);
   });
 
-  test('github PAT round-trips', () async {
-    await s.setGithubPat('github_pat_xyz');
-    expect(await s.githubPat(), 'github_pat_xyz');
-    await s.clearGithubPat();
-    expect(await s.githubPat(), isNull);
+  test('github token round-trips', () async {
+    await s.setGithubToken('ghu_xyz');
+    expect(await s.githubToken(), 'ghu_xyz');
+    await s.clearGithubToken();
+    expect(await s.githubToken(), isNull);
+  });
+
+  test('github token falls back to legacy PAT key', () async {
+    // Write directly to the legacy key to simulate a pre-OAuth user.
+    final backend = _MemoryBackend();
+    await backend.write('streamload.github_pat', 'ghp_legacy');
+    final storage = SecureStorage(backend: backend);
+    expect(await storage.githubToken(), 'ghp_legacy');
   });
 }
