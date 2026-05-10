@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'plugins/updater.dart';
 import 'presentation/theme/theme.dart';
 import 'router.dart';
 import 'state/auth_provider.dart';
@@ -18,8 +19,12 @@ class _StreamloadAppState extends ConsumerState<StreamloadApp> {
   void initState() {
     super.initState();
     // Kick off bootstrap so the redirect logic in router has a real state.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(authProvider.notifier).bootstrap();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await ref.read(authProvider.notifier).bootstrap();
+      // Once auth is settled, start the plugin update tick. Safe to call even
+      // if the user has no PAT yet — the loader will throw and the updater
+      // will skip the tick gracefully.
+      ref.read(pluginUpdaterProvider).start();
     });
   }
 
