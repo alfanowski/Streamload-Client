@@ -110,7 +110,7 @@ class PluginsPage extends ConsumerWidget {
                 label: 'Cambia token GitHub',
                 onPressed: () async {
                   await ref.read(githubTokenProvider.notifier).clear();
-                  if (context.mounted) context.go('/onboarding/plugins');
+                  if (context.mounted) context.go('/onboarding/github');
                 },
               ),
             ],

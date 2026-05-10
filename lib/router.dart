@@ -24,24 +24,24 @@ final routerProvider = Provider<GoRouter>((ref) {
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final auth = ref.read(authProvider);
-      final pat = ref.read(githubTokenProvider).value;
+      final token = ref.read(githubTokenProvider).value;
       final loc = state.matchedLocation;
       final isAuthRoute = loc == '/login' || loc == '/register';
-      final isOnboarding = loc == '/onboarding/plugins';
+      final isOnboarding = loc == '/onboarding/github';
 
       if (auth is AuthLoading) return null;
       if (auth is AuthUnauthenticated || auth is AuthError) {
         return isAuthRoute ? null : '/login';
       }
       if (auth is AuthAuthenticated) {
-        // Authenticated but no PAT yet → onboarding wizard.
-        if ((pat == null || pat.isEmpty) && !isOnboarding) {
-          return '/onboarding/plugins';
+        // Authenticated but no token yet → onboarding wizard.
+        if ((token == null || token.isEmpty) && !isOnboarding) {
+          return '/onboarding/github';
         }
-        // Authenticated with PAT → leave login/register, send to home.
+        // Authenticated with token → leave login/register, send to home.
         if (isAuthRoute) return '/home';
-        // Authenticated and at /onboarding/plugins but PAT now exists → home.
-        if (isOnboarding && pat != null && pat.isNotEmpty) return '/home';
+        // Authenticated and at /onboarding/github but token now exists → home.
+        if (isOnboarding && token != null && token.isNotEmpty) return '/home';
       }
       return null;
     },
@@ -50,7 +50,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
       GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
       GoRoute(
-        path: '/onboarding/plugins',
+        path: '/onboarding/github',
         builder: (_, __) => const PluginOnboardingPage(),
       ),
       ShellRoute(
