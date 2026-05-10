@@ -13,6 +13,7 @@ import 'schema/user_settings.dart';
 import 'schema/watch_progress.dart';
 import 'schema/watchlist.dart';
 import 'daos/catalog_dao.dart';
+import 'daos/installed_plugins_dao.dart';
 import 'daos/user_settings_dao.dart';
 
 part 'database.g.dart';
@@ -31,6 +32,7 @@ part 'database.g.dart';
 ], daos: [
   CatalogDao,
   UserSettingsDao,
+  InstalledPluginsDao,
 ])
 class StreamloadDatabase extends _$StreamloadDatabase {
   StreamloadDatabase() : super(_open());

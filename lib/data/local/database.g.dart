@@ -4071,6 +4071,8 @@ abstract class _$StreamloadDatabase extends GeneratedDatabase {
   late final CatalogDao catalogDao = CatalogDao(this as StreamloadDatabase);
   late final UserSettingsDao userSettingsDao =
       UserSettingsDao(this as StreamloadDatabase);
+  late final InstalledPluginsDao installedPluginsDao =
+      InstalledPluginsDao(this as StreamloadDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
