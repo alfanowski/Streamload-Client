@@ -25,6 +25,17 @@ mixin _$User {
   String get email => throw _privateConstructorUsedError;
   @JsonKey(name: 'email_verified')
   bool get emailVerified => throw _privateConstructorUsedError;
+  @JsonKey(name: 'github_username')
+  String? get githubUsername => throw _privateConstructorUsedError;
+  @JsonKey(name: 'first_name')
+  String? get firstName => throw _privateConstructorUsedError;
+  @JsonKey(name: 'last_name')
+  String? get lastName => throw _privateConstructorUsedError;
+  @JsonKey(name: 'birth_date')
+  DateTime? get birthDate => throw _privateConstructorUsedError;
+  String? get gender => throw _privateConstructorUsedError;
+  @JsonKey(name: 'profile_complete')
+  bool get profileComplete => throw _privateConstructorUsedError;
 
   /// Serializes this User to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -44,7 +55,13 @@ abstract class $UserCopyWith<$Res> {
       {String id,
       String username,
       String email,
-      @JsonKey(name: 'email_verified') bool emailVerified});
+      @JsonKey(name: 'email_verified') bool emailVerified,
+      @JsonKey(name: 'github_username') String? githubUsername,
+      @JsonKey(name: 'first_name') String? firstName,
+      @JsonKey(name: 'last_name') String? lastName,
+      @JsonKey(name: 'birth_date') DateTime? birthDate,
+      String? gender,
+      @JsonKey(name: 'profile_complete') bool profileComplete});
 }
 
 /// @nodoc
@@ -66,6 +83,12 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
     Object? username = null,
     Object? email = null,
     Object? emailVerified = null,
+    Object? githubUsername = freezed,
+    Object? firstName = freezed,
+    Object? lastName = freezed,
+    Object? birthDate = freezed,
+    Object? gender = freezed,
+    Object? profileComplete = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -84,6 +107,30 @@ class _$UserCopyWithImpl<$Res, $Val extends User>
           ? _value.emailVerified
           : emailVerified // ignore: cast_nullable_to_non_nullable
               as bool,
+      githubUsername: freezed == githubUsername
+          ? _value.githubUsername
+          : githubUsername // ignore: cast_nullable_to_non_nullable
+              as String?,
+      firstName: freezed == firstName
+          ? _value.firstName
+          : firstName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastName: freezed == lastName
+          ? _value.lastName
+          : lastName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      birthDate: freezed == birthDate
+          ? _value.birthDate
+          : birthDate // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      gender: freezed == gender
+          ? _value.gender
+          : gender // ignore: cast_nullable_to_non_nullable
+              as String?,
+      profileComplete: null == profileComplete
+          ? _value.profileComplete
+          : profileComplete // ignore: cast_nullable_to_non_nullable
+              as bool,
     ) as $Val);
   }
 }
@@ -99,7 +146,13 @@ abstract class _$$UserImplCopyWith<$Res> implements $UserCopyWith<$Res> {
       {String id,
       String username,
       String email,
-      @JsonKey(name: 'email_verified') bool emailVerified});
+      @JsonKey(name: 'email_verified') bool emailVerified,
+      @JsonKey(name: 'github_username') String? githubUsername,
+      @JsonKey(name: 'first_name') String? firstName,
+      @JsonKey(name: 'last_name') String? lastName,
+      @JsonKey(name: 'birth_date') DateTime? birthDate,
+      String? gender,
+      @JsonKey(name: 'profile_complete') bool profileComplete});
 }
 
 /// @nodoc
@@ -118,6 +171,12 @@ class __$$UserImplCopyWithImpl<$Res>
     Object? username = null,
     Object? email = null,
     Object? emailVerified = null,
+    Object? githubUsername = freezed,
+    Object? firstName = freezed,
+    Object? lastName = freezed,
+    Object? birthDate = freezed,
+    Object? gender = freezed,
+    Object? profileComplete = null,
   }) {
     return _then(_$UserImpl(
       id: null == id
@@ -136,6 +195,30 @@ class __$$UserImplCopyWithImpl<$Res>
           ? _value.emailVerified
           : emailVerified // ignore: cast_nullable_to_non_nullable
               as bool,
+      githubUsername: freezed == githubUsername
+          ? _value.githubUsername
+          : githubUsername // ignore: cast_nullable_to_non_nullable
+              as String?,
+      firstName: freezed == firstName
+          ? _value.firstName
+          : firstName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastName: freezed == lastName
+          ? _value.lastName
+          : lastName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      birthDate: freezed == birthDate
+          ? _value.birthDate
+          : birthDate // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      gender: freezed == gender
+          ? _value.gender
+          : gender // ignore: cast_nullable_to_non_nullable
+              as String?,
+      profileComplete: null == profileComplete
+          ? _value.profileComplete
+          : profileComplete // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -147,7 +230,13 @@ class _$UserImpl implements _User {
       {required this.id,
       required this.username,
       required this.email,
-      @JsonKey(name: 'email_verified') required this.emailVerified});
+      @JsonKey(name: 'email_verified') required this.emailVerified,
+      @JsonKey(name: 'github_username') this.githubUsername,
+      @JsonKey(name: 'first_name') this.firstName,
+      @JsonKey(name: 'last_name') this.lastName,
+      @JsonKey(name: 'birth_date') this.birthDate,
+      this.gender,
+      @JsonKey(name: 'profile_complete') this.profileComplete = false});
 
   factory _$UserImpl.fromJson(Map<String, dynamic> json) =>
       _$$UserImplFromJson(json);
@@ -161,10 +250,27 @@ class _$UserImpl implements _User {
   @override
   @JsonKey(name: 'email_verified')
   final bool emailVerified;
+  @override
+  @JsonKey(name: 'github_username')
+  final String? githubUsername;
+  @override
+  @JsonKey(name: 'first_name')
+  final String? firstName;
+  @override
+  @JsonKey(name: 'last_name')
+  final String? lastName;
+  @override
+  @JsonKey(name: 'birth_date')
+  final DateTime? birthDate;
+  @override
+  final String? gender;
+  @override
+  @JsonKey(name: 'profile_complete')
+  final bool profileComplete;
 
   @override
   String toString() {
-    return 'User(id: $id, username: $username, email: $email, emailVerified: $emailVerified)';
+    return 'User(id: $id, username: $username, email: $email, emailVerified: $emailVerified, githubUsername: $githubUsername, firstName: $firstName, lastName: $lastName, birthDate: $birthDate, gender: $gender, profileComplete: $profileComplete)';
   }
 
   @override
@@ -177,13 +283,34 @@ class _$UserImpl implements _User {
                 other.username == username) &&
             (identical(other.email, email) || other.email == email) &&
             (identical(other.emailVerified, emailVerified) ||
-                other.emailVerified == emailVerified));
+                other.emailVerified == emailVerified) &&
+            (identical(other.githubUsername, githubUsername) ||
+                other.githubUsername == githubUsername) &&
+            (identical(other.firstName, firstName) ||
+                other.firstName == firstName) &&
+            (identical(other.lastName, lastName) ||
+                other.lastName == lastName) &&
+            (identical(other.birthDate, birthDate) ||
+                other.birthDate == birthDate) &&
+            (identical(other.gender, gender) || other.gender == gender) &&
+            (identical(other.profileComplete, profileComplete) ||
+                other.profileComplete == profileComplete));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, username, email, emailVerified);
+  int get hashCode => Object.hash(
+      runtimeType,
+      id,
+      username,
+      email,
+      emailVerified,
+      githubUsername,
+      firstName,
+      lastName,
+      birthDate,
+      gender,
+      profileComplete);
 
   /// Create a copy of User
   /// with the given fields replaced by the non-null parameter values.
@@ -206,7 +333,13 @@ abstract class _User implements User {
           {required final String id,
           required final String username,
           required final String email,
-          @JsonKey(name: 'email_verified') required final bool emailVerified}) =
+          @JsonKey(name: 'email_verified') required final bool emailVerified,
+          @JsonKey(name: 'github_username') final String? githubUsername,
+          @JsonKey(name: 'first_name') final String? firstName,
+          @JsonKey(name: 'last_name') final String? lastName,
+          @JsonKey(name: 'birth_date') final DateTime? birthDate,
+          final String? gender,
+          @JsonKey(name: 'profile_complete') final bool profileComplete}) =
       _$UserImpl;
 
   factory _User.fromJson(Map<String, dynamic> json) = _$UserImpl.fromJson;
@@ -220,6 +353,23 @@ abstract class _User implements User {
   @override
   @JsonKey(name: 'email_verified')
   bool get emailVerified;
+  @override
+  @JsonKey(name: 'github_username')
+  String? get githubUsername;
+  @override
+  @JsonKey(name: 'first_name')
+  String? get firstName;
+  @override
+  @JsonKey(name: 'last_name')
+  String? get lastName;
+  @override
+  @JsonKey(name: 'birth_date')
+  DateTime? get birthDate;
+  @override
+  String? get gender;
+  @override
+  @JsonKey(name: 'profile_complete')
+  bool get profileComplete;
 
   /// Create a copy of User
   /// with the given fields replaced by the non-null parameter values.
