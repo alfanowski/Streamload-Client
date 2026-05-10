@@ -5,10 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import 'presentation/pages/home_page.dart';
 import 'presentation/pages/library_page.dart';
-import 'presentation/pages/login_page.dart';
 import 'presentation/pages/plugin_onboarding_page.dart';
+import 'presentation/pages/profile_completion_page.dart';
 import 'presentation/pages/profile_page.dart';
-import 'presentation/pages/register_page.dart';
 import 'presentation/pages/plugins_page.dart';
 import 'presentation/pages/search_page.dart';
 import 'presentation/pages/settings_page.dart';
@@ -20,38 +19,47 @@ import 'state/github_token_provider.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/login',
+    initialLocation: '/onboarding/github',
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final auth = ref.read(authProvider);
       final token = ref.read(githubTokenProvider).value;
       final loc = state.matchedLocation;
-      final isAuthRoute = loc == '/login' || loc == '/register';
-      final isOnboarding = loc == '/onboarding/github';
+      final isOnboardingGithub = loc == '/onboarding/github';
+      final isOnboardingProfile = loc == '/onboarding/profile';
 
-      if (auth is AuthLoading) return null;
-      if (auth is AuthUnauthenticated || auth is AuthError) {
-        return isAuthRoute ? null : '/login';
+      // No token at all → must do GitHub login first.
+      if (token == null || token.isEmpty) {
+        return isOnboardingGithub ? null : '/onboarding/github';
       }
-      if (auth is AuthAuthenticated) {
-        // Authenticated but no token yet → onboarding wizard.
-        if ((token == null || token.isEmpty) && !isOnboarding) {
-          return '/onboarding/github';
-        }
-        // Authenticated with token → leave login/register, send to home.
-        if (isAuthRoute) return '/home';
-        // Authenticated and at /onboarding/github but token now exists → home.
-        if (isOnboarding && token != null && token.isNotEmpty) return '/home';
+
+      // Have token but no backend session yet → onboarding/github will
+      // call loginWithGithub on submit; once authenticated this fires again.
+      if (auth is! AuthAuthenticated) {
+        if (auth is AuthLoading) return null;
+        // AuthError or Unauthenticated with a token present — let
+        // /onboarding/github surface the issue and the user can retry.
+        return isOnboardingGithub ? null : '/onboarding/github';
       }
+
+      // Authenticated. Check profile.
+      if (!auth.user.profileComplete) {
+        return isOnboardingProfile ? null : '/onboarding/profile';
+      }
+
+      // Fully ready — bounce out of onboarding pages.
+      if (isOnboardingGithub || isOnboardingProfile) return '/home';
       return null;
     },
     refreshListenable: _RouterRefreshNotifier(ref),
     routes: [
-      GoRoute(path: '/login', builder: (_, __) => const LoginPage()),
-      GoRoute(path: '/register', builder: (_, __) => const RegisterPage()),
       GoRoute(
         path: '/onboarding/github',
         builder: (_, __) => const PluginOnboardingPage(),
+      ),
+      GoRoute(
+        path: '/onboarding/profile',
+        builder: (_, __) => const ProfileCompletionPage(),
       ),
       ShellRoute(
         builder: (context, state, child) => AuthenticatedShell(child: child),
@@ -74,10 +82,9 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (ctx, state) => WatchPlaceholderPage(
               tmdbId: int.parse(state.pathParameters['tmdbId']!),
               mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
-              season: int.tryParse(
-                  state.uri.queryParameters['season'] ?? ''),
-              episode: int.tryParse(
-                  state.uri.queryParameters['episode'] ?? ''),
+              season: int.tryParse(state.uri.queryParameters['season'] ?? ''),
+              episode:
+                  int.tryParse(state.uri.queryParameters['episode'] ?? ''),
             ),
           ),
         ],
@@ -90,7 +97,8 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   _RouterRefreshNotifier(Ref ref) {
     ref.listen<AuthState>(authProvider, (_, __) => notifyListeners());
     ref.listen<AsyncValue<String?>>(
-      githubTokenProvider, (_, __) => notifyListeners(),
+      githubTokenProvider,
+      (_, __) => notifyListeners(),
     );
   }
 }

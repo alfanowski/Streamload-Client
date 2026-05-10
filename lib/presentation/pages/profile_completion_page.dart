@@ -139,7 +139,7 @@ class _ProfileCompletionPageState
                       labelText: 'Genere',
                       border: OutlineInputBorder(),
                     ),
-                    value: _gender,
+                    initialValue: _gender,
                     items: [
                       for (final (value, label) in _genderOptions)
                         DropdownMenuItem(value: value, child: Text(label)),

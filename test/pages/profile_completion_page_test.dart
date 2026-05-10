@@ -14,7 +14,7 @@ class _AuthApiMock extends Mock implements AuthApi {}
 /// Stub AuthNotifier — starts as authenticated and delegates updateProfile
 /// to the real implementation so the mock AuthApi gets called.
 class _PreAuthedNotifier extends AuthNotifier {
-  _PreAuthedNotifier(Ref ref, User initialUser) : super(ref) {
+  _PreAuthedNotifier(super.ref, User initialUser) {
     state = AuthAuthenticated(initialUser);
   }
 }
@@ -53,11 +53,6 @@ void main() {
           gender: any(named: 'gender'),
         )).thenAnswer((_) async => _completeUser);
 
-    // Build with a GoRouter so context.go('/home') works.
-    final router = Router<Object>(
-      routerDelegate: _SimpleRouterDelegate(),
-    );
-
     await tester.pumpWidget(ProviderScope(
       overrides: [
         authApiProvider.overrideWith((_) async => api),
@@ -65,8 +60,8 @@ void main() {
           (ref) => _PreAuthedNotifier(ref, _incompleteUser),
         ),
       ],
-      child: MaterialApp(
-        home: const ProfileCompletionPage(),
+      child: const MaterialApp(
+        home: ProfileCompletionPage(),
       ),
     ));
 
@@ -83,11 +78,8 @@ void main() {
     await tester.tap(find.text('Maschio').last);
     await tester.pumpAndSettle();
 
-    // Manually set birth date by updating the state (DatePicker is system UI)
-    // We do this by tapping submit and checking for the validation error,
-    // then use a different approach: find the page state and set _birth directly.
-    // Instead, we'll tap the date tile, but since there's no real date picker
-    // in widget tests, we check that updateProfile was NOT called (birth missing).
+    // DatePicker is system UI and can't be driven in widget tests.
+    // Tap submit without a birth date — should show validation error.
     await tester.tap(find.byKey(const Key('profile.submit')));
     await tester.pump();
 
@@ -185,16 +177,3 @@ void main() {
   });
 }
 
-/// Minimal RouterDelegate to satisfy Router widget in tests (unused, kept for reference).
-class _SimpleRouterDelegate extends RouterDelegate<Object>
-    with ChangeNotifier, PopNavigatorRouterDelegateMixin<Object> {
-  @override
-  final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-  @override
-  Widget build(BuildContext context) =>
-      Navigator(key: navigatorKey, pages: const [], onPopPage: (_, __) => false);
-
-  @override
-  Future<void> setNewRoutePath(Object configuration) async {}
-}
