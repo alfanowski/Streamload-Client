@@ -32,12 +32,12 @@ class _StubRefreshController extends PluginRefreshController {
   }
 }
 
-final _fakeDevice = DeviceCodeRequest(
+const _fakeDevice = DeviceCodeRequest(
   deviceCode: 'dev-code-123',
   userCode: 'ABCD-1234',
   verificationUri: 'https://github.com/login/device',
-  expiresIn: const Duration(seconds: 900),
-  pollInterval: const Duration(milliseconds: 10),
+  expiresIn: Duration(seconds: 900),
+  pollInterval: Duration(milliseconds: 10),
 );
 
 /// Build a GoRouter-backed app so context.go('/home') succeeds.

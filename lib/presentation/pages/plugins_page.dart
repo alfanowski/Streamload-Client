@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../plugins/loader.dart';
 import '../../state/database_provider.dart';
 import '../../state/github_token_provider.dart';
+import '../../state/plugin_access_provider.dart';
 import '../../state/plugins_provider.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
@@ -17,6 +18,106 @@ class PluginsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final access = ref.watch(pluginAccessProvider);
+
+    // ── noAccess empty-state ─────────────────────────────────────────────────
+    if (access == PluginAccess.noAccess) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/settings'),
+          ),
+          title: const Text('Plugin'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.lock_outline, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Pacchetto plugin non disponibile',
+                  style: StreamloadTypography.display(fontSize: 24),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Il tuo account GitHub non ha accesso al pacchetto plugin '
+                  'di Streamload. Senza il pacchetto puoi sfogliare il '
+                  'catalogo, ma non avviare la riproduzione. Contatta '
+                  "l'amministratore per chiedere l'invito.",
+                  textAlign: TextAlign.center,
+                  style: StreamloadTypography.body(
+                    fontSize: 14,
+                    color: StreamloadColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () async {
+                    await ref.read(githubTokenProvider.notifier).clear();
+                    if (context.mounted) context.go('/onboarding/github');
+                  },
+                  child: const Text('Cambia account GitHub'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── networkError empty-state ─────────────────────────────────────────────
+    if (access == PluginAccess.networkError) {
+      return Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/settings'),
+          ),
+          title: const Text('Plugin'),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.wifi_off_outlined, size: 48),
+                const SizedBox(height: 16),
+                Text(
+                  'Errore di rete',
+                  style: StreamloadTypography.display(fontSize: 24),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Impossibile raggiungere il registro dei plugin. '
+                  'Verifica la connessione e riprova.',
+                  textAlign: TextAlign.center,
+                  style: StreamloadTypography.body(
+                    fontSize: 14,
+                    color: StreamloadColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                OutlinedButton(
+                  onPressed: () => ref
+                      .read(pluginRefreshControllerProvider.notifier)
+                      .refresh(),
+                  child: const Text('Riprova'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // ── existing implementation (available / unknown / loading) ──────────────
     final installed = ref.watch(installedPluginsProvider);
     final refreshState = ref.watch(pluginRefreshControllerProvider);
     final db = ref.watch(databaseProvider);
