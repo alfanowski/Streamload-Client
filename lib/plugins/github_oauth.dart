@@ -52,7 +52,7 @@ class GithubOAuth {
   final Dio _dio;
 
   /// Step 1: ask GitHub for a device code.
-  Future<DeviceCodeRequest> requestDeviceCode({String scope = 'repo'}) async {
+  Future<DeviceCodeRequest> requestDeviceCode({String scope = 'repo user:email'}) async {
     final resp = await _dio.post<Map<String, dynamic>>(
       'https://github.com/login/device/code',
       data: {'client_id': clientId, 'scope': scope},
