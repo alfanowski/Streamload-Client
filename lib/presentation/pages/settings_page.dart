@@ -93,6 +93,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const Eyebrow('Aspetto'),
               const SizedBox(height: 12),
               _themeRow(),
+              const SizedBox(height: 24),
+              const Eyebrow('Plugin'),
+              const SizedBox(height: 12),
+              Card(
+                color: StreamloadColors.surface2,
+                child: ListTile(
+                  title: const Text('Gestisci plugin installati'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.go('/plugins'),
+                ),
+              ),
               const SizedBox(height: 32),
               PrimaryButton(
                 key: const Key('settings.save'),

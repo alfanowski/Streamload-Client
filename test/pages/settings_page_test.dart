@@ -29,6 +29,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('eng'), findsOneWidget); // audio_pref_lang shown
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('settings.save')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.byKey(const Key('settings.save')));
     await tester.pump();
 

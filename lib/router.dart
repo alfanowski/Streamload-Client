@@ -8,6 +8,7 @@ import 'presentation/pages/login_page.dart';
 import 'presentation/pages/plugin_onboarding_page.dart';
 import 'presentation/pages/profile_page.dart';
 import 'presentation/pages/register_page.dart';
+import 'presentation/pages/plugins_page.dart';
 import 'presentation/pages/settings_page.dart';
 import 'state/auth_provider.dart';
 import 'state/github_pat_provider.dart';
@@ -50,6 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/home', builder: (_, __) => const HomePage()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
       GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+      GoRoute(path: '/plugins', builder: (_, __) => const PluginsPage()),
     ],
   );
 });
