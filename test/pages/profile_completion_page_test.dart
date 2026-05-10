@@ -105,8 +105,8 @@ void main() {
           (ref) => _PreAuthedNotifier(ref, _incompleteUser),
         ),
       ],
-      child: MaterialApp(
-        home: const ProfileCompletionPage(),
+      child: const MaterialApp(
+        home: ProfileCompletionPage(),
       ),
     ));
 
@@ -133,8 +133,8 @@ void main() {
           (ref) => _PreAuthedNotifier(ref, _incompleteUser),
         ),
       ],
-      child: MaterialApp(
-        home: const ProfileCompletionPage(),
+      child: const MaterialApp(
+        home: ProfileCompletionPage(),
       ),
     ));
 
@@ -161,8 +161,8 @@ void main() {
           (ref) => _PreAuthedNotifier(ref, _incompleteUser),
         ),
       ],
-      child: MaterialApp(
-        home: const ProfileCompletionPage(),
+      child: const MaterialApp(
+        home: ProfileCompletionPage(),
       ),
     ));
 
