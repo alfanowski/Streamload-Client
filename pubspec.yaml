@@ -38,7 +38,7 @@ dependencies:
   json_annotation: ^4.9.0
 
   # UI
-  google_fonts: ^6.2.1
+  google_fonts: ^7.0.0
   lucide_icons: ^0.257.0
 
 dev_dependencies:
