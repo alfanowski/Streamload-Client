@@ -213,10 +213,29 @@ class PluginRuntime {
     String functionName,
     List<Object?> args,
   ) async {
+    // The catch+resolve trick: JSON.stringify(new Error("hi")) returns "{}"
+    // because Error props are non-enumerable, so a naive Promise.reject(err)
+    // arrives on the Dart side as an empty object — useless. Convert any
+    // rejection into a successful resolution wrapped as {__error: "<msg>"};
+    // Dart unpacks it below and re-throws with the real message + stack.
     final stub = '''
       (function() {
         var fn = globalThis.__sl_plugins[${jsonEncode(shortName)}].$functionName;
-        return fn.apply(null, ${jsonEncode(args)});
+        return Promise.resolve(fn.apply(null, ${jsonEncode(args)})).then(
+          function(v) { return v; },
+          function(err) {
+            var msg;
+            if (err && err.message) {
+              msg = (err.name ? err.name + ": " : "") + err.message
+                + (err.stack ? "\\n" + err.stack : "");
+            } else if (typeof err === 'string') {
+              msg = err;
+            } else {
+              try { msg = JSON.stringify(err); } catch (_) { msg = String(err); }
+            }
+            return {__pluginError: msg};
+          }
+        );
       })();
     ''';
 
@@ -261,11 +280,19 @@ class PluginRuntime {
       }
       final jsonResult = resolved.stringResult as String? ?? '';
       if (jsonResult == 'null' || jsonResult == 'undefined') return null;
+      final Object? decoded;
       try {
-        return jsonDecode(jsonResult);
+        decoded = jsonDecode(jsonResult);
       } catch (_) {
         return jsonResult;
       }
+      // Plugin error envelope (see the catch+resolve trick in the stub).
+      if (decoded is Map && decoded['__pluginError'] is String) {
+        throw StateError(
+          'plugin $shortName.$functionName threw: ${decoded['__pluginError']}',
+        );
+      }
+      return decoded;
     }
 
     final raw = evalResult.stringResult;
