@@ -45,7 +45,14 @@ class LocalProxyServer {
             resp.data ?? '',
             basePath: '/variant/$sid',
           );
-          session.renditionUpstream.addAll(result.renditionUrls);
+          // Master playlists from real HLS sources (Apple BipBop, etc.) use
+          // RELATIVE rendition URLs. Resolve them against the master URL so
+          // the variant route can dio.get them directly.
+          final masterUri = Uri.parse(session.upstreamMasterUrl);
+          session.renditionUpstream.addAll({
+            for (final entry in result.renditionUrls.entries)
+              entry.key: masterUri.resolve(entry.value).toString(),
+          });
           return shelf.Response.ok(result.body, headers: {
             'content-type': 'application/vnd.apple.mpegurl',
           });
@@ -75,10 +82,18 @@ class LocalProxyServer {
             rendition: label,
             basePath: '/variant/$sid',
           );
+          // Segments and EXT-X-KEY are usually relative to the VARIANT
+          // playlist URL (not the master). Resolve them now so the seg+key
+          // routes can dio.get them.
+          final variantUri = Uri.parse(upstream);
           if (result.keyUrl != null) {
-            session.keyUrlByRendition[label] = result.keyUrl!;
+            session.keyUrlByRendition[label] =
+                variantUri.resolve(result.keyUrl!).toString();
           }
-          session.segmentUrlsByRendition[label] = result.segmentUrls;
+          session.segmentUrlsByRendition[label] = [
+            for (final s in result.segmentUrls)
+              variantUri.resolve(s).toString(),
+          ];
           return shelf.Response.ok(result.body, headers: {
             'content-type': 'application/vnd.apple.mpegurl',
           });

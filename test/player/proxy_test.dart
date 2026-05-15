@@ -249,4 +249,79 @@ http://127.0.0.1:${fixture.port}/seg-0.ts
     expect(segResp.bodyBytes.length, 1024);
     expect(segResp.bodyBytes, equals(fakeSegment));
   });
+
+  test('resolves RELATIVE rendition + segment URLs against upstream', () async {
+    // Real-world HLS (Apple BipBop, etc.) uses relative URLs in master
+    // playlists. The proxy must resolve them against the master URL before
+    // storing in the session map, otherwise dio.get of a bare path fails.
+    final fakeSegment = Uint8List(64);
+    late HttpServer fixture;
+    fixture = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    fixture.listen((req) {
+      final p = req.uri.path;
+      if (p == '/stream/master.m3u8') {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=640x360
+gear1/prog_index.m3u8
+''')
+          ..close();
+      } else if (p == '/stream/gear1/prog_index.m3u8') {
+        req.response
+          ..statusCode = 200
+          ..write('''
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-TARGETDURATION:6
+#EXTINF:5.0,
+fileSequence0.ts
+#EXT-X-ENDLIST
+''')
+          ..close();
+      } else if (p == '/stream/gear1/fileSequence0.ts') {
+        req.response
+          ..statusCode = 200
+          ..add(fakeSegment)
+          ..close();
+      } else {
+        req.response
+          ..statusCode = 404
+          ..close();
+      }
+    });
+    addTearDown(() => fixture.close(force: true));
+
+    final s = PlaybackSession.create(
+      tmdbId: 1,
+      mediaType: 'movie',
+      pluginShortName: 'p',
+      upstreamMasterUrl:
+          'http://127.0.0.1:${fixture.port}/stream/master.m3u8',
+      upstreamHeaders: const {},
+    );
+    registry.put(s);
+
+    final masterResp =
+        await http.get(Uri.parse('${proxy.baseUrl}/master/${s.id}.m3u8'));
+    expect(masterResp.statusCode, 200);
+    // The rewriter labels by sha1[:8] when there's no ?rendition= query param.
+    final labelMatch = RegExp(r'/variant/[^/]+/video/([0-9a-f]{8})\.m3u8')
+        .firstMatch(masterResp.body);
+    expect(labelMatch, isNotNull,
+        reason: 'expected a sha1-labelled rendition URL in: ${masterResp.body}');
+    final label = labelMatch!.group(1)!;
+
+    final variantResp = await http.get(
+      Uri.parse('${proxy.baseUrl}/variant/${s.id}/video/$label.m3u8'),
+    );
+    expect(variantResp.statusCode, 200,
+        reason: 'variant fetch should succeed once master URL is resolved');
+
+    final segResp =
+        await http.get(Uri.parse('${proxy.baseUrl}/seg/${s.id}/$label/0.ts'));
+    expect(segResp.statusCode, 200);
+    expect(segResp.bodyBytes.length, 64);
+  });
 }
