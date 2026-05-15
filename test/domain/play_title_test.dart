@@ -59,4 +59,53 @@ void main() {
       throwsA(isA<StateError>().having((e) => e.message, 'message', contains('no plugin'))),
     );
   });
+
+  test('startMovie BYPASSES proxy when no headers + no DRM (direct mode)', () async {
+    when(() => plugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url':
+              'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8',
+          'headers': const <String, dynamic>{},
+          'is_drm': false,
+        });
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      pluginFor: (_) => plugin,
+    );
+    final url = await controller.startMovie(tmdbId: 42);
+    // Direct upstream URL, NOT the loopback proxy.
+    expect(url, startsWith('https://devstreaming-cdn.apple.com/'));
+    expect(url, isNot(startsWith('http://127.0.0.1')));
+  });
+
+  test('startMovie uses proxy when headers ARE required (scraping plugin)', () async {
+    when(() => plugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://upstream/master.m3u8',
+          'headers': {'Referer': 'https://up'},
+          'is_drm': false,
+        });
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      pluginFor: (_) => plugin,
+    );
+    final url = await controller.startMovie(tmdbId: 42);
+    expect(url, startsWith('http://127.0.0.1:47821/master/'));
+  });
+
+  test('startMovie uses proxy when stream is DRM', () async {
+    when(() => plugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://upstream/master.m3u8',
+          'headers': const <String, dynamic>{},
+          'is_drm': true,
+          'drm_keys': {'k': 'v'},
+        });
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      pluginFor: (_) => plugin,
+    );
+    final url = await controller.startMovie(tmdbId: 42);
+    expect(url, startsWith('http://127.0.0.1:47821/master/'));
+  });
 }

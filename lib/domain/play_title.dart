@@ -2,9 +2,25 @@
 import '../player/session.dart';
 import '../plugins/plugin.dart';
 
-/// Orchestrator that turns a (tmdbId, mediaType) request into a proxy master
-/// URL by calling the appropriate plugin, registering a session, and returning
-/// the rewritten `http://127.0.0.1:<port>/master/<sid>.m3u8` URL.
+/// Orchestrator that turns a (tmdbId, mediaType) request into a URL that
+/// media_kit can open.
+///
+/// Strategy:
+/// - **Direct (fast, default for public sources)**: when the plugin's
+///   getStreams() returns a manifest with no custom headers and no DRM,
+///   return the manifest URL as-is. media_kit fetches it directly. No
+///   session, no proxy. Maximally compatible across platforms (Windows,
+///   Linux, mobile in the future) since it bypasses the loopback HTTP
+///   indirection entirely.
+/// - **Proxied (slow, only when needed)**: when the upstream requires
+///   custom headers (Referer/Cookie for scraping plugins) or DRM
+///   decryption, register a PlaybackSession and return the local proxy URL
+///   `http://127.0.0.1:<port>/master/<sid>.m3u8`. The proxy injects the
+///   headers, decrypts AES segments, and caches.
+///
+/// The proxy is an opt-in optimization for hard cases, NOT a mandatory
+/// indirection — keeping it that way prevents the proxy's quirks from
+/// turning into a single point of failure for ALL playback.
 class PlayController {
   PlayController({
     required this.registry,
@@ -59,13 +75,25 @@ class PlayController {
             ?.cast<String, dynamic>()
             .map((k, v) => MapEntry(k, v.toString())) ??
         const <String, String>{};
+    final manifestUrl = getStreamsResult['manifest_url'] as String;
+    final isDrm = getStreamsResult['is_drm'] == true;
+
+    // Direct mode: no headers, no DRM → media_kit handles the upstream
+    // natively. Skip the proxy entirely. This is the common case for public
+    // CDN streams (Apple BipBop, etc.) and the most compatible path.
+    if (headers.isEmpty && !isDrm) {
+      return manifestUrl;
+    }
+
+    // Proxied mode: scraping plugins need Referer/Cookie injection or AES key
+    // proxying. Register a session and return the loopback master URL.
     final session = PlaybackSession.create(
       tmdbId: tmdbId,
       mediaType: mediaType,
       pluginShortName: plugin.meta.shortName,
-      upstreamMasterUrl: getStreamsResult['manifest_url'] as String,
+      upstreamMasterUrl: manifestUrl,
       upstreamHeaders: headers,
-      isDrm: getStreamsResult['is_drm'] == true,
+      isDrm: isDrm,
       drmKeys: getStreamsResult['drm_keys'] as Map<String, dynamic>?,
     );
     registry.put(session);
