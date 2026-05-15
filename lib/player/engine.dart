@@ -1,7 +1,11 @@
 // lib/player/engine.dart
 import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 
-/// Thin wrapper around media_kit.Player. Owns one player; dispose drops it.
+/// Thin wrapper around media_kit.Player. ONE instance per app lifetime —
+/// the surrounding [playerEngineProvider] is NOT autoDispose, so the same
+/// player + texture survives navigation between watch sessions. Watch pages
+/// pause on close; the engine itself isn't disposed until app shutdown.
 class PlayerEngine {
   PlayerEngine() : _player = Player();
 
@@ -10,8 +14,16 @@ class PlayerEngine {
   }
 
   final Player _player;
+  VideoController? _videoController;
 
   Player get player => _player;
+
+  /// Lazily-constructed [VideoController] bound to this engine's player.
+  /// Cached so the [Video] widget can stay attached across rebuilds and
+  /// page navigations — recreating it on every WatchPage mount is what
+  /// triggered the "ValueNotifier was used after being disposed" race.
+  VideoController get videoController =>
+      _videoController ??= VideoController(_player);
 
   Stream<Duration> get positionStream => _player.stream.position;
   Stream<Duration> get durationStream => _player.stream.duration;

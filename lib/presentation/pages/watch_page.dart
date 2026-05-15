@@ -18,9 +18,12 @@ import '../widgets/player_controls.dart';
 
 /// Typedef that lets tests inject a no-op widget instead of the real
 /// media_kit [Video], which throws in headless test environments.
-typedef VideoBuilder = Widget Function(VideoController controller);
+/// Receives the engine so the default builder can construct/access the
+/// shared [VideoController] without forcing tests to mock it.
+typedef VideoBuilder = Widget Function(PlayerEngine engine);
 
-Widget _defaultVideoBuilder(VideoController c) => Video(controller: c);
+Widget _defaultVideoBuilder(PlayerEngine e) =>
+    Video(controller: e.videoController);
 
 class WatchPage extends ConsumerStatefulWidget {
   const WatchPage({
@@ -41,8 +44,6 @@ enum _Phase { loading, playing, error }
 class _WatchPageState extends ConsumerState<WatchPage> {
   _Phase _phase = _Phase.loading;
   String? _error;
-  VideoController? _videoController;
-  // Cache engine reference so dispose() doesn't call ref.read after unmount.
   PlayerEngine? _engine;
   ProgressTracker? _tracker;
 
@@ -63,11 +64,13 @@ class _WatchPageState extends ConsumerState<WatchPage> {
                   episode: widget.request.episode!,
                 )
               : await controller.startMovie(tmdbId: widget.request.tmdbId);
+      // The engine is now a process-level singleton (see player_engine_provider).
+      // Pull it once; it survives across watch sessions and so does its
+      // VideoController + texture.
       final engine = ref.read(playerEngineProvider);
       _engine = engine;
       engine.open(url, headers: const {});
       await engine.play();
-      // Start progress tracking after successful play.
       final progressApi = await ref.read(progressApiProvider.future);
       _tracker = ProgressTracker(
         api: progressApi,
@@ -78,10 +81,7 @@ class _WatchPageState extends ConsumerState<WatchPage> {
         positionStream: engine.positionStream,
         durationStream: engine.durationStream,
       )..start();
-      if (mounted) {
-        _videoController = VideoController(engine.player);
-        setState(() => _phase = _Phase.playing);
-      }
+      if (mounted) setState(() => _phase = _Phase.playing);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -125,7 +125,7 @@ class _WatchPageState extends ConsumerState<WatchPage> {
                     ),
                   ),
                 ),
-              _Phase.playing => widget.videoBuilder(_videoController!),
+              _Phase.playing => widget.videoBuilder(_engine!),
             },
             // Always-visible top bar with close.
             Positioned(
