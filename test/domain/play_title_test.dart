@@ -156,6 +156,94 @@ void main() {
     expect(picked['id'], 'right:b:it');
   });
 
+  test('match strips leading articles when comparing TMDB hint vs plugin title',
+      () async {
+    // TMDB returns "Il Commissario Montalbano"; plugin returns the title
+    // without the leading article. Normalization should make these equal.
+    when(() => plugin.search(any())).thenAnswer((_) async => [
+          {
+            'id': 'right',
+            'title': 'Commissario Montalbano',
+            'type': 'movie',
+            'year': 1999
+          },
+        ]);
+    when(() => plugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://upstream/master.m3u8',
+          'headers': {'Referer': 'x'},
+          'is_drm': false,
+        });
+    final resolver = (int _, String __) async =>
+        const TitleHint(title: 'Il Commissario Montalbano', year: 1999);
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      router: ProviderRouter(runtime: runtime),
+      resolveTitle: resolver,
+    );
+    await controller.startMovie(tmdbId: 42);
+    final calls = verify(() => plugin.getStreams(captureAny())).captured;
+    final picked = calls.first as Map<String, dynamic>;
+    expect(picked['id'], 'right');
+  });
+
+  test('match returns null when no result resembles the hint (no first-result fallback)',
+      () async {
+    // Plugin returns 3 unrelated results — none should be accepted by the new
+    // tier-3 prefix logic.
+    when(() => plugin.search(any())).thenAnswer((_) async => [
+          {'id': 'a', 'title': 'Totally Different Show', 'type': 'movie', 'year': 2020},
+          {'id': 'b', 'title': 'Another Wrong Title', 'type': 'movie', 'year': 2021},
+          {'id': 'c', 'title': 'Yet Another', 'type': 'movie', 'year': 2019},
+        ]);
+    final controller = makeController();
+    expect(
+      () => controller.startMovie(tmdbId: 42),
+      throwsA(isA<StateError>().having(
+        (e) => e.message,
+        'message',
+        contains('Tutti i plugin hanno fallito'),
+      )),
+    );
+    verifyNever(() => plugin.getStreams(any()));
+  });
+
+  test('match prefix picks shortest title (Dragon Ball Z series over Movie 01)',
+      () async {
+    when(() => plugin.search(any())).thenAnswer((_) async => [
+          {
+            'id': 'long',
+            'title': 'Dragon Ball Z Movie 01: La Vendetta Divina',
+            'type': 'movie',
+            'year': 1989
+          },
+          {
+            'id': 'series',
+            'title': 'Dragon Ball Z',
+            'type': 'movie',
+            'year': 1989
+          },
+        ]);
+    when(() => plugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://upstream/master.m3u8',
+          'headers': {'Referer': 'x'},
+          'is_drm': false,
+        });
+    final resolver = (int _, String __) async =>
+        const TitleHint(title: 'Dragon Ball Z', year: 1989);
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      router: ProviderRouter(runtime: runtime),
+      resolveTitle: resolver,
+    );
+    await controller.startMovie(tmdbId: 42);
+    final calls = verify(() => plugin.getStreams(captureAny())).captured;
+    final picked = calls.first as Map<String, dynamic>;
+    // Tier-2 exact match should win, not tier-3 prefix.
+    expect(picked['id'], 'series');
+  });
+
   test('router fans out: first non-DRM bundle wins over a DRM-only plugin',
       () async {
     final drmPlugin = _PluginMock();

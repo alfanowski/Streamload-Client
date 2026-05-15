@@ -160,10 +160,18 @@ class ProviderRouter {
     return completer.future;
   }
 
-  /// Run plugin.search(hint.title) and pick the best matching entry by
-  /// (mediaType-aware pool) → (title+year) → (title only) → (first).
+  /// Run plugin.search(hint.title) and pick the best matching entry.
   ///
-  /// Returns null if the plugin returned no results or threw on search.
+  /// Tier 1: normalized title equality + year within ±1 (strong)
+  /// Tier 2: normalized title equality, any year (strong)
+  /// Tier 3: normalized prefix match with word boundary — pick the shortest
+  ///         candidate (so "Dragon Ball Z" prefers "Dragon Ball Z" over
+  ///         "Dragon Ball Z Movie 01: La Vendetta Divina" if both exist, and
+  ///         picks the movie variant only if no exact match exists)
+  ///
+  /// Returns null if no tier matches — we deliberately do NOT fall back to a
+  /// random first result, because in TMDB-anchored flows that produces
+  /// wildly-wrong streams (Montalbano → Gamache, etc.).
   Future<Map<String, dynamic>?> _resolveEntry(
     Plugin plugin,
     TitleHint hint,
@@ -180,18 +188,19 @@ class ProviderRouter {
         'plugin ${plugin.meta.shortName} search "${hint.title}" → ${results.length} result(s)');
     if (results.isEmpty) return null;
 
-    final norm = hint.title.toLowerCase().trim();
+    final hintNorm = _normalizeTitle(hint.title);
     final typed = results.where((r) {
       final t = (r['type'] as String? ?? '');
       return t == mediaType || t.startsWith('$mediaType:');
     }).toList();
     final pool = typed.isNotEmpty ? typed : results;
 
+    // Tier 1: normalized exact + close year.
     if (hint.year != null) {
       for (final r in pool) {
-        final title = (r['title'] as String? ?? '').toLowerCase().trim();
+        final tNorm = _normalizeTitle(r['title'] as String? ?? '');
         final year = r['year'];
-        if (title == norm &&
+        if (tNorm == hintNorm &&
             year is num &&
             (year.toInt() - hint.year!).abs() <= 1) {
           _log.info(
@@ -200,17 +209,59 @@ class ProviderRouter {
         }
       }
     }
+    // Tier 2: normalized exact, any year.
     for (final r in pool) {
-      final title = (r['title'] as String? ?? '').toLowerCase().trim();
-      if (title == norm) {
+      final tNorm = _normalizeTitle(r['title'] as String? ?? '');
+      if (tNorm == hintNorm) {
         _log.info(
             '  match tier-2 ${plugin.meta.shortName}: ${r['title']} (${r['year']})');
         return r;
       }
     }
-    final fallback = pool.first;
+    // Tier 3: normalized prefix with word boundary. Pick the shortest title.
+    final prefixed = <Map<String, dynamic>>[];
+    for (final r in pool) {
+      final tNorm = _normalizeTitle(r['title'] as String? ?? '');
+      if (tNorm.startsWith('$hintNorm ')) {
+        prefixed.add(r);
+      }
+    }
+    if (prefixed.isNotEmpty) {
+      prefixed.sort((a, b) {
+        final la = (a['title'] as String? ?? '').length;
+        final lb = (b['title'] as String? ?? '').length;
+        return la.compareTo(lb);
+      });
+      final chosen = prefixed.first;
+      _log.info(
+          '  match tier-3 ${plugin.meta.shortName} (prefix): ${chosen['title']} (${chosen['year']})');
+      return chosen;
+    }
     _log.warn(
-        '  match tier-3 ${plugin.meta.shortName} (weak): ${fallback['title']}');
-    return fallback;
+        '  no match in ${plugin.meta.shortName} for "${hint.title}" — rejected ${pool.length} weak candidate(s)');
+    return null;
+  }
+
+  /// Normalize a title for fuzzy matching across plugins:
+  /// - lowercase + trim
+  /// - strip a leading Italian/English article ("il/lo/la/l'/i/le/gli/the")
+  /// - replace non-alphanumeric with space, collapse runs of whitespace
+  ///
+  /// Intentionally simple: no accent folding or Levenshtein. Real-world
+  /// catalog variance (article presence, punctuation, trailing ":subtitle")
+  /// is what trips exact-match the most.
+  static final _articleRe = RegExp(
+    r"^(il |lo |la |l'|i |le |gli |the )",
+    caseSensitive: false,
+  );
+  static final _nonAlnumRe = RegExp(r'[^\w\s]');
+  static final _wsRe = RegExp(r'\s+');
+
+  String _normalizeTitle(String s) {
+    var n = s.toLowerCase().trim();
+    n = n.replaceFirst(_articleRe, '');
+    n = n.replaceAll(_nonAlnumRe, ' ');
+    n = n.replaceAll(_wsRe, ' ').trim();
+    return n;
   }
 }
