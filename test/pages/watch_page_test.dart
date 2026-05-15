@@ -35,6 +35,14 @@ class _ProgressApiMock extends Mock implements ProgressApi {}
       .thenAnswer((_) => const Stream.empty());
   when(() => engine.playingStream)
       .thenAnswer((_) => const Stream.empty());
+  when(() => engine.errorStream)
+      .thenAnswer((_) => const Stream.empty());
+  when(() => engine.logStream)
+      .thenAnswer((_) => const Stream.empty());
+  when(() => engine.widthStream)
+      .thenAnswer((_) => const Stream<int?>.empty());
+  when(() => engine.heightStream)
+      .thenAnswer((_) => const Stream<int?>.empty());
 
   // progress api may be called (but we don't assert it in lifecycle tests).
   when(

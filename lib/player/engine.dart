@@ -28,6 +28,11 @@ class PlayerEngine {
   Stream<Duration> get positionStream => _player.stream.position;
   Stream<Duration> get durationStream => _player.stream.duration;
   Stream<bool> get playingStream => _player.stream.playing;
+  Stream<String> get errorStream => _player.stream.error;
+  Stream<int?> get widthStream => _player.stream.width;
+  Stream<int?> get heightStream => _player.stream.height;
+  Stream<String> get logStream =>
+      _player.stream.log.map((e) => '${e.level} ${e.prefix}: ${e.text}');
 
   void open(String uri, {required Map<String, String> headers}) {
     _player.open(Media(uri, httpHeaders: headers));

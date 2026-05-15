@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../domain/models/playback_request.dart';
+import '../../infra/logger.dart';
 import '../../player/engine.dart';
 import '../../state/api_client_provider.dart';
 import '../../state/play_controller_provider.dart';
@@ -16,18 +17,27 @@ import '../theme/colors.dart';
 import '../theme/typography.dart';
 import '../widgets/player_controls.dart';
 
+final _log = Logger('watch');
+
 /// Typedef that lets tests inject a no-op widget instead of the real
 /// media_kit [Video], which throws in headless test environments.
 /// Receives the engine so the default builder can construct/access the
 /// shared [VideoController] without forcing tests to mock it.
 typedef VideoBuilder = Widget Function(PlayerEngine engine);
 
-Widget _defaultVideoBuilder(PlayerEngine e) => Video(
-      controller: e.videoController,
-      // Disable media_kit_video's built-in controls overlay — we render our
-      // own PlayerControls below, otherwise both stack and the user sees
-      // two scrub bars + two play/pause buttons.
-      controls: NoVideoControls,
+Widget _defaultVideoBuilder(PlayerEngine e) => SizedBox.expand(
+      // Force the Video widget to use ALL available space. media_kit_video's
+      // Video has its own internal LayoutBuilder that occasionally measures
+      // to 0x0 inside a Stack — wrapping with SizedBox.expand pins it to
+      // the parent's constraints.
+      child: Video(
+        controller: e.videoController,
+        // Disable built-in controls — we render our own PlayerControls below,
+        // otherwise both render and the user sees two scrub bars + two
+        // play/pause buttons stacked.
+        controls: NoVideoControls,
+        fit: BoxFit.contain,
+      ),
     );
 
 class WatchPage extends ConsumerStatefulWidget {
@@ -51,6 +61,7 @@ class _WatchPageState extends ConsumerState<WatchPage> {
   String? _error;
   PlayerEngine? _engine;
   ProgressTracker? _tracker;
+  final _engineSubs = <StreamSubscription<dynamic>>[];
 
   @override
   void initState() {
@@ -74,6 +85,23 @@ class _WatchPageState extends ConsumerState<WatchPage> {
       // VideoController + texture.
       final engine = ref.read(playerEngineProvider);
       _engine = engine;
+
+      // Wire diagnostic listeners BEFORE open() so we don't miss early
+      // errors/logs. Any unrecoverable error surfaces in the UI instead
+      // of leaving the user staring at a black screen.
+      _engineSubs.add(engine.errorStream.listen((msg) {
+        _log.error('media_kit error: $msg');
+        if (mounted) {
+          setState(() {
+            _phase = _Phase.error;
+            _error = 'Errore di riproduzione: $msg';
+          });
+        }
+      }));
+      _engineSubs.add(engine.logStream.listen((msg) => _log.info('media_kit $msg')));
+      _engineSubs.add(engine.widthStream.listen((w) => _log.info('media_kit video width → $w')));
+      _engineSubs.add(engine.heightStream.listen((h) => _log.info('media_kit video height → $h')));
+
       engine.open(url, headers: const {});
       await engine.play();
       final progressApi = await ref.read(progressApiProvider.future);
@@ -99,10 +127,10 @@ class _WatchPageState extends ConsumerState<WatchPage> {
 
   @override
   void dispose() {
-    // Stop tracker before pausing engine so the final flush can read position.
+    for (final s in _engineSubs) {
+      unawaited(s.cancel());
+    }
     _tracker?.stop();
-    // Pause on close — autoDispose will tear down the engine itself.
-    // Fire-and-forget: dispose() must be synchronous.
     if (_engine != null) unawaited(_engine!.pause());
     super.dispose();
   }
