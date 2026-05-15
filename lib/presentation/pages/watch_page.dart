@@ -22,8 +22,13 @@ import '../widgets/player_controls.dart';
 /// shared [VideoController] without forcing tests to mock it.
 typedef VideoBuilder = Widget Function(PlayerEngine engine);
 
-Widget _defaultVideoBuilder(PlayerEngine e) =>
-    Video(controller: e.videoController);
+Widget _defaultVideoBuilder(PlayerEngine e) => Video(
+      controller: e.videoController,
+      // Disable media_kit_video's built-in controls overlay — we render our
+      // own PlayerControls below, otherwise both stack and the user sees
+      // two scrub bars + two play/pause buttons.
+      controls: NoVideoControls,
+    );
 
 class WatchPage extends ConsumerStatefulWidget {
   const WatchPage({

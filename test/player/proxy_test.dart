@@ -179,8 +179,8 @@ http://127.0.0.1:${fixture.port}/seg-0.ts
     await http
         .get(Uri.parse('${proxy.baseUrl}/variant/${s.id}/video/480p.m3u8'));
 
-    final keyResp =
-        await http.get(Uri.parse('${proxy.baseUrl}/key/${s.id}/480p'));
+    final keyResp = await http
+        .get(Uri.parse('${proxy.baseUrl}/variant/${s.id}/key/480p'));
     expect(keyResp.statusCode, 200);
     expect(keyResp.bodyBytes.length, 16);
     expect(keyResp.bodyBytes, equals(fakeKey));
@@ -244,7 +244,7 @@ http://127.0.0.1:${fixture.port}/seg-0.ts
         .get(Uri.parse('${proxy.baseUrl}/variant/${s.id}/video/480p.m3u8'));
 
     final segResp = await http
-        .get(Uri.parse('${proxy.baseUrl}/seg/${s.id}/480p/0.ts'));
+        .get(Uri.parse('${proxy.baseUrl}/variant/${s.id}/seg/480p/0.ts'));
     expect(segResp.statusCode, 200);
     expect(segResp.bodyBytes.length, 1024);
     expect(segResp.bodyBytes, equals(fakeSegment));
@@ -319,8 +319,8 @@ fileSequence0.ts
     expect(variantResp.statusCode, 200,
         reason: 'variant fetch should succeed once master URL is resolved');
 
-    final segResp =
-        await http.get(Uri.parse('${proxy.baseUrl}/seg/${s.id}/$label/0.ts'));
+    final segResp = await http
+        .get(Uri.parse('${proxy.baseUrl}/variant/${s.id}/seg/$label/0.ts'));
     expect(segResp.statusCode, 200);
     expect(segResp.bodyBytes.length, 64);
   });

@@ -70,7 +70,11 @@ class Rewriter {
         }
         if (type == 'AUDIO') {
           final lang = _languageAttr.firstMatch(line)?.group(1);
-          if (lang != null) {
+          final uri = _uriAttr.firstMatch(line)?.group(1);
+          if (lang != null && uri != null) {
+            // Stash the upstream URL under "audio:<lang>" so the proxy can
+            // look it up when the audio variant is requested.
+            renditionUrls['audio:$lang'] = uri;
             final replaced = line.replaceFirstMapped(
               _uriAttr,
               (_) => 'URI="$basePath/audio/$lang.m3u8"',

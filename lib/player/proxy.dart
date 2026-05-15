@@ -105,7 +105,46 @@ class LocalProxyServer {
               body: 'upstream: ${e.message}');
         }
       })
-      ..get('/key/<sid>/<label>',
+      // Audio variant playlists. Rewriter emits these under /variant/<sid>/audio/<lang>.m3u8
+      // when the master has EXT-X-MEDIA TYPE=AUDIO entries (Apple BipBop does).
+      // Handler mirrors the video variant handler, keyed by lang instead of label.
+      ..get('/variant/<sid>/audio/<lang>.m3u8',
+          (shelf.Request req, String sid, String lang) async {
+        final session = registry.get(sid, touch: true);
+        if (session == null) return shelf.Response.notFound('unknown session');
+        final upstream = session.renditionUpstream['audio:$lang'];
+        if (upstream == null) {
+          return shelf.Response.notFound('unknown audio lang $lang');
+        }
+        try {
+          final resp = await dioInstance.get<String>(
+            upstream,
+            options: Options(
+              responseType: ResponseType.plain,
+              headers: session.upstreamHeaders,
+            ),
+          );
+          final result = Rewriter.rewriteMedia(
+            resp.data ?? '',
+            rendition: 'audio_$lang',
+            basePath: '/variant/$sid',
+          );
+          final audioUri = Uri.parse(upstream);
+          session.segmentUrlsByRendition['audio_$lang'] = [
+            for (final s in result.segmentUrls)
+              audioUri.resolve(s).toString(),
+          ];
+          return shelf.Response.ok(result.body, headers: {
+            'content-type': 'application/vnd.apple.mpegurl',
+          });
+        } on DioException catch (e) {
+          return shelf.Response.internalServerError(
+              body: 'upstream: ${e.message}');
+        }
+      })
+      // Segment + key paths live UNDER /variant/<sid>/ to match what the
+      // rewriter emits inside variant playlists (basePath = '/variant/<sid>').
+      ..get('/variant/<sid>/key/<label>',
           (shelf.Request req, String sid, String label) async {
         final session = registry.get(sid, touch: true);
         if (session == null) return shelf.Response.notFound('unknown session');
@@ -133,7 +172,7 @@ class LocalProxyServer {
               body: 'upstream: ${e.message}');
         }
       })
-      ..get('/seg/<sid>/<label>/<n|[0-9]+>.ts',
+      ..get('/variant/<sid>/seg/<label>/<n|[0-9]+>.ts',
           (shelf.Request req, String sid, String label, String n) async {
         final session = registry.get(sid, touch: true);
         if (session == null) return shelf.Response.notFound('unknown session');
