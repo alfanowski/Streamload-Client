@@ -13,6 +13,9 @@ import 'package:streamload_client/player/segment_fetcher.dart';
 import 'package:streamload_client/plugins/meta.dart';
 import 'package:streamload_client/plugins/plugin.dart';
 import 'package:streamload_client/plugins/runtime.dart';
+import 'package:streamload_client/data/remote/endpoints/catalog_api.dart';
+import 'package:streamload_client/domain/models/catalog_item.dart';
+import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/local_proxy_provider.dart';
 import 'package:streamload_client/state/play_controller_provider.dart';
 import 'package:streamload_client/state/playback_session_registry_provider.dart';
@@ -20,6 +23,7 @@ import 'package:streamload_client/state/plugin_runtime_provider.dart';
 
 class _PluginRuntimeMock extends Mock implements PluginRuntime {}
 class _PluginMock extends Mock implements Plugin {}
+class _CatalogApiMock extends Mock implements CatalogApi {}
 
 void main() {
   late Directory tmpDir;
@@ -45,8 +49,17 @@ void main() {
       ),
       dio: Dio(),
     );
+    final catalogApi = _CatalogApiMock();
+    when(() => catalogApi.get(any(), mediaType: any(named: 'mediaType')))
+        .thenAnswer((_) async => const CatalogItemResponse(
+              tmdbId: 1,
+              mediaType: 'movie',
+              title: 'Test',
+              year: 2020,
+            ));
     final container = ProviderContainer(overrides: [
       pluginRuntimeProvider.overrideWith((_) async => mockRuntime),
+      catalogApiProvider.overrideWith((_) async => catalogApi),
       localProxyProvider.overrideWith((ref) async {
         final reg = ref.watch(playbackSessionRegistryProvider);
         final server = await LocalProxyServer.start(
