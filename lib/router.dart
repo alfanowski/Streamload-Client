@@ -90,9 +90,9 @@ final routerProvider = Provider<GoRouter>((ref) {
                 episode: int.tryParse(
                     state.uri.queryParameters['episode'] ?? ''),
               ),
-              // TEMP DIAGNOSTIC — toggle to false once we confirm whether
-              // playback failures are in our proxy chain or in media_kit.
-              debugBypassProxy: true,
+              // The debug bypass param defaults to false in production; only
+              // flip locally when diagnosing whether a playback issue lives
+              // in our proxy chain vs media_kit setup.
             ),
           ),
         ],
