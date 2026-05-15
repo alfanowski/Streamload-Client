@@ -233,22 +233,24 @@ class PluginRuntime {
       try {
         resolved = await _js.handlePromise(evalResult);
       } catch (e, st) {
-        // Several flutter_js platform impls (notably JSCore on macOS)
-        // surface a rejected JS Promise by THROWING the rejection value
-        // from handlePromise instead of returning a JsEvalResult with
-        // isError=true. The thrown value is a bare JS object/string and
-        // its toString() is often '{}' or '[object Object]' — useless.
-        // Wrap into a StateError with the type + a fuller toString so the
-        // caller sees what actually went wrong.
+        // flutter_js on JSCore (macOS) throws a JsEvalResult here when the
+        // promise rejects. That object has `stringResult` holding the real
+        // error message — its default toString() is '{}'. Pull the message
+        // out via dynamic dispatch so we surface what JS actually said.
         String detail;
         try {
-          detail = e is Error ? e.toString() : '$e';
+          final dyn = e as dynamic;
+          // ignore: avoid_dynamic_calls
+          final sr = dyn.stringResult;
+          // ignore: avoid_dynamic_calls
+          final rr = dyn.rawResult;
+          detail = 'stringResult="$sr" rawResult=$rr';
         } catch (_) {
-          detail = '<unprintable>';
+          detail = e is Error ? e.toString() : '$e';
         }
         throw StateError(
-          'plugin $shortName.$functionName rejected (thrown by handlePromise): '
-          'type=${e.runtimeType} detail="$detail" stackHead=${st.toString().split("\n").take(2).join(" | ")}',
+          'plugin $shortName.$functionName rejected: type=${e.runtimeType} '
+          '$detail stackHead=${st.toString().split("\n").take(2).join(" | ")}',
         );
       }
       if (resolved.isError == true) {
