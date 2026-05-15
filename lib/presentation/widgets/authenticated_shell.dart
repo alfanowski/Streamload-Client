@@ -7,10 +7,11 @@ class AuthenticatedShell extends StatelessWidget {
   final Widget child;
 
   static const _destinations = [
-    (path: '/home',    icon: Icons.home_outlined,           label: 'Home'),
-    (path: '/library', icon: Icons.video_library_outlined,  label: 'Libreria'),
-    (path: '/search',  icon: Icons.search,                  label: 'Cerca'),
-    (path: '/profile', icon: Icons.person_outline,          label: 'Profilo'),
+    (path: '/home',     icon: Icons.home_outlined,           label: 'Home'),
+    (path: '/library',  icon: Icons.video_library_outlined,  label: 'Libreria'),
+    (path: '/search',   icon: Icons.search,                  label: 'Cerca'),
+    (path: '/profile',  icon: Icons.person_outline,          label: 'Profilo'),
+    (path: '/settings', icon: Icons.settings_outlined,       label: 'Impostazioni'),
   ];
 
   @override
