@@ -7,10 +7,28 @@ import 'package:media_kit_video/media_kit_video.dart';
 /// player + texture survives navigation between watch sessions. Watch pages
 /// pause on close; the engine itself isn't disposed until app shutdown.
 class PlayerEngine {
-  PlayerEngine() : _player = Player();
+  PlayerEngine() : _player = Player() {
+    _configureMpv();
+  }
 
   static void ensureInitialized() {
     MediaKit.ensureInitialized();
+  }
+
+  /// Apply mpv options that the proxy + plugin pipeline depends on.
+  ///
+  /// `load-unsafe-playlists=yes`: by default mpv refuses to load HTTP URLs
+  /// that appear inside HLS playlists (anti-exploit hardening — a malicious
+  /// .m3u8 could reference file:// or arbitrary network targets). Our
+  /// proxy IS the source of those URLs and only serves loopback content,
+  /// so opting in is correct + required for any real HLS source.
+  void _configureMpv() {
+    final platform = _player.platform;
+    if (platform is NativePlayer) {
+      // Fire-and-forget — mpv applies the option synchronously when the
+      // command reaches the native side. We don't need to await.
+      platform.setProperty('load-unsafe-playlists', 'yes');
+    }
   }
 
   final Player _player;

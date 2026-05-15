@@ -90,6 +90,10 @@ class _WatchPageState extends ConsumerState<WatchPage> {
       // errors/logs. Any unrecoverable error surfaces in the UI instead
       // of leaving the user staring at a black screen.
       _engineSubs.add(engine.errorStream.listen((msg) {
+        // Once we hit the error phase, stop spamming the log + UI with
+        // repeated stream notifications (libmpv emits N retries per error).
+        if (_phase == _Phase.error) return;
+        if (msg.trim().isEmpty) return;
         _log.error('media_kit error: $msg');
         if (mounted) {
           setState(() {
