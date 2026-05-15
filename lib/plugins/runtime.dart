@@ -223,7 +223,8 @@ class PluginRuntime {
     final evalResult = _js.evaluate(stub);
     if (evalResult.isError) {
       throw StateError(
-        'plugin $shortName.$functionName failed: ${evalResult.stringResult}',
+        'plugin $shortName.$functionName eval-error: '
+        '"${evalResult.stringResult}" rawResult=${evalResult.rawResult}',
       );
     }
 
@@ -231,7 +232,8 @@ class PluginRuntime {
       final resolved = await _js.handlePromise(evalResult);
       if (resolved.isError) {
         throw StateError(
-          'plugin $shortName.$functionName rejected: ${resolved.stringResult}',
+          'plugin $shortName.$functionName rejected: '
+          '"${resolved.stringResult}" rawResult=${resolved.rawResult}',
         );
       }
       final jsonResult = resolved.stringResult;
