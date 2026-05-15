@@ -182,9 +182,9 @@ class LocalProxyServer {
           return shelf.Response.notFound('unknown segment $label/$n');
         }
         try {
+          final Uint8List raw;
           if (fetcherInstance == null) {
-            // No fetcher injected — fetch directly via dio (useful in tests
-            // that don't wire up a full SegmentFetcher).
+            // No fetcher injected — direct dio fallback (test paths).
             final resp = await dioInstance.get<List<int>>(
               urls[idx],
               options: Options(
@@ -192,17 +192,21 @@ class LocalProxyServer {
                 headers: session.upstreamHeaders,
               ),
             );
-            final raw = Uint8List.fromList(resp.data ?? const []);
-            return shelf.Response.ok(raw,
-                headers: {'content-type': 'video/mp2t'});
+            raw = Uint8List.fromList(resp.data ?? const []);
+          } else {
+            raw = await fetcherInstance.fetch(
+              urls[idx],
+              headers: session.upstreamHeaders,
+              decryptor: _decryptorFor(session, label),
+            );
           }
-          final raw = await fetcherInstance.fetch(
-            urls[idx],
-            headers: session.upstreamHeaders,
-            decryptor: _decryptorFor(session, label),
-          );
-          return shelf.Response.ok(raw,
-              headers: {'content-type': 'video/mp2t'});
+          // Sniff the real container from the bytes themselves — much more
+          // reliable than relying on URL extension or upstream Content-Type.
+          // HLS audio segments are often AAC/M4A while video segments are TS;
+          // we serve the same path shape so the type has to come from data.
+          return shelf.Response.ok(raw, headers: {
+            'content-type': _sniffContentType(raw),
+          });
         } on Exception catch (e) {
           return shelf.Response.internalServerError(body: 'fetch: $e');
         }
@@ -233,6 +237,30 @@ class LocalProxyServer {
   Future<void> stop() async {
     await _server.close(force: true);
   }
+}
+
+/// Detect the container format from the first few bytes of a segment.
+/// HLS variants serve a mix of MPEG-TS, raw AAC ADTS, and fMP4. Serving every
+/// segment as 'video/mp2t' makes ffmpeg's demuxer reject the AAC ones with
+/// 'avformat_open_input() failed' even when the bytes are valid.
+String _sniffContentType(Uint8List bytes) {
+  // MPEG-TS: 188-byte packets, each starts with sync byte 0x47.
+  if (bytes.isNotEmpty && bytes[0] == 0x47) return 'video/mp2t';
+  // AAC ADTS: starts with sync word 0xFFFx (first 12 bits are 1).
+  if (bytes.length >= 2 &&
+      bytes[0] == 0xFF &&
+      (bytes[1] & 0xF0) == 0xF0) {
+    return 'audio/aac';
+  }
+  // ISO BMFF / MP4 (fMP4 HLS variant): byte offset 4-7 contains 'ftyp'.
+  if (bytes.length >= 8 &&
+      bytes[4] == 0x66 &&
+      bytes[5] == 0x74 &&
+      bytes[6] == 0x79 &&
+      bytes[7] == 0x70) {
+    return 'video/mp4';
+  }
+  return 'application/octet-stream';
 }
 
 /// Returns a decryptor for this session+rendition or null for non-DRM streams.
