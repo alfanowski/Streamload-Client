@@ -45,10 +45,16 @@ class WatchPage extends ConsumerStatefulWidget {
     super.key,
     required this.request,
     this.videoBuilder = _defaultVideoBuilder,
+    this.debugBypassProxy = false,
   });
 
   final PlaybackRequest request;
   final VideoBuilder videoBuilder;
+
+  /// DIAGNOSTIC: when true, skip plugin + proxy + session and feed media_kit
+  /// the raw Apple BipBop URL directly. Used to isolate whether playback
+  /// problems live in our proxy chain or in media_kit setup itself.
+  final bool debugBypassProxy;
 
   @override
   ConsumerState<WatchPage> createState() => _WatchPageState();
@@ -69,17 +75,25 @@ class _WatchPageState extends ConsumerState<WatchPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
   }
 
+  static const _debugUrl =
+      'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8';
+
   Future<void> _start() async {
     try {
-      final controller = await ref.read(playControllerProvider.future);
-      final url =
-          widget.request.season != null && widget.request.episode != null
-              ? await controller.startEpisode(
-                  tmdbId: widget.request.tmdbId,
-                  season: widget.request.season!,
-                  episode: widget.request.episode!,
-                )
-              : await controller.startMovie(tmdbId: widget.request.tmdbId);
+      final String url;
+      if (widget.debugBypassProxy) {
+        _log.info('DEBUG MODE: bypassing proxy, opening Apple BipBop directly');
+        url = _debugUrl;
+      } else {
+        final controller = await ref.read(playControllerProvider.future);
+        url = widget.request.season != null && widget.request.episode != null
+            ? await controller.startEpisode(
+                tmdbId: widget.request.tmdbId,
+                season: widget.request.season!,
+                episode: widget.request.episode!,
+              )
+            : await controller.startMovie(tmdbId: widget.request.tmdbId);
+      }
       // The engine is now a process-level singleton (see player_engine_provider).
       // Pull it once; it survives across watch sessions and so does its
       // VideoController + texture.
@@ -90,11 +104,20 @@ class _WatchPageState extends ConsumerState<WatchPage> {
       // errors/logs. Any unrecoverable error surfaces in the UI instead
       // of leaving the user staring at a black screen.
       _engineSubs.add(engine.errorStream.listen((msg) {
-        // Once we hit the error phase, stop spamming the log + UI with
-        // repeated stream notifications (libmpv emits N retries per error).
-        if (_phase == _Phase.error) return;
         if (msg.trim().isEmpty) return;
+        // Always log so we see it in the console.
         _log.error('media_kit error: $msg');
+        // Don't latch UI to error on benign warnings — media_kit_video at
+        // startup tries to set mpv properties like "osc" that don't exist
+        // on newer libmpv (warning: 'property not found _setProperty...').
+        // Only the patterns below are actual playback failures.
+        if (_phase == _Phase.error) return;
+        final isFatal = msg.contains('avformat_open_input') ||
+            msg.contains('Failed to recognize file format') ||
+            msg.contains('Failed to open') ||
+            msg.contains('hls: Error when loading') ||
+            msg.contains('Refusing to load');
+        if (!isFatal) return;
         if (mounted) {
           setState(() {
             _phase = _Phase.error;
