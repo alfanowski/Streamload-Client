@@ -7,10 +7,13 @@ import 'package:shelf/shelf.dart' as shelf;
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 
+import '../infra/logger.dart';
 import 'drm.dart';
 import 'rewriter.dart';
 import 'segment_fetcher.dart';
 import 'session.dart';
+
+final _log = Logger('player.proxy');
 
 /// HTTP proxy bound to 127.0.0.1 on a system-assigned port. Exposes the
 /// four HLS routes consumed by media_kit + downstream subroutines.
@@ -165,8 +168,16 @@ class LocalProxyServer {
           return shelf.Response.internalServerError(body: 'fetch: $e');
         }
       });
+    // Log every request + status so we can trace media_kit's actual access
+    // pattern in dev. Strip in production via a build-time flag if noisy.
+    final handler = const shelf.Pipeline()
+        .addMiddleware(shelf.logRequests(
+          logger: (msg, isError) =>
+              isError ? _log.error(msg) : _log.info(msg),
+        ))
+        .addHandler(router.call);
     final server = await shelf_io.serve(
-      router.call,
+      handler,
       InternetAddress.loopbackIPv4,
       0,
     );
