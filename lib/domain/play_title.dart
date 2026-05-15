@@ -1,6 +1,9 @@
 // lib/domain/play_title.dart
+import '../infra/logger.dart';
 import '../player/session.dart';
 import '../plugins/plugin.dart';
+
+final _log = Logger('play.controller');
 
 /// Orchestrator that turns a (tmdbId, mediaType) request into a URL that
 /// media_kit can open.
@@ -78,12 +81,19 @@ class PlayController {
     final manifestUrl = getStreamsResult['manifest_url'] as String;
     final isDrm = getStreamsResult['is_drm'] == true;
 
+    _log.info('plugin ${plugin.meta.shortName} returned:'
+        ' manifest_url=$manifestUrl'
+        ' headers=${headers.keys.join(",")}'
+        ' is_drm=$isDrm');
+
     // Direct mode: no headers, no DRM → media_kit handles the upstream
     // natively. Skip the proxy entirely. This is the common case for public
     // CDN streams (Apple BipBop, etc.) and the most compatible path.
     if (headers.isEmpty && !isDrm) {
+      _log.info('direct mode (no proxy hop)');
       return manifestUrl;
     }
+    _log.info('proxied mode (headers/DRM present)');
 
     // Proxied mode: scraping plugins need Referer/Cookie injection or AES key
     // proxying. Register a session and return the loopback master URL.

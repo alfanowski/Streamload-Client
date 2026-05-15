@@ -36,6 +36,8 @@ class LocalProxyServer {
       ..get('/master/<sid>.m3u8', (shelf.Request req, String sid) async {
         final session = registry.get(sid, touch: true);
         if (session == null) return shelf.Response.notFound('unknown session');
+        _log.info('master fetch ← ${session.upstreamMasterUrl}'
+            ' (headers: ${session.upstreamHeaders.keys.join(",")})');
         try {
           final resp = await dioInstance.get<String>(
             session.upstreamMasterUrl,
@@ -44,6 +46,13 @@ class LocalProxyServer {
               headers: session.upstreamHeaders,
             ),
           );
+          if (resp.statusCode != 200) {
+            _log.error('master upstream status ${resp.statusCode} '
+                'for ${session.upstreamMasterUrl} body: '
+                '${(resp.data ?? '').toString().substring(0, 200)}');
+            return shelf.Response.internalServerError(
+                body: 'upstream status ${resp.statusCode}');
+          }
           final result = Rewriter.rewriteMaster(
             resp.data ?? '',
             basePath: '/variant/$sid',
@@ -59,9 +68,17 @@ class LocalProxyServer {
           return shelf.Response.ok(result.body, headers: {
             'content-type': 'application/vnd.apple.mpegurl',
           });
-        } on DioException catch (e) {
+        } on DioException catch (e, st) {
+          _log.error(
+              'master fetch failed: type=${e.type} status=${e.response?.statusCode}'
+              ' message="${e.message}" url=${session.upstreamMasterUrl}',
+              e,
+              st);
           return shelf.Response.internalServerError(
-              body: 'upstream: ${e.message}');
+              body: 'upstream: type=${e.type} status=${e.response?.statusCode} msg=${e.message}');
+        } catch (e, st) {
+          _log.error('master fetch unexpected error: $e', e, st);
+          return shelf.Response.internalServerError(body: 'unexpected: $e');
         }
       })
       ..get('/variant/<sid>/video/<label>.m3u8',
