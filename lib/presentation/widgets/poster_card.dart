@@ -39,11 +39,16 @@ class PosterCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              summary.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: StreamloadTypography.body(fontSize: 13),
+            // Flexible lets the title shrink (loose constraints) when the
+            // grid cell is too short — ellipsis handles the visual truncation
+            // instead of yellow-and-black overflow stripes.
+            Flexible(
+              child: Text(
+                summary.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: StreamloadTypography.body(fontSize: 13),
+              ),
             ),
             if (summary.year != null)
               Text(

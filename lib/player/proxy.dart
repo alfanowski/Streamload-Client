@@ -147,6 +147,14 @@ class LocalProxyServer {
             basePath: '/variant/$sid',
           );
           final audioUri = Uri.parse(upstream);
+          // Same key-URL storage as the video variant handler. Without this,
+          // a 404 on /variant/<sid>/key/audio_<lang> cascades into "Failed to
+          // open" errors across every rendition (mpv falls back to file://
+          // paths once the key fetch fails).
+          if (result.keyUrl != null) {
+            session.keyUrlByRendition['audio_$lang'] =
+                audioUri.resolve(result.keyUrl!).toString();
+          }
           session.segmentUrlsByRendition['audio_$lang'] = [
             for (final s in result.segmentUrls)
               audioUri.resolve(s).toString(),
