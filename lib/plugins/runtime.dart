@@ -229,14 +229,35 @@ class PluginRuntime {
     }
 
     if (evalResult.isPromise || evalResult.stringResult == '[object Promise]') {
-      final resolved = await _js.handlePromise(evalResult);
-      if (resolved.isError) {
+      late dynamic resolved;
+      try {
+        resolved = await _js.handlePromise(evalResult);
+      } catch (e, st) {
+        // Several flutter_js platform impls (notably JSCore on macOS)
+        // surface a rejected JS Promise by THROWING the rejection value
+        // from handlePromise instead of returning a JsEvalResult with
+        // isError=true. The thrown value is a bare JS object/string and
+        // its toString() is often '{}' or '[object Object]' — useless.
+        // Wrap into a StateError with the type + a fuller toString so the
+        // caller sees what actually went wrong.
+        String detail;
+        try {
+          detail = e is Error ? e.toString() : '$e';
+        } catch (_) {
+          detail = '<unprintable>';
+        }
+        throw StateError(
+          'plugin $shortName.$functionName rejected (thrown by handlePromise): '
+          'type=${e.runtimeType} detail="$detail" stackHead=${st.toString().split("\n").take(2).join(" | ")}',
+        );
+      }
+      if (resolved.isError == true) {
         throw StateError(
           'plugin $shortName.$functionName rejected: '
           '"${resolved.stringResult}" rawResult=${resolved.rawResult}',
         );
       }
-      final jsonResult = resolved.stringResult;
+      final jsonResult = resolved.stringResult as String? ?? '';
       if (jsonResult == 'null' || jsonResult == 'undefined') return null;
       try {
         return jsonDecode(jsonResult);
