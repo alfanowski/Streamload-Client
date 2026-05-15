@@ -12,6 +12,7 @@ import 'package:streamload_client/player/proxy.dart';
 import 'package:streamload_client/player/segment_fetcher.dart';
 import 'package:streamload_client/plugins/meta.dart';
 import 'package:streamload_client/plugins/plugin.dart';
+import 'package:streamload_client/plugins/routing/router.dart';
 import 'package:streamload_client/plugins/runtime.dart';
 import 'package:streamload_client/data/remote/endpoints/catalog_api.dart';
 import 'package:streamload_client/domain/models/catalog_item.dart';
@@ -84,9 +85,10 @@ void main() {
 
     final controller = await container.read(playControllerProvider.future);
     expect(controller, isA<PlayController>());
+    expect(controller.router, isA<ProviderRouter>());
   });
 
-  test('pluginFor picks first plugin whose capabilities contain the mediaType', () async {
+  test('ProviderRouter.pluginsForType selects by exact capability', () async {
     final moviePlugin = _PluginMock();
     when(() => moviePlugin.meta).thenReturn(const PluginMeta(
       shortName: 'movie_plugin',
@@ -108,24 +110,48 @@ void main() {
     final mockRuntime = _PluginRuntimeMock();
     when(() => mockRuntime.all).thenReturn([moviePlugin, tvPlugin]);
 
-    final (:container, proxy: _) = await buildContainer(mockRuntime);
-    addTearDown(container.dispose);
+    final router = ProviderRouter(runtime: mockRuntime);
 
-    final controller = await container.read(playControllerProvider.future);
+    expect(router.pluginsForType('movie'), [moviePlugin]);
+    expect(router.pluginsForType('tv'), [tvPlugin]);
+    expect(router.pluginsForType('anime'), isEmpty);
+  });
 
-    // movie request → moviePlugin
-    final chosenForMovie =
-        controller.pluginFor((tmdbId: 1, mediaType: 'movie'));
-    expect(chosenForMovie, equals(moviePlugin));
+  test('ProviderRouter.pluginsForType matches by capability prefix', () async {
+    // A plugin that only declares "movie:anime" should still be selected
+    // for the generic mediaType "movie" (and likewise tv:anime → tv).
+    final animePlugin = _PluginMock();
+    when(() => animePlugin.meta).thenReturn(const PluginMeta(
+      shortName: 'au',
+      displayName: 'AnimeUnity',
+      version: '1.0.0',
+      apiVersion: 1,
+      capabilities: ['movie:anime', 'tv:anime'],
+    ));
 
-    // tv request → tvPlugin
-    final chosenForTv = controller.pluginFor((tmdbId: 2, mediaType: 'tv'));
-    expect(chosenForTv, equals(tvPlugin));
+    final multiPlugin = _PluginMock();
+    when(() => multiPlugin.meta).thenReturn(const PluginMeta(
+      shortName: 'sc',
+      displayName: 'StreamingCommunity',
+      version: '1.0.2',
+      apiVersion: 1,
+      capabilities: ['movie', 'tv', 'movie:anime', 'tv:anime'],
+    ));
 
-    // unknown mediaType → null
-    final chosenForUnknown =
-        controller.pluginFor((tmdbId: 3, mediaType: 'anime'));
-    expect(chosenForUnknown, isNull);
+    final mockRuntime = _PluginRuntimeMock();
+    when(() => mockRuntime.all).thenReturn([animePlugin, multiPlugin]);
+
+    final router = ProviderRouter(runtime: mockRuntime);
+
+    // For "movie" we get both: au via "movie:anime" prefix, sc via exact.
+    expect(
+      router.pluginsForType('movie').map((p) => p.meta.shortName),
+      ['au', 'sc'],
+    );
+    expect(
+      router.pluginsForType('tv').map((p) => p.meta.shortName),
+      ['au', 'sc'],
+    );
   });
 
   test('proxyBaseUrl in controller matches the running proxy', () async {

@@ -5,8 +5,11 @@ import 'package:streamload_client/domain/play_title.dart';
 import 'package:streamload_client/player/session.dart';
 import 'package:streamload_client/plugins/meta.dart';
 import 'package:streamload_client/plugins/plugin.dart';
+import 'package:streamload_client/plugins/routing/router.dart';
+import 'package:streamload_client/plugins/runtime.dart';
 
 class _PluginMock extends Mock implements Plugin {}
+class _PluginRuntimeMock extends Mock implements PluginRuntime {}
 
 Future<TitleHint> _fakeResolver(int tmdbId, String mediaType) async =>
     const TitleHint(title: 'Test', year: 2020);
@@ -14,10 +17,12 @@ Future<TitleHint> _fakeResolver(int tmdbId, String mediaType) async =>
 void main() {
   late PlaybackSessionRegistry registry;
   late _PluginMock plugin;
+  late _PluginRuntimeMock runtime;
 
   setUp(() {
     registry = PlaybackSessionRegistry(ttl: const Duration(hours: 1));
     plugin = _PluginMock();
+    runtime = _PluginRuntimeMock();
     when(() => plugin.meta).thenReturn(const PluginMeta(
       shortName: 'echo',
       displayName: 'Echo',
@@ -25,20 +30,18 @@ void main() {
       apiVersion: 1,
       capabilities: ['movie'],
     ));
+    when(() => runtime.all).thenReturn([plugin]);
     // Default: search returns one matching entry. Override per-test if needed.
     when(() => plugin.search(any())).thenAnswer((_) async => [
           {'id': '1:test:it', 'title': 'Test', 'type': 'movie', 'year': 2020}
         ]);
   });
 
-  PlayController makeController({Plugin? Function((
-      {int tmdbId,
-      String mediaType,
-      })?)? pluginFor}) =>
+  PlayController makeController({PluginRuntime? overrideRuntime}) =>
       PlayController(
         registry: registry,
         proxyBaseUrl: 'http://127.0.0.1:47821',
-        pluginFor: pluginFor == null ? (_) => plugin : (q) => pluginFor(q),
+        router: ProviderRouter(runtime: overrideRuntime ?? runtime),
         resolveTitle: _fakeResolver,
       );
 
@@ -64,8 +67,11 @@ void main() {
     expect(session.upstreamHeaders['Referer'], 'https://up');
   });
 
-  test('startMovie throws when no plugin can satisfy the request', () async {
-    final controller = makeController(pluginFor: (_) => null);
+  test('startMovie throws when no plugin advertises matching capability',
+      () async {
+    final emptyRuntime = _PluginRuntimeMock();
+    when(() => emptyRuntime.all).thenReturn(const []);
+    final controller = makeController(overrideRuntime: emptyRuntime);
     expect(
       () => controller.startMovie(tmdbId: 42),
       throwsA(isA<StateError>()
@@ -73,17 +79,22 @@ void main() {
     );
   });
 
-  test('startMovie throws when plugin.search returns no result', () async {
+  test('startMovie throws when every plugin\'s search returns no result',
+      () async {
     when(() => plugin.search(any())).thenAnswer((_) async => []);
     final controller = makeController();
     expect(
       () => controller.startMovie(tmdbId: 42),
-      throwsA(isA<StateError>()
-          .having((e) => e.message, 'message', contains('non trova'))),
+      throwsA(isA<StateError>().having(
+        (e) => e.message,
+        'message',
+        contains('Tutti i plugin hanno fallito'),
+      )),
     );
   });
 
-  test('startMovie BYPASSES proxy when stream needs no headers + no DRM', () async {
+  test('startMovie BYPASSES proxy when stream needs no headers + no DRM',
+      () async {
     when(() => plugin.getStreams(any())).thenAnswer((_) async => {
           'manifest_url':
               'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8',
@@ -107,7 +118,8 @@ void main() {
     expect(url, startsWith('http://127.0.0.1:47821/master/'));
   });
 
-  test('startMovie uses proxy when stream is DRM', () async {
+  test('startMovie skips DRM bundles and falls back to next plugin', () async {
+    // Single DRM plugin → router scores 0 → all plugins "failed".
     when(() => plugin.getStreams(any())).thenAnswer((_) async => {
           'manifest_url': 'https://upstream/master.m3u8',
           'headers': const <String, dynamic>{},
@@ -115,8 +127,14 @@ void main() {
           'drm_keys': {'k': 'v'},
         });
     final controller = makeController();
-    final url = await controller.startMovie(tmdbId: 42);
-    expect(url, startsWith('http://127.0.0.1:47821/master/'));
+    expect(
+      () => controller.startMovie(tmdbId: 42),
+      throwsA(isA<StateError>().having(
+        (e) => e.message,
+        'message',
+        contains('Tutti i plugin hanno fallito'),
+      )),
+    );
   });
 
   test('match prefers exact title + year over loose hits', () async {
@@ -133,9 +151,42 @@ void main() {
         });
     final controller = makeController();
     await controller.startMovie(tmdbId: 42);
-    // Verify the right entry was picked by inspecting the captured call.
     final calls = verify(() => plugin.getStreams(captureAny())).captured;
     final picked = calls.first as Map<String, dynamic>;
     expect(picked['id'], 'right:b:it');
+  });
+
+  test('router fans out: first non-DRM bundle wins over a DRM-only plugin',
+      () async {
+    final drmPlugin = _PluginMock();
+    when(() => drmPlugin.meta).thenReturn(const PluginMeta(
+      shortName: 'drm_only',
+      displayName: 'DRM Only',
+      version: '1.0.0',
+      apiVersion: 1,
+      capabilities: ['movie'],
+    ));
+    when(() => drmPlugin.search(any())).thenAnswer((_) async => [
+          {'id': 'd1', 'title': 'Test', 'type': 'movie', 'year': 2020}
+        ]);
+    when(() => drmPlugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://drm/master.m3u8',
+          'headers': const <String, dynamic>{},
+          'is_drm': true,
+        });
+
+    when(() => plugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://clean/master.m3u8',
+          'headers': const <String, dynamic>{},
+          'is_drm': false,
+        });
+
+    final mixedRuntime = _PluginRuntimeMock();
+    when(() => mixedRuntime.all).thenReturn([drmPlugin, plugin]);
+    final controller = makeController(overrideRuntime: mixedRuntime);
+
+    final url = await controller.startMovie(tmdbId: 42);
+    // Clean plugin should win — DRM plugin scored 0.
+    expect(url, startsWith('https://clean/'));
   });
 }
