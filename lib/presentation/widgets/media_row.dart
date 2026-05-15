@@ -34,7 +34,9 @@ class MediaRow extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 290,
+            // 240 poster + 8 gap + ~32 two-line title + ~14 year + breathing
+            // room. 290 was tight enough that long titles overflowed by 13px.
+            height: 312,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),

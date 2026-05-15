@@ -108,6 +108,11 @@ class _WatchPageState extends ConsumerState<WatchPage> {
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Stack(
+          // Default StackFit.loose left the Video widget with zero constraints
+          // — media_kit then created a 0x0 texture and never started decoding
+          // (look for `VideoOutput.Resize {width: 0, height: 0}` in the logs).
+          // Expand makes non-positioned children fill the Stack.
+          fit: StackFit.expand,
           children: [
             switch (_phase) {
               _Phase.loading =>
@@ -133,7 +138,9 @@ class _WatchPageState extends ConsumerState<WatchPage> {
               left: 8,
               child: IconButton(
                 icon: const Icon(Icons.close, color: Colors.white),
-                onPressed: () => context.pop(),
+                // go_router uses .go (not .push), so the navigation stack
+                // is flat and there's nothing to pop. Send back to /home.
+                onPressed: () => context.go('/home'),
                 tooltip: 'Chiudi',
               ),
             ),
