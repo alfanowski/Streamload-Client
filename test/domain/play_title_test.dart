@@ -276,6 +276,115 @@ void main() {
     expect(picked['id'], 'series');
   });
 
+  test('router scores by year-distance: AU 1999 beats SC 2023 for One Piece (1999) hint',
+      () async {
+    // Reproduction of the live One Piece bug: both plugins matched, but SC's
+    // 2023 live-action came in faster than AU's 1999 anime. With first-success
+    // semantics SC won; with collect+score+year-delta AU should win.
+    final auPlugin = _PluginMock();
+    when(() => auPlugin.meta).thenReturn(const PluginMeta(
+      shortName: 'au',
+      displayName: 'AnimeUnity',
+      version: '1.0.0',
+      apiVersion: 1,
+      capabilities: ['tv:anime'],
+    ));
+    when(() => auPlugin.search(any())).thenAnswer((_) async => [
+          {
+            'id': 'au_op',
+            'title': 'One Piece',
+            'type': 'tv:anime',
+            'year': 1999,
+          }
+        ]);
+    when(() => auPlugin.getSeasons(any())).thenAnswer((_) async => [
+          {'number': 1, 'id': 'au_s1'}
+        ]);
+    when(() => auPlugin.getEpisodes(any())).thenAnswer((invocation) async {
+      // Simulate slow getEpisodes (the real AU paginates 1161 episodes).
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      return [
+        {'number': 1, 'id': 'au_e1'}
+      ];
+    });
+    when(() => auPlugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://au/master.m3u8',
+          'headers': const <String, dynamic>{},
+          'is_drm': false,
+        });
+
+    final scPlugin = _PluginMock();
+    when(() => scPlugin.meta).thenReturn(const PluginMeta(
+      shortName: 'sc',
+      displayName: 'StreamingCommunity',
+      version: '1.0.2',
+      apiVersion: 1,
+      capabilities: ['tv'],
+    ));
+    when(() => scPlugin.search(any())).thenAnswer((_) async => [
+          {
+            'id': 'sc_op',
+            'title': 'ONE PIECE',
+            'type': 'tv',
+            'year': 2023, // live-action
+          }
+        ]);
+    when(() => scPlugin.getSeasons(any())).thenAnswer((_) async => [
+          {'number': 1, 'id': 'sc_s1'}
+        ]);
+    when(() => scPlugin.getEpisodes(any())).thenAnswer((_) async => [
+          {'number': 1, 'id': 'sc_e1'}
+        ]);
+    when(() => scPlugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://sc/master.m3u8',
+          'headers': const <String, dynamic>{},
+          'is_drm': false,
+        });
+
+    final mixedRuntime = _PluginRuntimeMock();
+    when(() => mixedRuntime.all).thenReturn([auPlugin, scPlugin]);
+    final resolver = (int _, String __) async =>
+        const TitleHint(title: 'One Piece', year: 1999);
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      router: ProviderRouter(runtime: mixedRuntime),
+      resolveTitle: resolver,
+    );
+
+    final url = await controller.startEpisode(
+      tmdbId: 37854,
+      season: 1,
+      episode: 1,
+    );
+    // AU has year delta 0, SC has year delta 24 → AU wins.
+    expect(url, contains('au/master.m3u8'));
+  });
+
+  test('match strips accents: TMDB "Pokémon" matches plugin "Pokemon"',
+      () async {
+    when(() => plugin.search(any())).thenAnswer((_) async => [
+          {'id': 'right', 'title': 'Pokemon', 'type': 'movie', 'year': 1997},
+        ]);
+    when(() => plugin.getStreams(any())).thenAnswer((_) async => {
+          'manifest_url': 'https://upstream/master.m3u8',
+          'headers': const <String, dynamic>{},
+          'is_drm': false,
+        });
+    final resolver = (int _, String __) async =>
+        const TitleHint(title: 'Pokémon', year: 1997);
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      router: ProviderRouter(runtime: runtime),
+      resolveTitle: resolver,
+    );
+    await controller.startMovie(tmdbId: 42);
+    final calls = verify(() => plugin.getStreams(captureAny())).captured;
+    final picked = calls.first as Map<String, dynamic>;
+    expect(picked['id'], 'right');
+  });
+
   test('router fans out: first non-DRM bundle wins over a DRM-only plugin',
       () async {
     final drmPlugin = _PluginMock();
