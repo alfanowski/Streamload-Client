@@ -24,6 +24,7 @@ import '../../state/nav_scrolled_provider.dart';
 import '../theme/colors.dart';
 import '../theme/motion.dart';
 import '../theme/typography.dart';
+import 'avatar_menu.dart';
 
 class TopNavBar extends ConsumerWidget {
   const TopNavBar({super.key});
@@ -75,7 +76,7 @@ class TopNavBar extends ConsumerWidget {
                   const Spacer(),
                   _SearchButton(onTap: () => context.go('/search')),
                   const SizedBox(width: 12),
-                  const _AvatarPlaceholder(),
+                  const AvatarMenu(),
                 ],
               ),
             ),
@@ -157,21 +158,3 @@ class _SearchButton extends StatelessWidget {
   }
 }
 
-/// Inline placeholder avatar used until Phase B2 swaps in the full AvatarMenu
-/// with the user header + Impostazioni + Esci popover. Sized 24×24 like the
-/// real menu so the bar layout doesn't shift when the menu lands.
-class _AvatarPlaceholder extends StatelessWidget {
-  const _AvatarPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 24,
-      height: 24,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: StreamloadColors.v3SurfaceGlassHi,
-      ),
-    );
-  }
-}
