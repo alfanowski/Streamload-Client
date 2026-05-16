@@ -1,5 +1,6 @@
 // lib/data/remote/endpoints/catalog_api.dart
 import '../../../domain/models/catalog_item.dart';
+import '../../../domain/models/tmdb_video.dart';
 import '../api_client.dart';
 
 class CatalogApi {
@@ -13,5 +14,29 @@ class CatalogApi {
       query: {if (mediaType != null) 'media_type': mediaType},
     );
     return CatalogItemResponse.fromJson(json);
+  }
+
+  /// GET /api/catalog/{tmdb_id}/videos?media_type={movie|tv}
+  ///
+  /// Returns YouTube videos only (the backend filters out other sites).
+  /// Used by [HeroTrailer] to pick the best trailer / teaser for autoplay.
+  /// Caller should prefer ``type == "Trailer" && official == true``.
+  Future<List<TmdbVideo>> videos(
+    int tmdbId, {
+    required String mediaType,
+  }) async {
+    // We hit the raw dio because the response is a JSON list, and ApiClient
+    // only knows how to unwrap object responses. The cookie session + base
+    // URL still apply (raw == _dio).
+    final resp = await _client.raw.get<dynamic>(
+      '/api/catalog/$tmdbId/videos',
+      queryParameters: {'media_type': mediaType},
+    );
+    final body = resp.data;
+    if (body is! List) return const <TmdbVideo>[];
+    return body
+        .whereType<Map<String, dynamic>>()
+        .map(TmdbVideo.fromJson)
+        .toList(growable: false);
   }
 }
