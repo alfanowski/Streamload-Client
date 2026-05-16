@@ -80,6 +80,10 @@ void main() {
 
     // DatePicker is system UI and can't be driven in widget tests.
     // Tap submit without a birth date — should show validation error.
+    // The v3 chrome (Phase I1) makes the card taller than the 600px test
+    // viewport, so scroll the pill into view before tapping.
+    await tester.ensureVisible(find.byKey(const Key('profile.submit')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('profile.submit')));
     await tester.pump();
 
@@ -116,6 +120,8 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('profile.last_name')), 'Alfano');
 
+    await tester.ensureVisible(find.byKey(const Key('profile.submit')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('profile.submit')));
     await tester.pump();
 
@@ -144,6 +150,8 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('profile.first_name')), 'Andrea');
 
+    await tester.ensureVisible(find.byKey(const Key('profile.submit')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('profile.submit')));
     await tester.pump();
 
