@@ -1,4 +1,6 @@
 // lib/player/engine.dart
+import 'dart:async';
+
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -9,6 +11,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 class PlayerEngine {
   PlayerEngine() : _player = Player() {
     _configureMpv();
+    _wirePreferredAudio();
   }
 
   static void ensureInitialized() {
@@ -25,10 +28,73 @@ class PlayerEngine {
   void _configureMpv() {
     final platform = _player.platform;
     if (platform is NativePlayer) {
-      // Fire-and-forget — mpv applies the option synchronously when the
-      // command reaches the native side. We don't need to await.
       platform.setProperty('load-unsafe-playlists', 'yes');
     }
+  }
+
+  /// Languages we treat as "Italian" for auto-selection on track-list
+  /// updates. Catalogs use different codes (ita, it, ital, italian).
+  static const _italianCodes = {'ita', 'it', 'ital', 'italian'};
+
+  /// True after we've auto-selected Italian for the current playback session.
+  /// Reset on every `open()` so each new title gets one chance to auto-pick.
+  /// Without the latch the player would yank the user back to Italian every
+  /// time mpv re-emits the track list (it fires multiple updates while
+  /// resolving HLS variants).
+  bool _autoPickedAudio = false;
+  bool _autoPickedSubtitle = false;
+
+  StreamSubscription<Tracks>? _autoPickSub;
+
+  void _wirePreferredAudio() {
+    _autoPickSub = _player.stream.tracks.listen((tracks) {
+      if (!_autoPickedAudio && tracks.audio.length > 1) {
+        final ita = _firstItalian<AudioTrack>(
+          tracks.audio,
+          (t) => t.language,
+          (t) => t.title,
+        );
+        if (ita != null) {
+          _autoPickedAudio = true;
+          _player.setAudioTrack(ita);
+        }
+      }
+      if (!_autoPickedSubtitle && tracks.subtitle.length > 1) {
+        // If we successfully set Italian AUDIO, subtitles default to "no"
+        // — most users don't want IT subs over IT audio. If audio is left
+        // in a non-Italian language, surface Italian subs instead.
+        if (_autoPickedAudio) {
+          _autoPickedSubtitle = true;
+          _player.setSubtitleTrack(SubtitleTrack.no());
+        } else {
+          final ita = _firstItalian<SubtitleTrack>(
+            tracks.subtitle,
+            (t) => t.language,
+            (t) => t.title,
+          );
+          if (ita != null) {
+            _autoPickedSubtitle = true;
+            _player.setSubtitleTrack(ita);
+          }
+        }
+      }
+    });
+  }
+
+  static T? _firstItalian<T>(
+    List<T> tracks,
+    String? Function(T) lang,
+    String? Function(T) title,
+  ) {
+    for (final t in tracks) {
+      final l = (lang(t) ?? '').toLowerCase();
+      if (_italianCodes.contains(l)) return t;
+    }
+    for (final t in tracks) {
+      final n = (title(t) ?? '').toLowerCase();
+      if (n.contains('italian') || n.contains('italiano')) return t;
+    }
+    return null;
   }
 
   final Player _player;
@@ -52,7 +118,26 @@ class PlayerEngine {
   Stream<String> get logStream =>
       _player.stream.log.map((e) => '${e.level} ${e.prefix}: ${e.text}');
 
+  /// Available audio + subtitle + video tracks. Mpv emits a new event every
+  /// time the track list changes (e.g. when an HLS variant resolves).
+  Stream<Tracks> get tracksStream => _player.stream.tracks;
+
+  /// Currently-active audio/subtitle/video track triple.
+  Stream<Track> get trackStream => _player.stream.track;
+
+  Tracks get tracks => _player.state.tracks;
+  Track get track => _player.state.track;
+
+  Future<void> setAudioTrack(AudioTrack track) =>
+      _player.setAudioTrack(track);
+  Future<void> setSubtitleTrack(SubtitleTrack track) =>
+      _player.setSubtitleTrack(track);
+
   void open(String uri, {required Map<String, String> headers}) {
+    // Reset the auto-pick latches so each new playback gets one shot at
+    // selecting Italian audio / subtitles based on the loaded master.
+    _autoPickedAudio = false;
+    _autoPickedSubtitle = false;
     _player.open(Media(uri, httpHeaders: headers));
   }
 
@@ -61,6 +146,7 @@ class PlayerEngine {
   Future<void> seek(Duration to) => _player.seek(to);
 
   void dispose() {
+    _autoPickSub?.cancel();
     _player.dispose();
   }
 }

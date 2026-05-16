@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/data/remote/endpoints/progress_api.dart';
 import 'package:streamload_client/domain/models/playback_request.dart';
@@ -43,6 +44,12 @@ class _ProgressApiMock extends Mock implements ProgressApi {}
       .thenAnswer((_) => const Stream<int?>.empty());
   when(() => engine.heightStream)
       .thenAnswer((_) => const Stream<int?>.empty());
+  when(() => engine.tracksStream)
+      .thenAnswer((_) => const Stream<Tracks>.empty());
+  when(() => engine.trackStream)
+      .thenAnswer((_) => const Stream<Track>.empty());
+  when(() => engine.tracks).thenReturn(Tracks());
+  when(() => engine.track).thenReturn(Track());
 
   // progress api may be called (but we don't assert it in lifecycle tests).
   when(

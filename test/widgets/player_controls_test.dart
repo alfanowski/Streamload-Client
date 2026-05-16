@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/player/engine.dart';
 import 'package:streamload_client/presentation/widgets/player_controls.dart';
@@ -18,9 +19,15 @@ void main() {
     final positionCtrl = StreamController<Duration>.broadcast();
     final durationCtrl = StreamController<Duration>.broadcast();
     final playingCtrl = StreamController<bool>.broadcast();
+    final tracksCtrl = StreamController<Tracks>.broadcast();
+    final trackCtrl = StreamController<Track>.broadcast();
     when(() => engine.positionStream).thenAnswer((_) => positionCtrl.stream);
     when(() => engine.durationStream).thenAnswer((_) => durationCtrl.stream);
     when(() => engine.playingStream).thenAnswer((_) => playingCtrl.stream);
+    when(() => engine.tracksStream).thenAnswer((_) => tracksCtrl.stream);
+    when(() => engine.trackStream).thenAnswer((_) => trackCtrl.stream);
+    when(() => engine.tracks).thenReturn(Tracks());
+    when(() => engine.track).thenReturn(Track());
     when(engine.play).thenAnswer((_) async {});
 
     await tester.pumpWidget(ProviderScope(
@@ -40,5 +47,7 @@ void main() {
     await positionCtrl.close();
     await durationCtrl.close();
     await playingCtrl.close();
+    await tracksCtrl.close();
+    await trackCtrl.close();
   });
 }
