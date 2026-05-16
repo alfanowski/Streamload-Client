@@ -3,14 +3,28 @@
 // Phase B1 — TopNavBar renders the 5 tabs + logo + search; tapping a tab
 // navigates the GoRouter to the right path; flipping navScrolledProvider
 // switches the background color via AnimatedContainer.
+//
+// Phase G1 (2026-05-16) updated the search button to open the SearchOverlay
+// on desktop / tablet instead of navigating to /search. The phone branch
+// (when this widget would hypothetically render under 600 px wide) still
+// navigates to /search, but since the AppShell only mounts TopNavBar on
+// desktop / tablet, the overlay path is the realistic test.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:streamload_client/data/remote/endpoints/search_api.dart';
 import 'package:streamload_client/presentation/theme/colors.dart';
+import 'package:streamload_client/presentation/widgets/search_overlay.dart';
 import 'package:streamload_client/presentation/widgets/top_nav_bar.dart';
+import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/nav_scrolled_provider.dart';
+
+class _SearchApiStub implements SearchApi {
+  @override
+  Future<Map<String, dynamic>> run(String query) async => {'results': []};
+}
 
 void main() {
   Future<void> pumpWith(
@@ -49,7 +63,10 @@ void main() {
       ],
     );
     await t.pumpWidget(UncontrolledProviderScope(
-      container: container ?? ProviderContainer(),
+      container: container ??
+          ProviderContainer(overrides: [
+            searchApiProvider.overrideWith((_) async => _SearchApiStub()),
+          ]),
       child: MaterialApp.router(routerConfig: router),
     ));
   }
@@ -90,13 +107,19 @@ void main() {
     expect(find.text('page:/list'), findsOneWidget);
   });
 
-  testWidgets('tapping search navigates to /search', (t) async {
+  testWidgets('tapping search opens the SearchOverlay on desktop',
+      (t) async {
     await pumpWith(t, initial: '/home');
     await t.pump();
 
+    expect(find.byType(SearchOverlay), findsNothing);
     await t.tap(find.byIcon(Icons.search));
-    await t.pumpAndSettle();
-    expect(find.text('page:/search'), findsOneWidget);
+    // Pump past the showGeneralDialog transition.
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 250));
+    expect(find.byType(SearchOverlay), findsOneWidget);
+    // Original page is still mounted under the overlay.
+    expect(find.text('page:/home'), findsOneWidget);
   });
 
   testWidgets('background animates from glass to solid when scrolled flips',

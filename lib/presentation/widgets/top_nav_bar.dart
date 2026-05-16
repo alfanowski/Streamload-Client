@@ -21,10 +21,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../state/nav_scrolled_provider.dart';
+import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/motion.dart';
 import '../theme/typography.dart';
 import 'avatar_menu.dart';
+import 'search_overlay.dart';
 
 class TopNavBar extends ConsumerWidget {
   const TopNavBar({super.key});
@@ -96,7 +98,20 @@ class TopNavBar extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    _SearchButton(onTap: () => context.go('/search')),
+                    // Desktop / tablet: open the live-suggestions overlay
+                    // (G1). Phone is handled by the bottom tab bar, but
+                    // we keep the responsive branch here so resizing the
+                    // window to a phone width still does the right thing
+                    // (navigates to the dedicated /search page instead).
+                    _SearchButton(
+                      onTap: () {
+                        if (Responsive.isPhone(context)) {
+                          context.go('/search');
+                        } else {
+                          SearchOverlay.show(context);
+                        }
+                      },
+                    ),
                     const SizedBox(width: 12),
                     const AvatarMenu(),
                   ],
