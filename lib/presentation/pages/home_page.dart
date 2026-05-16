@@ -297,7 +297,11 @@ class _HeroSection extends ConsumerWidget {
     return async.when(
       data: (slides) {
         if (slides.isEmpty) {
-          return _HeroPlaceholder(height: height);
+          return _HeroPlaceholder(
+            height: height,
+            label: 'Nessun titolo in evidenza',
+            onRetry: () => ref.invalidate(heroSlidesProvider),
+          );
         }
         // Bind navigation + favorites toggles at render time so they
         // capture the live BuildContext / WidgetRef.
@@ -333,15 +337,31 @@ class _HeroSection extends ConsumerWidget {
             .toList(growable: false);
         return HeroCarousel(slides: wired, height: height);
       },
-      loading: () => _HeroPlaceholder(height: height),
-      error: (_, __) => _HeroPlaceholder(height: height),
+      loading: () => _HeroPlaceholder(
+        height: height,
+        label: 'Caricamento…',
+      ),
+      // FAIL LOUD: if hero data 404s / 500s, surface the failure with a
+      // visible retry instead of pretending nothing's wrong. The page
+      // can never be silently empty.
+      error: (_, __) => _HeroPlaceholder(
+        height: height,
+        label: 'Errore di caricamento',
+        onRetry: () => ref.invalidate(heroSlidesProvider),
+      ),
     );
   }
 }
 
 class _HeroPlaceholder extends StatelessWidget {
-  const _HeroPlaceholder({required this.height});
+  const _HeroPlaceholder({
+    required this.height,
+    required this.label,
+    this.onRetry,
+  });
   final double height;
+  final String label;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -349,10 +369,42 @@ class _HeroPlaceholder extends StatelessWidget {
       height: height,
       color: StreamloadColors.v3SurfaceGlass,
       alignment: Alignment.center,
-      child: Icon(
-        Icons.movie_outlined,
-        size: 56,
-        color: StreamloadColors.v3TextMuted,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.movie_outlined,
+            size: 56,
+            color: StreamloadColors.v3TextMuted,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            label,
+            style: StreamloadTypography.v3MetaMono(
+              color: StreamloadColors.v3TextMuted,
+            ),
+          ),
+          if (onRetry != null) ...[
+            const SizedBox(height: 10),
+            InkWell(
+              onTap: onRetry,
+              borderRadius:
+                  BorderRadius.circular(StreamloadSpacing.chipRadius),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Text(
+                  'Riprova',
+                  style: StreamloadTypography.v3CtaLabel(
+                    color: StreamloadColors.v3TextPrimary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -439,12 +491,22 @@ class _Chip extends StatelessWidget {
 
 /// Generic row Consumer that watches a FutureProvider<List<MediaSummary>>
 /// and renders PosterRow with loading / data / error states.
+///
+/// 2026-05-16 (P0 hotfix): the previous version returned
+/// `SizedBox.shrink()` when items was empty, which made the entire Home
+/// page look blank if every backend row endpoint 404'd. The page must
+/// FAIL LOUD — every row now renders SOMETHING (loading shimmer,
+/// header + error message, or header + "Nessun titolo"), so we can
+/// never silently render nothing again.
 class _RowConsumer extends ConsumerWidget {
   const _RowConsumer({
     required this.title,
     required this.provider,
   });
   final String title;
+  // We accept a `ProviderListenable` for ref.watch + a `ProviderOrFamily`
+  // for ref.invalidate via the same object. Every FutureProvider /
+  // AutoDispose family element satisfies both, so a single field works.
   final ProviderListenable<AsyncValue<List<MediaSummary>>> provider;
 
   @override
@@ -452,7 +514,9 @@ class _RowConsumer extends ConsumerWidget {
     final async = ref.watch(provider);
     return async.when(
       data: (items) {
-        if (items.isEmpty) return const SizedBox.shrink();
+        if (items.isEmpty) {
+          return _RowEmpty(title: title);
+        }
         return PosterRow(title: title, items: items);
       },
       loading: () => PosterRow(
@@ -460,13 +524,103 @@ class _RowConsumer extends ConsumerWidget {
         items: const [],
         isLoading: true,
       ),
-      error: (_, __) => _RowError(title: title),
+      error: (err, _) => _RowError(
+        title: title,
+        error: err,
+        // Tapping the row's "Riprova" reinvalidates this exact provider
+        // so a backend hiccup doesn't kill the row until the user leaves
+        // and re-enters Home.
+        onRetry: () {
+          // Every concrete provider passed to _RowConsumer (FutureProvider
+          // / AutoDispose family element) subtypes ProviderBase, which
+          // extends ProviderOrFamily — but the field type is the wider
+          // ProviderListenable interface so a single field works for
+          // both plain providers and family elements. The dynamic cast
+          // is safe because the constructor signature precludes anything
+          // else.
+          final dynamic p = provider;
+          if (p is ProviderOrFamily) {
+            ref.invalidate(p);
+          }
+        },
+      ),
     );
   }
 }
 
 class _RowError extends StatelessWidget {
-  const _RowError({required this.title});
+  const _RowError({
+    required this.title,
+    required this.error,
+    required this.onRetry,
+  });
+  final String title;
+  final Object error;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final pagePad = Responsive.isPhone(context)
+        ? StreamloadSpacing.pagePaddingPhone
+        : Responsive.isTablet(context)
+            ? StreamloadSpacing.pagePaddingTablet
+            : StreamloadSpacing.pagePaddingDesktop;
+    return Padding(
+      padding: pagePad,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: StreamloadTypography.v3SectionHeader()),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 14,
+                color: StreamloadColors.v3TextMuted,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Errore di caricamento',
+                  style: StreamloadTypography.v3MetaMono(
+                    color: StreamloadColors.v3TextMuted,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              InkWell(
+                onTap: onRetry,
+                borderRadius:
+                    BorderRadius.circular(StreamloadSpacing.chipRadius),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    'Riprova',
+                    style: StreamloadTypography.v3MetaMono(
+                      color: StreamloadColors.v3TextSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quiet "no items" state — header stays visible so the user knows the
+/// row exists even when TMDB returned nothing for this query. The
+/// original implementation returned SizedBox.shrink() here, which is
+/// indistinguishable from "the row was never built" and was the root
+/// cause of the May-16 "home is empty" report.
+class _RowEmpty extends StatelessWidget {
+  const _RowEmpty({required this.title});
   final String title;
 
   @override
@@ -484,7 +638,7 @@ class _RowError extends StatelessWidget {
           Text(title, style: StreamloadTypography.v3SectionHeader()),
           const SizedBox(height: 6),
           Text(
-            'Errore di caricamento',
+            'Nessun titolo disponibile',
             style: StreamloadTypography.v3MetaMono(
               color: StreamloadColors.v3TextMuted,
             ),
@@ -543,7 +697,11 @@ class _ContinueWatchingRow extends ConsumerWidget {
         items: [],
         isLoading: true,
       ),
-      error: (_, __) => const _RowError(title: 'Continua a guardare'),
+      error: (err, _) => _RowError(
+        title: 'Continua a guardare',
+        error: err,
+        onRetry: () => ref.invalidate(continueWatchingProvider),
+      ),
     );
   }
 }

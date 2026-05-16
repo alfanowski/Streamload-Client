@@ -35,6 +35,8 @@ class _FakeRowsApi implements CatalogRowsApi {
   Future<List<MediaSummary>> trending({
     String period = 'week',
     String mediaType = 'all',
+    int limit = kDefaultRowLimit,
+    int page = 1,
   }) async {
     if (period == 'day') {
       return [
@@ -45,7 +47,12 @@ class _FakeRowsApi implements CatalogRowsApi {
   }
 
   @override
-  Future<List<MediaSummary>> newReleases({required String mediaType}) async => [
+  Future<List<MediaSummary>> newReleases({
+    required String mediaType,
+    int limit = kDefaultRowLimit,
+    int page = 1,
+  }) async =>
+      [
         MediaSummary(
           tmdbId: 20,
           mediaType: mediaType,
@@ -58,6 +65,8 @@ class _FakeRowsApi implements CatalogRowsApi {
     required List<int> genreIds,
     required String mediaType,
     String? originalLanguage,
+    int limit = kDefaultRowLimit,
+    int page = 1,
   }) async =>
       [
         MediaSummary(
@@ -68,7 +77,12 @@ class _FakeRowsApi implements CatalogRowsApi {
       ];
 
   @override
-  Future<List<MediaSummary>> topRated({required String mediaType}) async => [
+  Future<List<MediaSummary>> topRated({
+    required String mediaType,
+    int limit = kDefaultRowLimit,
+    int page = 1,
+  }) async =>
+      [
         MediaSummary(
           tmdbId: 40,
           mediaType: mediaType,
@@ -80,6 +94,7 @@ class _FakeRowsApi implements CatalogRowsApi {
   Future<List<MediaSummary>> similar({
     required int tmdbId,
     required String mediaType,
+    int limit = kDefaultRowLimit,
   }) async =>
       const [];
 
@@ -87,6 +102,7 @@ class _FakeRowsApi implements CatalogRowsApi {
   Future<List<MediaSummary>> recommendations({
     required int tmdbId,
     required String mediaType,
+    int limit = kDefaultRowLimit,
   }) async =>
       const [];
 }

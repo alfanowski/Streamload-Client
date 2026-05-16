@@ -2,8 +2,9 @@
 //
 // Thin client wrapper over the backend's /api/catalog/rows/* endpoints
 // (sub-plan 8, Phase D1). The backend proxies TMDB so the client never
-// sees the API key. Each method returns at most 20 MediaSummary items —
-// the backend caps the response, but we also tolerate any length here.
+// sees the API key. Default row length is 40 items (bumped from 20 per
+// operator feedback May 16 — home rows felt repetitive). Callers can
+// pass a custom [limit] (1..100) and [page] for paginated reads.
 //
 // We talk to dio directly (not ApiClient.getJson) because the responses
 // are JSON arrays — ApiClient only unwraps object responses. The cookie
@@ -11,16 +12,27 @@
 import '../../../domain/models/media_summary.dart';
 import '../api_client.dart';
 
+/// Default row length — matches the backend default. Bumped from 20 → 40
+/// per operator (May 16): home felt repetitive with only 20 cards per
+/// horizontal row.
+const int kDefaultRowLimit = 40;
+
 abstract class CatalogRowsApi {
   /// Trending across both types or filtered to a single media type.
   /// [period] is `day` or `week`; [mediaType] is `all` / `movie` / `tv`.
   Future<List<MediaSummary>> trending({
     String period = 'week',
     String mediaType = 'all',
+    int limit = kDefaultRowLimit,
+    int page = 1,
   });
 
   /// Recent releases (last 60 days) for one media type.
-  Future<List<MediaSummary>> newReleases({required String mediaType});
+  Future<List<MediaSummary>> newReleases({
+    required String mediaType,
+    int limit = kDefaultRowLimit,
+    int page = 1,
+  });
 
   /// Discover by genre IDs. Optional [originalLanguage] for filters like
   /// "Commedie italiane" (`it`).
@@ -28,15 +40,22 @@ abstract class CatalogRowsApi {
     required List<int> genreIds,
     required String mediaType,
     String? originalLanguage,
+    int limit = kDefaultRowLimit,
+    int page = 1,
   });
 
   /// Top rated for one media type.
-  Future<List<MediaSummary>> topRated({required String mediaType});
+  Future<List<MediaSummary>> topRated({
+    required String mediaType,
+    int limit = kDefaultRowLimit,
+    int page = 1,
+  });
 
   /// TMDB's "similar" titles to a given tmdbId.
   Future<List<MediaSummary>> similar({
     required int tmdbId,
     required String mediaType,
+    int limit = kDefaultRowLimit,
   });
 
   /// TMDB's "recommendations" — usually higher quality than `similar`.
@@ -44,6 +63,7 @@ abstract class CatalogRowsApi {
   Future<List<MediaSummary>> recommendations({
     required int tmdbId,
     required String mediaType,
+    int limit = kDefaultRowLimit,
   });
 }
 
@@ -55,18 +75,29 @@ class HttpCatalogRowsApi implements CatalogRowsApi {
   Future<List<MediaSummary>> trending({
     String period = 'week',
     String mediaType = 'all',
+    int limit = kDefaultRowLimit,
+    int page = 1,
   }) async {
     return _list(
       '/api/catalog/rows/trending',
-      {'period': period, 'media_type': mediaType},
+      {
+        'period': period,
+        'media_type': mediaType,
+        'limit': limit,
+        'page': page,
+      },
     );
   }
 
   @override
-  Future<List<MediaSummary>> newReleases({required String mediaType}) async {
+  Future<List<MediaSummary>> newReleases({
+    required String mediaType,
+    int limit = kDefaultRowLimit,
+    int page = 1,
+  }) async {
     return _list(
       '/api/catalog/rows/new-releases',
-      {'media_type': mediaType},
+      {'media_type': mediaType, 'limit': limit, 'page': page},
     );
   }
 
@@ -75,6 +106,8 @@ class HttpCatalogRowsApi implements CatalogRowsApi {
     required List<int> genreIds,
     required String mediaType,
     String? originalLanguage,
+    int limit = kDefaultRowLimit,
+    int page = 1,
   }) async {
     return _list(
       '/api/catalog/rows/by-genre',
@@ -82,15 +115,21 @@ class HttpCatalogRowsApi implements CatalogRowsApi {
         'genre_ids': genreIds.join(','),
         'media_type': mediaType,
         if (originalLanguage != null) 'original_language': originalLanguage,
+        'limit': limit,
+        'page': page,
       },
     );
   }
 
   @override
-  Future<List<MediaSummary>> topRated({required String mediaType}) async {
+  Future<List<MediaSummary>> topRated({
+    required String mediaType,
+    int limit = kDefaultRowLimit,
+    int page = 1,
+  }) async {
     return _list(
       '/api/catalog/rows/top-rated',
-      {'media_type': mediaType},
+      {'media_type': mediaType, 'limit': limit, 'page': page},
     );
   }
 
@@ -98,10 +137,11 @@ class HttpCatalogRowsApi implements CatalogRowsApi {
   Future<List<MediaSummary>> similar({
     required int tmdbId,
     required String mediaType,
+    int limit = kDefaultRowLimit,
   }) async {
     return _list(
       '/api/catalog/$tmdbId/similar',
-      {'media_type': mediaType},
+      {'media_type': mediaType, 'limit': limit},
     );
   }
 
@@ -109,10 +149,11 @@ class HttpCatalogRowsApi implements CatalogRowsApi {
   Future<List<MediaSummary>> recommendations({
     required int tmdbId,
     required String mediaType,
+    int limit = kDefaultRowLimit,
   }) async {
     return _list(
       '/api/catalog/$tmdbId/recommendations',
-      {'media_type': mediaType},
+      {'media_type': mediaType, 'limit': limit},
     );
   }
 
