@@ -18,11 +18,13 @@
 // Kept side-by-side with the legacy AuthenticatedShell for now; cleanup
 // removes the old one once nothing else references it.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../responsive.dart';
 import '../theme/colors.dart';
 import 'bottom_tab_bar.dart';
+import 'search_overlay.dart';
 import 'top_nav_bar.dart';
 
 class AppShell extends ConsumerWidget {
@@ -43,21 +45,39 @@ class AppShell extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: StreamloadColors.v3BgBase,
-      body: Stack(
-        children: [
-          // Page content fills the whole stack. Pages own their top padding
-          // (~56) so heroes can extend behind the bar.
-          Positioned.fill(
-            child: SafeArea(top: false, child: child),
+      // Cmd+K (Ctrl+K on non-Mac) opens the SearchOverlay anywhere on
+      // desktop / tablet. We bind both modifiers so a user moving between
+      // Mac and a Windows / Linux build doesn't notice. Phone branch
+      // above intentionally has no equivalent — the Cerca tab is always
+      // one tap away in the bottom bar.
+      body: CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+              () => SearchOverlay.show(context),
+          const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+              () => SearchOverlay.show(context),
+        },
+        // Focus(autofocus:true) so the CallbackShortcuts actually picks
+        // up the keystroke even before the user clicks into the body.
+        child: Focus(
+          autofocus: true,
+          child: Stack(
+            children: [
+              // Page content fills the whole stack. Pages own their top
+              // padding (~56) so heroes can extend behind the bar.
+              Positioned.fill(
+                child: SafeArea(top: false, child: child),
+              ),
+              // Floating top bar above the body.
+              const Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: TopNavBar(),
+              ),
+            ],
           ),
-          // Floating top bar above the body.
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: TopNavBar(),
-          ),
-        ],
+        ),
       ),
     );
   }

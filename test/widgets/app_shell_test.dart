@@ -4,16 +4,31 @@
 // StreamloadBottomTabBar (no top bar); desktop width gets a stacked
 // TopNavBar floating over the body. Also smoke-tests that the router's
 // new routes (/film, /serie, /anime, /list) resolve through the shell.
+//
+// Phase G3 (2026-05-16) added the Cmd+K (and Ctrl+K) shortcut on the
+// desktop / tablet branch — it opens the SearchOverlay. The phone
+// branch deliberately does NOT bind the shortcut: search is always one
+// tap away in the bottom bar.
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:streamload_client/data/remote/endpoints/search_api.dart';
 import 'package:streamload_client/presentation/widgets/app_shell.dart';
 import 'package:streamload_client/presentation/widgets/bottom_tab_bar.dart';
+import 'package:streamload_client/presentation/widgets/search_overlay.dart';
 import 'package:streamload_client/presentation/widgets/top_nav_bar.dart';
+import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/auth_provider.dart';
 import 'package:streamload_client/domain/models/user.dart';
+
+class _SearchApiStub implements SearchApi {
+  @override
+  Future<Map<String, dynamic>> run(String query, {int page = 1}) async =>
+      {'results': []};
+}
 
 class _PreAuthedNotifier extends AuthNotifier {
   _PreAuthedNotifier(super.ref, User user) {
@@ -75,6 +90,7 @@ Future<void> pumpShell(
   await t.pumpWidget(ProviderScope(
     overrides: [
       authProvider.overrideWith((ref) => _PreAuthedNotifier(ref, _user)),
+      searchApiProvider.overrideWith((_) async => _SearchApiStub()),
     ],
     child: MaterialApp.router(routerConfig: router),
   ));
@@ -122,5 +138,48 @@ void main() {
       await t.pump();
       expect(find.text('body:$p'), findsOneWidget, reason: 'route $p');
     }
+  });
+
+  testWidgets('Cmd+K opens the SearchOverlay on desktop',
+      (t) async {
+    await pumpShell(t, surface: const Size(1400, 900));
+    await t.pump();
+    expect(find.byType(SearchOverlay), findsNothing);
+    // Simulate a Cmd+K key chord. CallbackShortcuts watches via
+    // SingleActivator which fires on the keyDown of the trigger while
+    // the modifier is held.
+    await t.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await t.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    // Pump past the showGeneralDialog transition.
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 250));
+    expect(find.byType(SearchOverlay), findsOneWidget);
+  });
+
+  testWidgets('Cmd+K does NOT open the SearchOverlay on phone', (t) async {
+    await pumpShell(t, surface: const Size(390, 844));
+    await t.pump();
+    expect(find.byType(SearchOverlay), findsNothing);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.metaLeft);
+    await t.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.metaLeft);
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 250));
+    expect(find.byType(SearchOverlay), findsNothing,
+        reason: 'phone branch should not bind Cmd+K');
+  });
+
+  testWidgets('Ctrl+K also opens the SearchOverlay on desktop (Win/Linux)',
+      (t) async {
+    await pumpShell(t, surface: const Size(1400, 900));
+    await t.pump();
+    expect(find.byType(SearchOverlay), findsNothing);
+    await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await t.sendKeyEvent(LogicalKeyboardKey.keyK);
+    await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 250));
+    expect(find.byType(SearchOverlay), findsOneWidget);
   });
 }
