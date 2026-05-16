@@ -39,7 +39,6 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/hero/hero_carousel.dart';
-import '../widgets/rows/backdrop_row.dart';
 import '../widgets/rows/poster_row.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -486,7 +485,10 @@ class _RowError extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Continua a guardare (BackdropRow over watch_progress)
+// Continua a guardare — same 2:3 PosterRow as the other rows (per user
+// preference), with a progress bar overlay on each card. Subtitle on the
+// card replaces the year line with the season/episode pointer so the user
+// knows what they were last watching.
 // ──────────────────────────────────────────────────────────────────────────
 
 class _ContinueWatchingRow extends ConsumerWidget {
@@ -500,28 +502,32 @@ class _ContinueWatchingRow extends ConsumerWidget {
     return async.when(
       data: (items) {
         if (items.isEmpty) return const SizedBox.shrink();
-        final rowItems = items.map((i) {
-          final progress = i.durationSeconds > 0
-              ? i.positionSeconds / i.durationSeconds
-              : null;
-          return BackdropRowItem(
+        final summaries = <MediaSummary>[];
+        final progress = <int, double>{};
+        final subtitles = <int, String>{};
+        for (final i in items) {
+          summaries.add(MediaSummary(
+            tmdbId: i.tmdbId,
+            mediaType: i.mediaType,
             title: i.title,
-            subtitle: i.seasonNumber != null && i.episodeNumber != null
-                ? 'S${i.seasonNumber} · E${i.episodeNumber}'
-                : null,
-            imageUrl: i.posterUrl,
-            progressFraction: progress,
-            onTap: () => context.go(
-              '/title/${i.tmdbId}?media_type=${i.mediaType}',
-            ),
-          );
-        }).toList(growable: false);
-        return BackdropRow(
+            year: null,
+            posterUrl: i.posterUrl,
+          ));
+          if (i.durationSeconds > 0) {
+            progress[i.tmdbId] = i.positionSeconds / i.durationSeconds;
+          }
+          if (i.seasonNumber != null && i.episodeNumber != null) {
+            subtitles[i.tmdbId] = 'S${i.seasonNumber} · E${i.episodeNumber}';
+          }
+        }
+        return PosterRow(
           title: 'Continua a guardare',
-          items: rowItems,
+          items: summaries,
+          progressByTmdbId: progress,
+          subtitleByTmdbId: subtitles,
         );
       },
-      loading: () => const BackdropRow(
+      loading: () => const PosterRow(
         title: 'Continua a guardare',
         items: [],
         isLoading: true,
@@ -615,18 +621,19 @@ class _RecentlyWatchedRow extends ConsumerWidget {
                 i.positionSeconds / i.durationSeconds >= 0.95)
             .toList(growable: false);
         if (completed.isEmpty) return const SizedBox.shrink();
-        final rowItems = completed.map((i) {
-          return BackdropRowItem(
-            title: i.title,
-            imageUrl: i.posterUrl,
-            onTap: () => context.go(
-              '/title/${i.tmdbId}?media_type=${i.mediaType}',
-            ),
-          );
-        }).toList(growable: false);
-        return BackdropRow(
+        // Same 2:3 PosterRow as the other rows for visual consistency.
+        final summaries = completed
+            .map((i) => MediaSummary(
+                  tmdbId: i.tmdbId,
+                  mediaType: i.mediaType,
+                  title: i.title,
+                  year: null,
+                  posterUrl: i.posterUrl,
+                ))
+            .toList(growable: false);
+        return PosterRow(
           title: 'Visti di recente',
-          items: rowItems,
+          items: summaries,
         );
       },
       // No loading / error state — this row is best-effort.

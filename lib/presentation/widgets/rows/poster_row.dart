@@ -30,6 +30,8 @@ class PosterRow extends StatelessWidget {
     this.seeAllTo,
     this.isLoading = false,
     this.placeholderCount = 6,
+    this.progressByTmdbId,
+    this.subtitleByTmdbId,
   });
 
   final String title;
@@ -45,6 +47,14 @@ class PosterRow extends StatelessWidget {
 
   /// How many placeholder cards to render during loading.
   final int placeholderCount;
+
+  /// 0..1 per-item progress. Used by "Continua a guardare" — same 2:3
+  /// poster as the other rows, just with a resume hint over the image.
+  final Map<int, double>? progressByTmdbId;
+
+  /// Per-item subtitle override. Used by "Continua a guardare" to show
+  /// `S1 · E3 · 28 min rimanenti` instead of the bare release year.
+  final Map<int, String>? subtitleByTmdbId;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +103,8 @@ class PosterRow extends StatelessWidget {
               return PosterCard(
                 summary: m,
                 width: cardWidth,
+                progressFraction: progressByTmdbId?[m.tmdbId],
+                subtitleOverride: subtitleByTmdbId?[m.tmdbId],
                 onTap: () {
                   if (onItemTap != null) {
                     onItemTap!(m);
