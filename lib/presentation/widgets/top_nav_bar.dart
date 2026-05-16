@@ -58,28 +58,51 @@ class TopNavBar extends ConsumerWidget {
           decoration: BoxDecoration(color: bg),
           child: SafeArea(
             bottom: false,
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-              child: Row(
-                children: [
-                  const _Logo(),
-                  const SizedBox(width: 28),
-                  for (var i = 0; i < _tabs.length; i++) ...[
-                    _NavTab(
-                      label: _tabs[i].label,
-                      path: _tabs[i].path,
-                      active: _isActive(currentLoc, _tabs[i].path),
+            child: LayoutBuilder(builder: (context, constraints) {
+              // Tighten horizontal padding + tab gap on narrow tablet widths
+              // so the 5 tabs + logo + search + avatar still fit.
+              final tight = constraints.maxWidth < 1000;
+              final hPad = tight ? 16.0 : 28.0;
+              final tabGap = tight ? 14.0 : 22.0;
+              final logoGap = tight ? 16.0 : 28.0;
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 12),
+                child: Row(
+                  children: [
+                    const _Logo(),
+                    SizedBox(width: logoGap),
+                    // Tabs in a flexible scrollable region — keeps the search
+                    // + avatar pinned to the right edge even at the most
+                    // compressed tablet widths, and gracefully scrolls if a
+                    // localization pushes labels too wide.
+                    Flexible(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < _tabs.length; i++) ...[
+                              _NavTab(
+                                label: _tabs[i].label,
+                                path: _tabs[i].path,
+                                active: _isActive(
+                                    currentLoc, _tabs[i].path),
+                              ),
+                              if (i < _tabs.length - 1)
+                                SizedBox(width: tabGap),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                    if (i < _tabs.length - 1) const SizedBox(width: 22),
+                    const SizedBox(width: 8),
+                    _SearchButton(onTap: () => context.go('/search')),
+                    const SizedBox(width: 12),
+                    const AvatarMenu(),
                   ],
-                  const Spacer(),
-                  _SearchButton(onTap: () => context.go('/search')),
-                  const SizedBox(width: 12),
-                  const AvatarMenu(),
-                ],
-              ),
-            ),
+                ),
+              );
+            }),
           ),
         ),
       ),

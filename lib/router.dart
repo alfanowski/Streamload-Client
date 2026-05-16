@@ -13,7 +13,7 @@ import 'presentation/pages/search_page.dart';
 import 'presentation/pages/settings_page.dart';
 import 'presentation/pages/title_page.dart';
 import 'presentation/pages/watch_page.dart';
-import 'presentation/widgets/authenticated_shell.dart';
+import 'presentation/widgets/app_shell.dart';
 import 'domain/models/playback_request.dart';
 import 'state/auth_provider.dart';
 import 'state/github_token_provider.dart';
@@ -63,9 +63,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const ProfileCompletionPage(),
       ),
       ShellRoute(
-        builder: (context, state, child) => AuthenticatedShell(child: child),
+        builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+          // /film, /serie, /anime route to HomePage for now — Phase D will
+          // teach HomePage to accept a filter param that swaps the row
+          // composition. Same for /list (currently aliased to LibraryPage).
+          GoRoute(path: '/film', builder: (_, __) => const HomePage()),
+          GoRoute(path: '/serie', builder: (_, __) => const HomePage()),
+          GoRoute(path: '/anime', builder: (_, __) => const HomePage()),
+          GoRoute(path: '/list', builder: (_, __) => const LibraryPage()),
           GoRoute(path: '/library', builder: (_, __) => const LibraryPage()),
           GoRoute(path: '/search', builder: (_, __) => const SearchPage()),
           GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
