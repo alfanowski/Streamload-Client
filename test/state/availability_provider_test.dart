@@ -49,7 +49,8 @@ PlayController _buildController({
     proxyBaseUrl: 'http://127.0.0.1:0',
     router: router,
     resolveTitle: (tmdbId, mediaType) async =>
-        (resolveHint ?? (id, mt) => TitleHint(title: 'Inception', year: 2010))(
+        (resolveHint ??
+            (id, mt) => const TitleHint(title: 'Inception', year: 2010))(
             tmdbId, mediaType),
   );
 }

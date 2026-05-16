@@ -1,6 +1,6 @@
 // test/widgets/title/title_hero_test.dart
 //
-// Title page hero — Phase E1 of sub-plan 8. Verifies:
+// Title page hero — Phase E1 + F3 of sub-plan 8. Verifies:
 //
 //   - renders title + meta line + share / list CTAs
 //   - movie title primary CTA reads "▶ Guarda"
@@ -8,22 +8,31 @@
 //   - tv title primary CTA reads "▶ Riprendi" when continue-watching has
 //     a record for this title
 //   - tapping the share circle copies the deep link to the clipboard
+//   - (F3) Guarda CTA shows the spinner state while the probe is loading
+//   - (F3) Guarda CTA flips to "Al momento non disponibile" when the
+//     probe returns false (or errors out)
+//   - (F3) tapping Guarda navigates to /watch/<tmdbId> with the right
+//     query string (media_type + season/episode for TV)
 //
 // We override every provider TitleHero reads (favorites, continue
-// watching, plugin access, trailer) so the widget renders synchronously
+// watching, availability, trailer) so the widget renders synchronously
 // without hitting the network.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/data/remote/endpoints/favorites_api.dart';
 import 'package:streamload_client/domain/models/catalog_item.dart';
+import 'package:streamload_client/presentation/widgets/play_cta.dart';
 import 'package:streamload_client/presentation/widgets/title/title_hero.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
+import 'package:streamload_client/state/availability_provider.dart';
 import 'package:streamload_client/state/continue_watching_provider.dart';
 import 'package:streamload_client/state/home_rows_provider.dart';
-import 'package:streamload_client/state/plugin_access_provider.dart';
 import 'package:streamload_client/domain/models/continue_watching_item.dart';
 
 class _FavApiMock extends Mock implements FavoritesApi {}
@@ -39,11 +48,13 @@ void main() {
     return ProviderScope(
       overrides: [
         favoritesApiProvider.overrideWith((_) async => fav),
-        // Default: no progress, no trailer, plugin available.
+        // Default: no progress, no trailer, availability=true (renders the
+        // play CTA). Tests that exercise checking / unavailable override
+        // availabilityProvider explicitly via `extra`.
         continueWatchingProvider
             .overrideWith((_) async => <ContinueWatchingItem>[]),
         titleTrailerProvider.overrideWith((_, __) async => null),
-        pluginAccessProvider.overrideWith((_) => PluginAccess.available),
+        availabilityProvider.overrideWith((_, __) async => true),
         ...extra,
       ],
       child: MaterialApp(
@@ -166,5 +177,132 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('✓ Nella lista'), findsOneWidget);
     verify(() => fav.add(27205, 'movie')).called(1);
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // F3 — Guarda CTA wired to availabilityProvider
+  //
+  // The Guarda pill should now mirror the probe's three states. The
+  // host() helper above overrides availabilityProvider to true by
+  // default; these tests override it explicitly to exercise the other
+  // branches.
+  // ────────────────────────────────────────────────────────────────────
+
+  testWidgets('Guarda CTA shows spinner while availability is loading',
+      (t) async {
+    // A Future that never completes → provider stays loading forever.
+    await t.pumpWidget(host(
+      TitleHero(item: movieItem, onShare: () {}),
+      extra: [
+        availabilityProvider.overrideWith(
+          (_, __) => Completer<bool>().future,
+        ),
+      ],
+    ));
+    // Single pump so we don't await the never-completing future.
+    await t.pump();
+
+    final cta = t.widget<PlayCta>(find.byType(PlayCta));
+    expect(cta.state, PlayCtaState.checking);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('▶ Guarda'), findsNothing);
+    expect(find.text('Al momento non disponibile'), findsNothing);
+  });
+
+  testWidgets('Guarda CTA shows Play state with label when available',
+      (t) async {
+    await t.pumpWidget(host(TitleHero(item: movieItem, onShare: () {})));
+    await t.pumpAndSettle();
+
+    final cta = t.widget<PlayCta>(find.byType(PlayCta));
+    expect(cta.state, PlayCtaState.play);
+    expect(cta.label, 'Guarda');
+    expect(cta.onTap, isNotNull);
+    expect(find.text('▶ Guarda'), findsOneWidget);
+    expect(find.text('Al momento non disponibile'), findsNothing);
+  });
+
+  testWidgets(
+      'Guarda CTA renders Unavailable when probe returns false (non-tappable)',
+      (t) async {
+    await t.pumpWidget(host(
+      TitleHero(item: movieItem, onShare: () {}),
+      extra: [
+        availabilityProvider.overrideWith((_, __) async => false),
+      ],
+    ));
+    await t.pumpAndSettle();
+
+    final cta = t.widget<PlayCta>(find.byType(PlayCta));
+    expect(cta.state, PlayCtaState.unavailable);
+    expect(find.text('Al momento non disponibile'), findsOneWidget);
+    expect(find.text('▶ Guarda'), findsNothing);
+
+    // The pill is non-tappable in the unavailable state — InkWell.onTap
+    // is null. Tapping should NOT throw and should NOT trigger any
+    // navigation (we don't have a /watch route registered in `host`).
+    await t.tap(find.text('Al momento non disponibile'));
+    await t.pumpAndSettle();
+    // Still on the unavailable state — no rebuild changed anything.
+    expect(find.text('Al momento non disponibile'), findsOneWidget);
+  });
+
+  testWidgets('Guarda CTA renders Unavailable when probe errors', (t) async {
+    await t.pumpWidget(host(
+      TitleHero(item: movieItem, onShare: () {}),
+      extra: [
+        availabilityProvider.overrideWith(
+          (_, __) => Future<bool>.error(StateError('boom')),
+        ),
+      ],
+    ));
+    await t.pumpAndSettle();
+
+    final cta = t.widget<PlayCta>(find.byType(PlayCta));
+    expect(cta.state, PlayCtaState.unavailable);
+    expect(find.text('Al momento non disponibile'), findsOneWidget);
+  });
+
+  testWidgets(
+      'tapping Guarda navigates to /watch/<id> with media_type+season+episode '
+      'query (TV)', (t) async {
+    String? landedOn;
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, __) => TitleHero(item: tvItem, onShare: () {}),
+        ),
+        GoRoute(
+          path: '/watch/:tmdbId',
+          builder: (_, state) {
+            landedOn = '/watch/${state.pathParameters['tmdbId']}'
+                '?${state.uri.query}';
+            return const Scaffold(body: Text('WATCH_PAGE'));
+          },
+        ),
+      ],
+    );
+
+    final fav = _FavApiMock();
+    when(fav.list).thenAnswer((_) async => <Map<String, dynamic>>[]);
+    await t.pumpWidget(ProviderScope(
+      overrides: [
+        favoritesApiProvider.overrideWith((_) async => fav),
+        continueWatchingProvider
+            .overrideWith((_) async => <ContinueWatchingItem>[]),
+        titleTrailerProvider.overrideWith((_, __) async => null),
+        availabilityProvider.overrideWith((_, __) async => true),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await t.pumpAndSettle();
+
+    expect(find.text('▶ Guarda S1 E1'), findsOneWidget);
+    await t.tap(find.text('▶ Guarda S1 E1'));
+    await t.pumpAndSettle();
+    expect(find.text('WATCH_PAGE'), findsOneWidget);
+    expect(landedOn, '/watch/1396?media_type=tv&season=1&episode=1');
   });
 }

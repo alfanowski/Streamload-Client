@@ -23,10 +23,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/catalog_item.dart';
+import '../../../state/availability_provider.dart';
 import '../../../state/continue_watching_provider.dart';
 import '../../../state/favorites_provider.dart';
 import '../../../state/home_rows_provider.dart';
-import '../../../state/plugin_access_provider.dart';
 import '../../../state/title_provider.dart';
 import '../../responsive.dart';
 import '../../theme/colors.dart';
@@ -224,29 +224,60 @@ class _Ctas extends ConsumerWidget {
     );
 
     final label = _playLabel(item, resume);
-    final access = ref.watch(pluginAccessProvider);
+
+    // Drive the availability probe with the SAME season/episode the Guarda
+    // button would play if tapped. Movies omit both; TV uses the resume
+    // point if continue-watching has one, else s1e1. Probing s1e1 when the
+    // user is on s4e7 would race the wrong episode and could flip the CTA
+    // to "unavailable" even though their actual resume target is fine.
+    final int? probeSeason;
+    final int? probeEpisode;
+    if (item.mediaType == 'tv') {
+      probeSeason = resume?.seasonNumber ?? 1;
+      probeEpisode = resume?.episodeNumber ?? 1;
+    } else {
+      probeSeason = null;
+      probeEpisode = null;
+    }
+    final availabilityKey = AvailabilityKey(
+      tmdbId: item.tmdbId,
+      mediaType: item.mediaType,
+      season: probeSeason,
+      episode: probeEpisode,
+    );
+
+    void goToWatch() {
+      final query = StringBuffer('media_type=${item.mediaType}');
+      if (resume != null && item.mediaType == 'tv') {
+        if (resume.seasonNumber != null) {
+          query.write('&season=${resume.seasonNumber}');
+        }
+        if (resume.episodeNumber != null) {
+          query.write('&episode=${resume.episodeNumber}');
+        }
+      } else if (item.mediaType == 'tv') {
+        query.write('&season=1&episode=1');
+      }
+      context.go('/watch/${item.tmdbId}?$query');
+    }
 
     final stackVertical = availableWidth < 380;
 
-    final ctaPlay = PlayCta(
-      state: PlayCtaState.play,
-      label: label,
-      onTap: access == PluginAccess.available
-          ? () {
-              final query = StringBuffer('media_type=${item.mediaType}');
-              if (resume != null && item.mediaType == 'tv') {
-                if (resume.seasonNumber != null) {
-                  query.write('&season=${resume.seasonNumber}');
-                }
-                if (resume.episodeNumber != null) {
-                  query.write('&episode=${resume.episodeNumber}');
-                }
-              } else if (item.mediaType == 'tv') {
-                query.write('&season=1&episode=1');
-              }
-              context.go('/watch/${item.tmdbId}?$query');
-            }
-          : null,
+    // The spec wants the unavailable state to be the SINGLE source of
+    // truth for "can't play this title". pluginAccessProvider still gates
+    // whether the title page is reachable at all (the route redirect
+    // handles that), but the Guarda CTA itself defers to availability.
+    final availability = ref.watch(availabilityProvider(availabilityKey));
+    final ctaPlay = availability.when(
+      loading: () => const PlayCta(state: PlayCtaState.checking),
+      data: (avail) => avail
+          ? PlayCta(
+              state: PlayCtaState.play,
+              label: label,
+              onTap: goToWatch,
+            )
+          : const PlayCta(state: PlayCtaState.unavailable),
+      error: (_, __) => const PlayCta(state: PlayCtaState.unavailable),
     );
 
     final ctaAdd = _AddPill(

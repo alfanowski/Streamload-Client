@@ -20,6 +20,7 @@ import 'package:streamload_client/domain/models/catalog_item.dart';
 import 'package:streamload_client/domain/models/continue_watching_item.dart';
 import 'package:streamload_client/presentation/pages/title_page.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
+import 'package:streamload_client/state/availability_provider.dart';
 import 'package:streamload_client/state/continue_watching_provider.dart';
 import 'package:streamload_client/state/database_provider.dart';
 import 'package:streamload_client/state/home_rows_provider.dart';
@@ -52,6 +53,12 @@ Widget wrap({
       continueWatchingProvider
           .overrideWith((_) async => <ContinueWatchingItem>[]),
       titleTrailerProvider.overrideWith((_, __) async => null),
+      // Phase F3: TitleHero's Guarda CTA now subscribes to
+      // availabilityProvider, which by default reaches into the real
+      // playControllerProvider (plugin runtime, catalog API). Stub it
+      // to a settled true here so the page-level tests still render
+      // the play CTA without spinning up plugins.
+      availabilityProvider.overrideWith((_, __) async => true),
     ],
     child: MaterialApp(
       home: MediaQuery(
