@@ -125,153 +125,388 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   List<Widget> _buildRows(BuildContext context, String? filter) {
-    // For the "anime" filter, only the Anime row plus a trending-tv
-    // variant make sense. We treat anime as TV with genre 16 (Animation).
-    final isAnime = filter == 'anime';
-    final isMovie = filter == 'movie';
-    final isTv = filter == 'tv';
+    // P2 (2026-05-17): /film and /serie were showing only 3-4 rows — the
+    // operator wanted a full Netflix-style catalog. Each filter now
+    // composes a dedicated row set with multiple genre rows so the
+    // browse pages feel populated.
+    if (filter == 'movie') return _buildMovieRows();
+    if (filter == 'tv') return _buildTvRows();
+    if (filter == 'anime') return _buildAnimeRows();
+    return _buildDefaultRows();
+  }
 
+  // ──────────────────────────────────────────────────────────────────
+  // Row builders, one per filter. Helpers below keep the .addAll
+  // boilerplate (row + spacer) out of every call site.
+  // ──────────────────────────────────────────────────────────────────
+
+  List<Widget> _buildDefaultRows() {
+    // /home — mix of movie + tv across categories. Continue watching
+    // and "La mia lista" are user-specific rows, so they only show on
+    // the default tab.
     final rows = <Widget>[];
+    _addRow(rows, const _ContinueWatchingRow());
+    _addRow(rows,
+        _RowConsumer(title: 'Tendenze oggi', provider: trendingDayProvider));
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Nuove uscite',
+        provider: newReleasesAllProvider,
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Crime & Thriller',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [80, 53],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Commedie italiane',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [35],
+          mediaType: 'movie',
+          originalLanguage: 'it',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Anime',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [16],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Documentari',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [99],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(rows, const _MyListRow());
+    _addRow(rows, const _RecentlyWatchedRow());
+    _addRow(rows,
+        _RowConsumer(title: 'Top di sempre', provider: topRatedAllProvider));
+    return rows;
+  }
 
-    // Continua a guardare — only when plugin access is available. The
-    // row hides itself when empty.
-    if (!isAnime && !isMovie && !isTv) {
-      rows.add(const _ContinueWatchingRow());
-      rows.add(const SizedBox(height: StreamloadSpacing.rowGap));
-    }
-
-    if (isAnime) {
-      rows.addAll([
-        _RowConsumer(
-          title: 'Anime',
-          provider: byGenreProvider(const GenreRowKey(
-            genreIds: [16],
-            mediaType: 'tv',
-          )),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-        _RowConsumer(
-          title: 'Tendenze TV oggi',
-          provider: trendingDayProvider,
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-        _RowConsumer(
-          title: 'Top serie TV',
-          provider: topRatedProvider('tv'),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-      ]);
-      return rows;
-    }
-
-    // Tendenze oggi — relevant for all non-anime filters.
-    rows.addAll([
-      _RowConsumer(title: 'Tendenze oggi', provider: trendingDayProvider),
-      const SizedBox(height: StreamloadSpacing.rowGap),
-    ]);
-
-    // Nuove uscite — choose the right source per filter.
-    if (isMovie) {
-      rows.addAll([
-        _RowConsumer(
-          title: 'Nuove uscite',
-          provider: newReleasesProvider('movie'),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-      ]);
-    } else if (isTv) {
-      rows.addAll([
-        _RowConsumer(
-          title: 'Nuove uscite',
-          provider: newReleasesProvider('tv'),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-      ]);
-    } else {
-      rows.addAll([
-        _RowConsumer(
-          title: 'Nuove uscite',
-          provider: newReleasesAllProvider,
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-      ]);
-    }
-
-    // Per-genere rows — movie-only when filter excludes TV; tv-only
-    // when filter excludes movies.
-    if (!isTv) {
-      rows.addAll([
-        _RowConsumer(
-          title: 'Crime & Thriller',
-          provider: byGenreProvider(const GenreRowKey(
-            genreIds: [80, 53],
-            mediaType: 'movie',
-          )),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-        _RowConsumer(
-          title: 'Commedie italiane',
-          provider: byGenreProvider(const GenreRowKey(
-            genreIds: [35],
-            mediaType: 'movie',
-            originalLanguage: 'it',
-          )),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-      ]);
-    }
-    if (!isMovie) {
-      rows.addAll([
-        _RowConsumer(
-          title: 'Anime',
-          provider: byGenreProvider(const GenreRowKey(
-            genreIds: [16],
-            mediaType: 'tv',
-          )),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-        _RowConsumer(
-          title: 'Documentari',
-          provider: byGenreProvider(const GenreRowKey(
-            genreIds: [99],
-            mediaType: 'tv',
-          )),
-        ),
-        const SizedBox(height: StreamloadSpacing.rowGap),
-      ]);
-    }
-
-    // La mia lista (favorites ∪ watchlist).
-    rows.addAll([
-      const _MyListRow(),
-      const SizedBox(height: StreamloadSpacing.rowGap),
-    ]);
-
-    // Visti di recente — completed watch_progress items.
-    rows.addAll([
-      const _RecentlyWatchedRow(),
-      const SizedBox(height: StreamloadSpacing.rowGap),
-    ]);
-
-    // Top di sempre — choose right source per filter.
-    if (isMovie) {
-      rows.add(_RowConsumer(
+  List<Widget> _buildMovieRows() {
+    // /film — Netflix-style movie catalog. Multiple genre rows so the
+    // page has 10+ horizontal scrollers.
+    final rows = <Widget>[];
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Tendenze film oggi',
+        provider: trendingDayMoviesProvider,
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Nuove uscite',
+        provider: newReleasesProvider('movie'),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Azione',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [28],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Commedie',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [35],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Drama',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [18],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Crime & Thriller',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [80, 53],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Horror',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [27],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Sci-Fi & Fantasy',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [878, 14],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Romance',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [10749],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Avventura & Family',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [12, 10751],
+          mediaType: 'movie',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Commedie italiane',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [35],
+          mediaType: 'movie',
+          originalLanguage: 'it',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
         title: 'Top di sempre',
         provider: topRatedProvider('movie'),
-      ));
-    } else if (isTv) {
-      rows.add(_RowConsumer(
+      ),
+    );
+    return rows;
+  }
+
+  List<Widget> _buildTvRows() {
+    // /serie — TV-only equivalent. TV uses different genre IDs than
+    // movies (e.g. 10759 "Action & Adventure" instead of 28 "Action").
+    final rows = <Widget>[];
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Tendenze serie TV oggi',
+        provider: trendingDayTvProvider,
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Nuove uscite',
+        provider: newReleasesProvider('tv'),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Drama',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [18],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Crime',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [80],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Commedie',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [35],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Sci-Fi & Fantasy',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [10765],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Mystery',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [9648],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Action & Adventure',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [10759],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Reality',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [10764],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Documentari',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [99],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
         title: 'Top di sempre',
         provider: topRatedProvider('tv'),
-      ));
-    } else {
-      rows.add(_RowConsumer(
-        title: 'Top di sempre',
-        provider: topRatedAllProvider,
-      ));
-    }
-
+      ),
+    );
     return rows;
+  }
+
+  List<Widget> _buildAnimeRows() {
+    // /anime — anime is TV with genre 16 (Animation) and origin JP.
+    // We approximate sub-categories with extra genres + the existing
+    // discoverAnime endpoint (origin-country filter).
+    final rows = <Widget>[];
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Anime',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [16],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Anime · Azione & Avventura',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [16, 10759],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Anime · Sci-Fi & Fantasy',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [16, 10765],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Anime · Commedia',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [16, 35],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Anime · Drama',
+        provider: byGenreProvider(const GenreRowKey(
+          genreIds: [16, 18],
+          mediaType: 'tv',
+        )),
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Tendenze TV oggi',
+        provider: trendingDayTvProvider,
+      ),
+    );
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: 'Top serie TV',
+        provider: topRatedProvider('tv'),
+      ),
+    );
+    return rows;
+  }
+
+  /// Push a row + its trailing spacer to the list in one call. Cuts the
+  /// per-row noise from `addAll([row, SizedBox])` to a single line.
+  void _addRow(List<Widget> rows, Widget row) {
+    rows.add(row);
+    rows.add(const SizedBox(height: StreamloadSpacing.rowGap));
   }
 
   double _heroHeightFor(BuildContext context) {

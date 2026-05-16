@@ -185,17 +185,31 @@ void main() {
     await t.pump(const Duration(milliseconds: 16));
   }
 
-  testWidgets('default (filter=null) shows the full row set after settle',
+  // Helper: scroll the page ListView until the row with the given title
+  // is visible. Returns once visible; throws if not found in [maxSteps]
+  // 400px steps. Use this instead of fixed-N scrolls so test assertions
+  // don't break when the page gains / drops rows.
+  Future<void> scrollUntilTitle(WidgetTester t, String title,
+      {int maxSteps = 30}) async {
+    final list = find.byType(ListView).first;
+    await t.scrollUntilVisible(
+      find.text(title),
+      400,
+      scrollable: find.descendant(
+        of: list,
+        matching: find.byType(Scrollable),
+      ).first,
+      maxScrolls: maxSteps,
+    );
+  }
+
+  testWidgets('default (filter=null) shows the top + bottom rows',
       (t) async {
     await pump(t);
     await t.pumpAndSettle();
     expect(find.text('Tendenze oggi'), findsOneWidget);
     expect(find.text('Nuove uscite'), findsOneWidget);
-
-    // Scroll down progressively to materialize the rest of the rows.
-    for (var i = 0; i < 5; i++) {
-      await scrollPage(t, 400);
-    }
+    await scrollUntilTitle(t, 'Top di sempre');
     expect(find.text('Top di sempre'), findsOneWidget);
   });
 
@@ -203,45 +217,73 @@ void main() {
       (t) async {
     await pump(t);
     await t.pumpAndSettle();
-    for (var i = 0; i < 3; i++) {
-      await scrollPage(t, 300);
-    }
+    await scrollUntilTitle(t, 'Crime & Thriller');
     expect(find.text('Crime & Thriller'), findsOneWidget);
+    await scrollUntilTitle(t, 'Commedie italiane');
     expect(find.text('Commedie italiane'), findsOneWidget);
   });
 
-  testWidgets('filter=movie excludes TV-only rows', (t) async {
+  testWidgets('filter=movie shows movie-specific genre rows', (t) async {
+    // P2 (2026-05-17): /film now renders a full Netflix-style catalog
+    // with ~13 rows so the operator can browse by genre. Tests assert
+    // the new top-row + a couple of representative genre rows
+    // materialize after scrolling.
     await pump(t, filter: 'movie');
     await t.pumpAndSettle();
-    // Before scrolling, "Anime" chip is visible at top of page.
+    expect(find.text('Tendenze film oggi'), findsOneWidget);
+    // "Anime" chip is visible at top of page even on the /film route.
     expect(find.text('Anime'), findsOneWidget);
-    for (var i = 0; i < 5; i++) {
-      await scrollPage(t, 400);
-    }
+    await scrollUntilTitle(t, 'Azione');
+    expect(find.text('Azione'), findsOneWidget);
+    await scrollUntilTitle(t, 'Crime & Thriller');
     expect(find.text('Crime & Thriller'), findsOneWidget);
+    await scrollUntilTitle(t, 'Commedie italiane');
     expect(find.text('Commedie italiane'), findsOneWidget);
+  });
+
+  testWidgets('filter=movie omits Documentari (TV-only genre)',
+      (t) async {
+    // Scroll to the very end so every row is materialized at some point
+    // — Documentari should never appear in /film.
+    await pump(t, filter: 'movie');
+    await t.pumpAndSettle();
+    await scrollUntilTitle(t, 'Top di sempre');
+    // Documentari never built — it's not in the movie row set.
     expect(find.text('Documentari'), findsNothing);
   });
 
-  testWidgets('filter=tv excludes movie-only genre rows', (t) async {
+  testWidgets('filter=tv shows tv-specific genre rows', (t) async {
     await pump(t, filter: 'tv');
     await t.pumpAndSettle();
-    for (var i = 0; i < 5; i++) {
-      await scrollPage(t, 400);
-    }
+    expect(find.text('Tendenze serie TV oggi'), findsOneWidget);
+    await scrollUntilTitle(t, 'Crime');
+    expect(find.text('Crime'), findsOneWidget);
+    await scrollUntilTitle(t, 'Documentari');
+    expect(find.text('Documentari'), findsOneWidget);
+  });
+
+  testWidgets('filter=tv omits movie-only labels', (t) async {
+    await pump(t, filter: 'tv');
+    await t.pumpAndSettle();
+    await scrollUntilTitle(t, 'Top di sempre');
     expect(find.text('Crime & Thriller'), findsNothing);
     expect(find.text('Commedie italiane'), findsNothing);
-    expect(find.text('Documentari'), findsOneWidget);
   });
 
   testWidgets('filter=anime shows only the Anime-relevant rows', (t) async {
     await pump(t, filter: 'anime');
     await t.pumpAndSettle();
-    for (var i = 0; i < 3; i++) {
-      await scrollPage(t, 400);
-    }
+    expect(find.text('Anime'), findsAtLeastNWidgets(1));
+    await scrollUntilTitle(t, 'Tendenze TV oggi');
     expect(find.text('Tendenze TV oggi'), findsOneWidget);
+    await scrollUntilTitle(t, 'Top serie TV');
     expect(find.text('Top serie TV'), findsOneWidget);
+  });
+
+  testWidgets('filter=anime omits non-anime rows', (t) async {
+    await pump(t, filter: 'anime');
+    await t.pumpAndSettle();
+    await scrollUntilTitle(t, 'Top serie TV');
     expect(find.text('Nuove uscite'), findsNothing);
     expect(find.text('Crime & Thriller'), findsNothing);
   });

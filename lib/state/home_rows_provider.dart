@@ -97,6 +97,23 @@ final trendingWeekProvider =
   return api.trending(period: 'week');
 });
 
+/// Trending today, narrowed to movies — feeds the /film page top row.
+/// Kept as a dedicated provider (rather than calling `trending('day',
+/// 'movie')` inline) so successive Home opens reuse the same cached
+/// future and ParameterizedFamily key invalidation works cleanly.
+final trendingDayMoviesProvider =
+    FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.trending(period: 'day', mediaType: 'movie');
+});
+
+/// Trending today, narrowed to TV — feeds the /serie + /anime pages.
+final trendingDayTvProvider =
+    FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.trending(period: 'day', mediaType: 'tv');
+});
+
 final newReleasesProvider = FutureProvider.autoDispose
     .family<List<MediaSummary>, String>((ref, mediaType) async {
   final api = await ref.watch(catalogRowsApiProvider.future);
