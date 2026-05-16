@@ -34,6 +34,14 @@ class PlayerEngine {
 
   /// Languages we treat as "Italian" for auto-selection on track-list
   /// updates. Catalogs use different codes (ita, it, ital, italian).
+  ///
+  /// TODO(phase-i): replace this hardcoded Italian preference with the
+  /// per-user preference exposed by `playbackPrefsProvider`
+  /// (lib/state/playback_prefs_provider.dart). The Settings page already
+  /// writes the user's choice to SharedPreferences keys
+  /// 'playback.audio_lang' / 'playback.subtitle_lang' — wiring them in
+  /// here means passing the chosen language through to `open()` (or
+  /// reading it from a Ref-aware factory in player_engine_provider.dart).
   static const _italianCodes = {'ita', 'it', 'ital', 'italian'};
 
   /// True after we've auto-selected Italian for the current playback session.

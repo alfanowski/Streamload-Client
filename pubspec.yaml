@@ -63,6 +63,11 @@ dependencies:
   webview_flutter_wkwebview: ^3.16.0
   webview_flutter_android: ^4.0.0
 
+  # App version string for the Settings "About" section (Phase H2). Direct
+  # dep so we can call PackageInfo.fromPlatform(); previously transitive
+  # through other plugins, now used explicitly.
+  package_info_plus: ^8.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
