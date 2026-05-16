@@ -1,10 +1,19 @@
 // Cinematic Editorial color tokens, ported from v2 SvelteKit app.css.
 // Surfaces are warm-tinted near-blacks; text is warm off-white; accent is amber.
+//
+// 2026-05-16: extended with Netflix×AppleTV refactor tokens (bgBase,
+// surfaceGlass*, ctaPrimary*, ctaUnavailable*) — additive, the v2 cinematic
+// editorial tokens above stay so existing widgets don't break during the
+// gradual migration of Phase D-I.
 
 import 'package:flutter/material.dart';
 
 class StreamloadColors {
   StreamloadColors._();
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // v2 Cinematic Editorial (kept for backward-compat with existing widgets)
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Backgrounds
   static const Color bg = Color(0xFF08090A);
@@ -29,4 +38,36 @@ class StreamloadColors {
   // Borders / separators
   static const Color border = Color(0x14F5F2EC); // ~8% alpha
   static const Color borderStrong = Color(0x29F5F2EC); // ~16% alpha
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // v3 Netflix×AppleTV refactor tokens (Phase A1, sub-plan 8)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  // Backgrounds — never pure black. Soft purple-tinted dark.
+  static const Color v3BgBase = Color(0xFF0E0E16);
+  static const Color v3BgGradientStart = Color(0xFF1A1428);
+  static const Color v3BgGradientEnd = Color(0xFF0E0E16);
+  static const Color v3BgScrolled = Color(0xFF0A0814);
+
+  // Glass surfaces (used with BackdropFilter blur:20)
+  static Color v3SurfaceGlass = const Color(0xFFFFFFFF).withValues(alpha: 0.06);
+  static Color v3SurfaceGlassHi = const Color(0xFFFFFFFF).withValues(alpha: 0.10);
+  static Color v3SurfaceGlassMax = const Color(0xFFFFFFFF).withValues(alpha: 0.15);
+  static Color v3BorderGlass = const Color(0xFFFFFFFF).withValues(alpha: 0.08);
+
+  // Text — pure white with alpha for hierarchy (v3 is more "TV" than "editorial")
+  static const Color v3TextPrimary = Color(0xFFFFFFFF);
+  static Color v3TextSecondary = const Color(0xFFFFFFFF).withValues(alpha: 0.65);
+  static Color v3TextMuted = const Color(0xFFFFFFFF).withValues(alpha: 0.45);
+
+  // CTAs
+  static Color v3CtaPrimaryBg = const Color(0xFFFFFFFF).withValues(alpha: 0.95);
+  static const Color v3CtaPrimaryFg = Color(0xFF000000);
+  static Color v3CtaSecondaryBg = const Color(0xFFFFFFFF).withValues(alpha: 0.10);
+  static Color v3CtaUnavailableBg = const Color(0xFFFFFFFF).withValues(alpha: 0.04);
+  static Color v3CtaUnavailableFg = const Color(0xFFFFFFFF).withValues(alpha: 0.45);
+
+  // Status (muted, not Netflix-red)
+  static const Color v3Success = Color(0xFF9AFF9A);
+  static const Color v3Warn = Color(0xFFFFD980);
 }
