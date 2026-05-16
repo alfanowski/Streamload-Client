@@ -1,4 +1,15 @@
 // lib/presentation/pages/settings_page.dart
+//
+// v3 Settings page (Phase H1). The plugin-management UI has been stripped:
+// no installed-plugins list, no "Aggiorna pacchetto plugin" button, no
+// "Cambia token GitHub" link, no per-row toggle. Updates happen
+// automatically in the background (see lib/plugins/updater.dart). Settings
+// is intentionally silent about plugins per spec decision #3.
+//
+// Phase H2 fills the page back with Account / Aspetto / Riproduzione /
+// About sections. For now the body holds just the legacy "Riproduzione" +
+// "Aspetto" sections that still talk to settingsControllerProvider so the
+// existing widget test keeps passing during the transition.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -93,17 +104,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               const Eyebrow('Aspetto'),
               const SizedBox(height: 12),
               _themeRow(),
-              const SizedBox(height: 24),
-              const Eyebrow('Plugin'),
-              const SizedBox(height: 12),
-              Card(
-                color: StreamloadColors.surface2,
-                child: ListTile(
-                  title: const Text('Gestisci plugin installati'),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => context.go('/plugins'),
-                ),
-              ),
               const SizedBox(height: 32),
               PrimaryButton(
                 key: const Key('settings.save'),
