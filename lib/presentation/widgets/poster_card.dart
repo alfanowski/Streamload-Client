@@ -16,6 +16,7 @@ import '../theme/colors.dart';
 import '../theme/motion.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import 'press_feedback.dart';
 
 class PosterCard extends StatelessWidget {
   const PosterCard({
@@ -44,7 +45,7 @@ class PosterCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hoverable = !Responsive.isMobile(context);
-    return _PressScale(
+    return PressFeedback(
       child: _HoverScale(
         enabled: hoverable,
         child: InkWell(
@@ -179,34 +180,3 @@ class _HoverScaleState extends State<_HoverScale> {
   }
 }
 
-/// Press-down feedback: quickly squeezes the child to 0.96 while held,
-/// snaps back on release / cancel. Works on touch (mobile) and pointer
-/// down (desktop click). Sits OUTSIDE the InkWell so it visually feels
-/// like the whole card "depresses" before the ink ripple fires.
-class _PressScale extends StatefulWidget {
-  const _PressScale({required this.child});
-  final Widget child;
-
-  @override
-  State<_PressScale> createState() => _PressScaleState();
-}
-
-class _PressScaleState extends State<_PressScale> {
-  bool _pressed = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => setState(() => _pressed = true),
-      onPointerUp: (_) => setState(() => _pressed = false),
-      onPointerCancel: (_) => setState(() => _pressed = false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.96 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOut,
-        child: widget.child,
-      ),
-    );
-  }
-}

@@ -39,6 +39,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/hero/hero_carousel.dart';
+import '../widgets/press_feedback.dart';
 import '../widgets/rows/poster_row.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -407,15 +408,25 @@ class _Chip extends StatelessWidget {
     final fg = selected
         ? StreamloadColors.v3CtaPrimaryFg
         : StreamloadColors.v3TextPrimary;
-    return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          child: Text(label, style: StreamloadTypography.v3CtaLabel(color: fg)),
+    return PressFeedback(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Text(label,
+                  style: StreamloadTypography.v3CtaLabel(color: fg)),
+            ),
+          ),
         ),
       ),
     );

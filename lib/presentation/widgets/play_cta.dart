@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import 'press_feedback.dart';
 
 enum PlayCtaState { checking, play, unavailable }
 
@@ -45,7 +46,7 @@ class PlayCta extends StatelessWidget {
     final fg = isUnavailable
         ? StreamloadColors.v3CtaUnavailableFg
         : StreamloadColors.v3CtaPrimaryFg;
-    return AnimatedContainer(
+    final pill = AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       decoration: BoxDecoration(
         color: bg,
@@ -63,6 +64,9 @@ class PlayCta extends StatelessWidget {
         ),
       ),
     );
+    // Only the tappable Play state gets the press-down feedback; checking
+    // and unavailable look static and shouldn't squeeze under a click.
+    return state == PlayCtaState.play ? PressFeedback(child: pill) : pill;
   }
 
   Widget _content(Color fg) {

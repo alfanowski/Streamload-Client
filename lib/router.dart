@@ -65,53 +65,35 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => AppShell(child: child),
         routes: [
-          GoRoute(path: '/home', builder: (_, __) => const HomePage()),
+          _fadeRoute('/home', (_, __) => const HomePage()),
           // /film, /serie, /anime route to HomePage with a filter param
           // (sub-plan 8, Phase D5). HomePage narrows its row composition
           // to the matching subset; the filter chips below the hero let
           // the user switch without leaving Home.
-          GoRoute(
-            path: '/film',
-            builder: (_, __) => const HomePage(filter: 'movie'),
-          ),
-          GoRoute(
-            path: '/serie',
-            builder: (_, __) => const HomePage(filter: 'tv'),
-          ),
-          GoRoute(
-            path: '/anime',
-            builder: (_, __) => const HomePage(filter: 'anime'),
-          ),
-          GoRoute(path: '/list', builder: (_, __) => const LibraryPage()),
-          GoRoute(path: '/library', builder: (_, __) => const LibraryPage()),
-          GoRoute(path: '/search', builder: (_, __) => const SearchPage()),
-          GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
-          GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
-          GoRoute(path: '/plugins', builder: (_, __) => const PluginsPage()),
-          GoRoute(
-            path: '/title/:tmdbId',
-            builder: (ctx, state) => TitlePage(
-              tmdbId: int.parse(state.pathParameters['tmdbId']!),
-              mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
-            ),
-          ),
-          GoRoute(
-            path: '/watch/:tmdbId',
-            builder: (ctx, state) => WatchPage(
-              request: PlaybackRequest(
+          _fadeRoute('/film', (_, __) => const HomePage(filter: 'movie')),
+          _fadeRoute('/serie', (_, __) => const HomePage(filter: 'tv')),
+          _fadeRoute('/anime', (_, __) => const HomePage(filter: 'anime')),
+          _fadeRoute('/list', (_, __) => const LibraryPage()),
+          _fadeRoute('/library', (_, __) => const LibraryPage()),
+          _fadeRoute('/search', (_, __) => const SearchPage()),
+          _fadeRoute('/profile', (_, __) => const ProfilePage()),
+          _fadeRoute('/settings', (_, __) => const SettingsPage()),
+          _fadeRoute('/plugins', (_, __) => const PluginsPage()),
+          _fadeRoute('/title/:tmdbId', (ctx, state) => TitlePage(
                 tmdbId: int.parse(state.pathParameters['tmdbId']!),
-                mediaType:
-                    state.uri.queryParameters['media_type'] ?? 'movie',
-                season: int.tryParse(
-                    state.uri.queryParameters['season'] ?? ''),
-                episode: int.tryParse(
-                    state.uri.queryParameters['episode'] ?? ''),
-              ),
-              // The debug bypass param defaults to false in production; only
-              // flip locally when diagnosing whether a playback issue lives
-              // in our proxy chain vs media_kit setup.
-            ),
-          ),
+                mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+              )),
+          _fadeRoute('/watch/:tmdbId', (ctx, state) => WatchPage(
+                request: PlaybackRequest(
+                  tmdbId: int.parse(state.pathParameters['tmdbId']!),
+                  mediaType:
+                      state.uri.queryParameters['media_type'] ?? 'movie',
+                  season: int.tryParse(
+                      state.uri.queryParameters['season'] ?? ''),
+                  episode: int.tryParse(
+                      state.uri.queryParameters['episode'] ?? ''),
+                ),
+              )),
         ],
       ),
     ],
@@ -126,4 +108,29 @@ class _RouterRefreshNotifier extends ChangeNotifier {
       (_, __) => notifyListeners(),
     );
   }
+}
+
+/// 220ms fade-only page transition. Subtle, professional, no horizontal
+/// slide that would fight with the fixed top nav bar. Applied to every
+/// inner-shell route so navigation feels like a single continuous canvas
+/// rather than discrete page swaps.
+GoRoute _fadeRoute(String path, Widget Function(BuildContext, GoRouterState) builder) {
+  return GoRoute(
+    path: path,
+    pageBuilder: (ctx, state) => CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: builder(ctx, state),
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
+      transitionsBuilder: (_, animation, __, child) {
+        return FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+          ),
+          child: child,
+        );
+      },
+    ),
+  );
 }
