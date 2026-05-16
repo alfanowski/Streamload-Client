@@ -75,7 +75,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           _fadeRoute('/anime', (_, __) => const HomePage(filter: 'anime')),
           _fadeRoute('/list', (_, __) => const LibraryPage()),
           _fadeRoute('/library', (_, __) => const LibraryPage()),
-          _fadeRoute('/search', (_, __) => const SearchPage()),
+          _fadeRoute('/search', (_, state) => SearchPage(
+                initialQuery: state.uri.queryParameters['q'] ?? '',
+              )),
           _fadeRoute('/profile', (_, __) => const ProfilePage()),
           _fadeRoute('/settings', (_, __) => const SettingsPage()),
           _fadeRoute('/plugins', (_, __) => const PluginsPage()),

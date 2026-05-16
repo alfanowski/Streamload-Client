@@ -23,7 +23,8 @@ import 'package:streamload_client/state/nav_scrolled_provider.dart';
 
 class _SearchApiStub implements SearchApi {
   @override
-  Future<Map<String, dynamic>> run(String query) async => {'results': []};
+  Future<Map<String, dynamic>> run(String query, {int page = 1}) async =>
+      {'results': []};
 }
 
 void main() {
