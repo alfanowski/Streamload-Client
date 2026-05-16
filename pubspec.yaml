@@ -57,6 +57,12 @@ dependencies:
   url_launcher: ^6.3.1
   intl: ^0.19.0
 
+  # WebView for hero trailer (YouTube IFrame Player API). macOS + iOS use
+  # the wkwebview backend; Android uses the platform-bundled WebView.
+  webview_flutter: ^4.10.0
+  webview_flutter_wkwebview: ^3.16.0
+  webview_flutter_android: ^4.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
