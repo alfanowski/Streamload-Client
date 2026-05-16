@@ -8,7 +8,6 @@ import 'presentation/pages/library_page.dart';
 import 'presentation/pages/plugin_onboarding_page.dart';
 import 'presentation/pages/profile_completion_page.dart';
 import 'presentation/pages/profile_page.dart';
-import 'presentation/pages/plugins_page.dart';
 import 'presentation/pages/search_page.dart';
 import 'presentation/pages/settings_page.dart';
 import 'presentation/pages/title_page.dart';
@@ -80,7 +79,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               )),
           _fadeRoute('/profile', (_, __) => const ProfilePage()),
           _fadeRoute('/settings', (_, __) => const SettingsPage()),
-          _fadeRoute('/plugins', (_, __) => const PluginsPage()),
           _fadeRoute('/title/:tmdbId', (ctx, state) => TitlePage(
                 tmdbId: int.parse(state.pathParameters['tmdbId']!),
                 mediaType: state.uri.queryParameters['media_type'] ?? 'movie',

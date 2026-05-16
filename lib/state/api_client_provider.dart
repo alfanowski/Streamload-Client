@@ -14,7 +14,6 @@ import '../data/remote/endpoints/library_api.dart';
 import '../data/remote/endpoints/next_up_api.dart';
 import '../data/remote/endpoints/progress_api.dart';
 import '../data/remote/endpoints/search_api.dart';
-import '../data/remote/endpoints/settings_api.dart';
 import '../data/remote/endpoints/watchlist_api.dart';
 
 /// Async — created once at app boot. Override in tests with a fake ApiClient.
@@ -84,11 +83,6 @@ final watchlistApiProvider = FutureProvider<WatchlistApi>((ref) async {
 final libraryApiProvider = FutureProvider<LibraryApi>((ref) async {
   final c = await ref.watch(apiClientProvider.future);
   return LibraryApi(c);
-});
-
-final settingsApiProvider = FutureProvider<SettingsApi>((ref) async {
-  final c = await ref.watch(apiClientProvider.future);
-  return SettingsApi(c);
 });
 
 final eventsApiProvider = FutureProvider<EventsApi>((ref) async {

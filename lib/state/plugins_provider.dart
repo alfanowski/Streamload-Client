@@ -1,19 +1,17 @@
 // lib/state/plugins_provider.dart
+//
+// Phase I2 (sub-plan 8) cleanup: dropped `installedPluginsProvider`. The old
+// PluginsPage was the only consumer that needed to *watch* the full installed
+// list; after Phase H1 ripped that page out, nothing surfaced the list any
+// more. The plugin loader still reads + writes db.installedPluginsDao directly
+// for the actual runtime install/disable flow — that path is unchanged.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/local/database.dart';
 import '../plugins/github_client.dart';
 import '../plugins/loader.dart';
 import 'database_provider.dart';
 import 'github_token_provider.dart';
 import 'plugin_runtime_provider.dart';
-
-/// Stream of installed plugins from drift. Empty until the first refresh.
-final installedPluginsProvider =
-    StreamProvider<List<InstalledPluginRow>>((ref) {
-  final db = ref.watch(databaseProvider);
-  return db.installedPluginsDao.watchAll();
-});
 
 /// Repo coordinates — match the streamload-plugins repo.
 const _kRepoOwner = 'alfanowski';

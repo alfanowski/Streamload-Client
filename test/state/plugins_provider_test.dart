@@ -33,20 +33,6 @@ void main() {
     );
   });
 
-  test('installedPluginsProvider emits an empty list on a fresh database',
-      () async {
-    final db = StreamloadDatabase.test(NativeDatabase.memory());
-    addTearDown(db.close);
-
-    final container = ProviderContainer(overrides: [
-      databaseProvider.overrideWithValue(db),
-    ]);
-    addTearDown(container.dispose);
-
-    final rows = await container.read(installedPluginsProvider.future);
-    expect(rows, isEmpty);
-  });
-
   test('pluginLoaderProvider throws StateError when no token set', () async {
     final db = StreamloadDatabase.test(NativeDatabase.memory());
     addTearDown(db.close);
