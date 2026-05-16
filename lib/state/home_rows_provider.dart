@@ -17,6 +17,7 @@
 // Home in the same session don't repeat the videos lookups.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../domain/models/catalog_credits.dart';
 import '../domain/models/media_summary.dart';
 import '../presentation/widgets/hero/hero_carousel.dart';
 import 'api_client_provider.dart';
@@ -128,6 +129,19 @@ final recommendationsProvider = FutureProvider.autoDispose
     .family<List<MediaSummary>, TmdbKey>((ref, key) async {
   final api = await ref.watch(catalogRowsApiProvider.future);
   return api.recommendations(tmdbId: key.tmdbId, mediaType: key.mediaType);
+});
+
+/// Cast + crew for the title page sidebar (Phase E2). Returns an empty
+/// [CatalogCredits] if the backend itself returned no data — keeps the
+/// sidebar quiet rather than surfacing an error for missing titles.
+final creditsProvider = FutureProvider.autoDispose
+    .family<CatalogCredits, TmdbKey>((ref, key) async {
+  final api = await ref.watch(catalogApiProvider.future);
+  try {
+    return await api.credits(key.tmdbId, mediaType: key.mediaType);
+  } catch (_) {
+    return const CatalogCredits();
+  }
 });
 
 // ──────────────────────────────────────────────────────────────────────────

@@ -27,7 +27,10 @@ import '../../domain/models/catalog_item.dart';
 import '../../state/title_provider.dart';
 import '../responsive.dart';
 import '../theme/colors.dart';
+import '../theme/spacing.dart';
+import '../theme/typography.dart';
 import '../widgets/title/title_hero.dart';
+import '../widgets/title/title_sidebar.dart';
 
 class TitlePage extends ConsumerWidget {
   const TitlePage({
@@ -94,6 +97,58 @@ class _TitleBody extends ConsumerWidget {
   }
 }
 
+/// Two-column "Trama" + sidebar — shared by desktop and tablet layouts.
+class _SynopsisAndSidebar extends StatelessWidget {
+  const _SynopsisAndSidebar({
+    required this.item,
+    required this.synopsisFlex,
+    required this.sidebarFlex,
+  });
+
+  final CatalogItemResponse item;
+  final int synopsisFlex;
+  final int sidebarFlex;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: synopsisFlex,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TRAMA',
+                style: StreamloadTypography.v3LabelMono(),
+              ),
+              const SizedBox(height: 8),
+              if ((item.overview ?? '').isNotEmpty)
+                Text(
+                  item.overview!,
+                  style: StreamloadTypography.v3Body(),
+                )
+              else
+                Text(
+                  'Sinossi non disponibile.',
+                  style: StreamloadTypography.v3Body(
+                    color: StreamloadColors.v3TextMuted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 32),
+        Expanded(
+          flex: sidebarFlex,
+          child: TitleSidebar(item: item),
+        ),
+      ],
+    );
+  }
+}
+
 class _TitleDesktopLayout extends StatelessWidget {
   const _TitleDesktopLayout({required this.item, required this.onShare});
   final CatalogItemResponse item;
@@ -109,6 +164,15 @@ class _TitleDesktopLayout extends StatelessWidget {
           child: TitleHero(item: item, onShare: onShare),
         ),
         const SizedBox(height: 24),
+        Padding(
+          padding: StreamloadSpacing.pagePaddingDesktop,
+          child: _SynopsisAndSidebar(
+            item: item,
+            synopsisFlex: 2,
+            sidebarFlex: 1,
+          ),
+        ),
+        const SizedBox(height: 32),
       ],
     );
   }
@@ -129,6 +193,16 @@ class _TitleTabletLayout extends StatelessWidget {
           child: TitleHero(item: item, onShare: onShare),
         ),
         const SizedBox(height: 24),
+        Padding(
+          padding: StreamloadSpacing.pagePaddingTablet,
+          child: _SynopsisAndSidebar(
+            item: item,
+            // Tighter ratio on tablet so the synopsis doesn't get pinched.
+            synopsisFlex: 3,
+            sidebarFlex: 2,
+          ),
+        ),
+        const SizedBox(height: 32),
       ],
     );
   }
@@ -148,6 +222,34 @@ class _TitleMobileLayout extends StatelessWidget {
         SizedBox(
           height: viewport * 0.65,
           child: TitleHero(item: item, onShare: onShare),
+        ),
+        const SizedBox(height: 24),
+        Padding(
+          padding: StreamloadSpacing.pagePaddingPhone,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TRAMA',
+                style: StreamloadTypography.v3LabelMono(),
+              ),
+              const SizedBox(height: 8),
+              if ((item.overview ?? '').isNotEmpty)
+                Text(
+                  item.overview!,
+                  style: StreamloadTypography.v3Body(),
+                )
+              else
+                Text(
+                  'Sinossi non disponibile.',
+                  style: StreamloadTypography.v3Body(
+                    color: StreamloadColors.v3TextMuted,
+                  ),
+                ),
+              const SizedBox(height: 16),
+              TitleSidebarExpandable(item: item),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
       ],

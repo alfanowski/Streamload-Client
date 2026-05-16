@@ -1,4 +1,5 @@
 // lib/data/remote/endpoints/catalog_api.dart
+import '../../../domain/models/catalog_credits.dart';
 import '../../../domain/models/catalog_item.dart';
 import '../../../domain/models/tmdb_video.dart';
 import '../api_client.dart';
@@ -14,6 +15,22 @@ class CatalogApi {
       query: {if (mediaType != null) 'media_type': mediaType},
     );
     return CatalogItemResponse.fromJson(json);
+  }
+
+  /// GET /api/catalog/{tmdb_id}/credits?media_type={movie|tv}
+  ///
+  /// Returns the title's curated cast (top 10) + crew (Creator /
+  /// Director / Showrunner / Producer / Writer, max 6). Empty payload
+  /// when TMDB has nothing for this title — never throws on 404.
+  Future<CatalogCredits> credits(
+    int tmdbId, {
+    required String mediaType,
+  }) async {
+    final json = await _client.getJson(
+      '/api/catalog/$tmdbId/credits',
+      query: {'media_type': mediaType},
+    );
+    return CatalogCredits.fromJson(json);
   }
 
   /// GET /api/catalog/{tmdb_id}/videos?media_type={movie|tv}
