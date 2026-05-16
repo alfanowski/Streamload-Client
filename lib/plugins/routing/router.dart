@@ -27,6 +27,14 @@ class ResolvedStream {
 typedef _BundleResolver = Future<Map<String, dynamic>?> Function(
     Plugin plugin, Map<String, dynamic> entry);
 
+/// In-memory cache entry for `probeAvailability` — pairs the boolean result
+/// with the timestamp it was recorded so TTL checks are cheap.
+class _ProbeEntry {
+  _ProbeEntry({required this.available, required this.at});
+  final bool available;
+  final DateTime at;
+}
+
 /// Orchestrates fan-out across all plugins whose capabilities cover the
 /// requested mediaType. Every plugin runs search → match → resolve in
 /// parallel. After all plugins finish OR the deadline fires, bundles that
@@ -45,6 +53,23 @@ class ProviderRouter {
   final PluginRuntime runtime;
   final Duration _timeout;
 
+  /// In-memory cache for `probeAvailability` keyed by
+  /// `(mediaType, title, year, season?, episode?)`. Survives across page
+  /// navigations because the host `ProviderRouter` is held by
+  /// `playControllerProvider` (non-autoDispose).
+  final _probeCache = <String, _ProbeEntry>{};
+
+  /// TTL for availability probes. 30 min mirrors the spec § "Pre-check
+  /// availability infra" — long enough that scrolling through the catalog
+  /// doesn't re-probe, short enough that a freshly added plugin starts
+  /// surfacing previously-unavailable titles within a session.
+  static const probeTtl = Duration(minutes: 30);
+
+  /// Max wall-clock the title-page "checking" spinner blocks the user on the
+  /// probe. Whatever plugins responded by then determines the result —
+  /// stragglers are dropped so the CTA never feels stuck.
+  static const probeTimeout = Duration(seconds: 4);
+
   /// Plugins whose capabilities cover [mediaType], in registration order.
   Iterable<Plugin> pluginsForType(String mediaType) {
     return runtime.all.where((p) {
@@ -54,6 +79,75 @@ class ProviderRouter {
       return false;
     });
   }
+
+  /// Returns true iff at least one matching plugin can resolve [hint] to a
+  /// candidate entry — i.e. plugin.search + the same tiered matcher used by
+  /// the real playback path produces a non-null entry. Streams are NOT
+  /// fetched: this only probes "could we play this?", not "what's the
+  /// manifest URL?".
+  ///
+  /// Plugin selection mirrors [pluginsForType] (exact-match or `mediaType:`
+  /// prefix).
+  ///
+  /// Results are cached for [probeTtl] in-memory, keyed by
+  /// `(mediaType, hint.title, hint.year, season?, episode?)`. The cache
+  /// lives on the [ProviderRouter] instance, and the router is held by the
+  /// long-lived `playControllerProvider`, so the cache survives page
+  /// navigations within a session (but not app restart — that would need
+  /// drift persistence).
+  ///
+  /// Per-call deadline is [probeTimeout]; whatever plugins responded before
+  /// the deadline determines the result. This bounds the title-page
+  /// "checking" spinner — the user is never waiting more than 4 s.
+  Future<bool> probeAvailability({
+    required String mediaType,
+    required TitleHint hint,
+    int? season,
+    int? episode,
+  }) async {
+    final key = _probeCacheKey(mediaType, hint, season, episode);
+    final cached = _probeCache[key];
+    if (cached != null &&
+        DateTime.now().difference(cached.at) < probeTtl) {
+      return cached.available;
+    }
+
+    final plugins = pluginsForType(mediaType).toList();
+    if (plugins.isEmpty) {
+      _probeCache[key] = _ProbeEntry(available: false, at: DateTime.now());
+      return false;
+    }
+
+    var found = false;
+    try {
+      await Future.wait(plugins.map((p) async {
+        try {
+          final entry = await _resolveEntry(p, hint, mediaType);
+          if (entry != null) found = true;
+        } catch (_) {
+          // a single plugin failure doesn't taint the probe — another
+          // plugin may still match. _resolveEntry already logs.
+        }
+      })).timeout(probeTimeout);
+    } on TimeoutException {
+      // whatever ran to completion has already flipped `found`; the
+      // outstanding futures will still finish in the background but
+      // their results are ignored.
+      _log.info(
+          'probeAvailability: deadline ${probeTimeout.inSeconds}s hit '
+          'for $mediaType "${hint.title}" — using partial result=$found');
+    }
+    _probeCache[key] = _ProbeEntry(available: found, at: DateTime.now());
+    return found;
+  }
+
+  static String _probeCacheKey(
+    String mediaType,
+    TitleHint hint,
+    int? season,
+    int? episode,
+  ) =>
+      '$mediaType|${hint.title}|${hint.year ?? ""}|${season ?? "-"}|${episode ?? "-"}';
 
   /// Fan-out for a movie request: every matching plugin runs
   /// search → match → getStreams in parallel; best-scoring bundle wins.
