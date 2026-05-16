@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/remote/api_client.dart';
 import '../data/remote/endpoints/auth_api.dart';
 import '../data/remote/endpoints/catalog_api.dart';
+import '../data/remote/endpoints/catalog_rows_api.dart';
 import '../data/remote/endpoints/collections_api.dart';
 import '../data/remote/endpoints/episodes_api.dart';
 import '../data/remote/endpoints/events_api.dart';
@@ -30,6 +31,14 @@ final authApiProvider = FutureProvider<AuthApi>((ref) async {
 final catalogApiProvider = FutureProvider<CatalogApi>((ref) async {
   final c = await ref.watch(apiClientProvider.future);
   return CatalogApi(c);
+});
+
+/// Phase D1 (sub-plan 8) — TMDB-row proxies feeding the Home page.
+/// Kept distinct from catalogApi so the typed surface for "rows" stays
+/// small and easy to fake in tests.
+final catalogRowsApiProvider = FutureProvider<CatalogRowsApi>((ref) async {
+  final c = await ref.watch(apiClientProvider.future);
+  return HttpCatalogRowsApi(c);
 });
 
 final collectionsApiProvider = FutureProvider<CollectionsApi>((ref) async {
