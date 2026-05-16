@@ -34,9 +34,9 @@ void main() {
   testWidgets('renders title + N BackdropCards', (t) async {
     await pumpRow(
       t,
-      BackdropRow(
+      const BackdropRow(
         title: 'Continua a guardare',
-        items: const [
+        items: [
           BackdropRowItem(title: 'A'),
           BackdropRowItem(title: 'B'),
           BackdropRowItem(title: 'C'),
@@ -51,9 +51,9 @@ void main() {
   testWidgets('progress fraction propagates to the card', (t) async {
     await pumpRow(
       t,
-      BackdropRow(
+      const BackdropRow(
         title: 'Progress',
-        items: const [
+        items: [
           BackdropRowItem(title: 'A', progressFraction: 0.42),
           BackdropRowItem(title: 'B'), // no progress
         ],

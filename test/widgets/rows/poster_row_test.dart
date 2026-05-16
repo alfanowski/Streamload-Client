@@ -46,7 +46,7 @@ void main() {
     await t.pump();
   }
 
-  List<MediaSummary> _items(int n) => List.generate(
+  List<MediaSummary> items(int n) => List.generate(
         n,
         (i) => MediaSummary(
           tmdbId: i + 1,
@@ -57,7 +57,7 @@ void main() {
       );
 
   testWidgets('renders title + N PosterCards + count chip', (t) async {
-    await pumpRow(t, PosterRow(title: 'Tendenze oggi', items: _items(3)));
+    await pumpRow(t, PosterRow(title: 'Tendenze oggi', items: items(3)));
 
     expect(find.text('Tendenze oggi'), findsOneWidget);
     expect(find.text('3'), findsOneWidget);
@@ -74,13 +74,13 @@ void main() {
   testWidgets('"Vedi tutti →" link is present when seeAllTo set', (t) async {
     await pumpRow(
       t,
-      PosterRow(title: 'Tendenze oggi', items: _items(2), seeAllTo: '/film'),
+      PosterRow(title: 'Tendenze oggi', items: items(2), seeAllTo: '/film'),
     );
     expect(find.text('Vedi tutti →'), findsOneWidget);
   });
 
   testWidgets('"Vedi tutti →" link absent when seeAllTo null', (t) async {
-    await pumpRow(t, PosterRow(title: 'Tendenze oggi', items: _items(2)));
+    await pumpRow(t, PosterRow(title: 'Tendenze oggi', items: items(2)));
     expect(find.text('Vedi tutti →'), findsNothing);
   });
 
@@ -104,7 +104,7 @@ void main() {
 
   testWidgets('tapping a card without onItemTap navigates to /title/:id',
       (t) async {
-    await pumpRow(t, PosterRow(title: 'X', items: _items(1)));
+    await pumpRow(t, PosterRow(title: 'X', items: items(1)));
     await t.tap(find.byType(PosterCard).first);
     await t.pumpAndSettle();
     expect(find.text('Title:1'), findsOneWidget);
@@ -117,7 +117,7 @@ void main() {
       t,
       PosterRow(
         title: 'X',
-        items: _items(1),
+        items: items(1),
         onItemTap: (m) => tapped = m,
       ),
     );

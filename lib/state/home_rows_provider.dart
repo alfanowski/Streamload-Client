@@ -250,6 +250,7 @@ final heroSlidesProvider =
     slides.add(HeroSlideData(
       title: m.title,
       mediaType: m.mediaType,
+      tmdbId: m.tmdbId,
       year: m.year,
       synopsis: null, // trending row doesn't carry overview; spec says
       // synopsis is optional — Phase E will fetch full details for the

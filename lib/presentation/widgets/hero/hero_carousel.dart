@@ -29,6 +29,7 @@ class HeroSlideData {
   const HeroSlideData({
     required this.title,
     required this.mediaType,
+    this.tmdbId,
     this.year,
     this.runtimeMinutes,
     this.episodeCount,
@@ -43,6 +44,11 @@ class HeroSlideData {
 
   final String title;
   final String mediaType;
+
+  /// Optional — the carousel itself never reads it, but pages that wire
+  /// onPlay / onAdd may want it to navigate to /title/:id or toggle
+  /// favorites without having to look it up by title.
+  final int? tmdbId;
   final int? year;
   final int? runtimeMinutes;
   final int? episodeCount;

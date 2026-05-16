@@ -66,12 +66,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (_, __) => const HomePage()),
-          // /film, /serie, /anime route to HomePage for now — Phase D will
-          // teach HomePage to accept a filter param that swaps the row
-          // composition. Same for /list (currently aliased to LibraryPage).
-          GoRoute(path: '/film', builder: (_, __) => const HomePage()),
-          GoRoute(path: '/serie', builder: (_, __) => const HomePage()),
-          GoRoute(path: '/anime', builder: (_, __) => const HomePage()),
+          // /film, /serie, /anime route to HomePage with a filter param
+          // (sub-plan 8, Phase D5). HomePage narrows its row composition
+          // to the matching subset; the filter chips below the hero let
+          // the user switch without leaving Home.
+          GoRoute(
+            path: '/film',
+            builder: (_, __) => const HomePage(filter: 'movie'),
+          ),
+          GoRoute(
+            path: '/serie',
+            builder: (_, __) => const HomePage(filter: 'tv'),
+          ),
+          GoRoute(
+            path: '/anime',
+            builder: (_, __) => const HomePage(filter: 'anime'),
+          ),
           GoRoute(path: '/list', builder: (_, __) => const LibraryPage()),
           GoRoute(path: '/library', builder: (_, __) => const LibraryPage()),
           GoRoute(path: '/search', builder: (_, __) => const SearchPage()),
