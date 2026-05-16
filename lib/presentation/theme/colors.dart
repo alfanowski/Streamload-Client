@@ -41,13 +41,19 @@ class StreamloadColors {
 
   // ──────────────────────────────────────────────────────────────────────────
   // v3 Netflix×AppleTV refactor tokens (Phase A1, sub-plan 8)
+  //
+  // 2026-05-16 (post-Phase D operator feedback): dropped the purple tint —
+  // user asked for true Netflix-style cinematic black. Page bg becomes
+  // Netflix's actual #141414 (slightly lifted from pure black for OLED
+  // comfort + so glows/shadows don't read as cutouts), top bar scrolls
+  // solid black, hero backdrops own all the color in the chrome.
   // ──────────────────────────────────────────────────────────────────────────
 
-  // Backgrounds — never pure black. Soft purple-tinted dark.
-  static const Color v3BgBase = Color(0xFF0E0E16);
-  static const Color v3BgGradientStart = Color(0xFF1A1428);
-  static const Color v3BgGradientEnd = Color(0xFF0E0E16);
-  static const Color v3BgScrolled = Color(0xFF0A0814);
+  // Backgrounds — Netflix-grade dark, no purple tint.
+  static const Color v3BgBase = Color(0xFF141414);
+  static const Color v3BgGradientStart = Color(0xFF141414);
+  static const Color v3BgGradientEnd = Color(0xFF000000);
+  static const Color v3BgScrolled = Color(0xFF000000);
 
   // Glass surfaces (used with BackdropFilter blur:20)
   static Color v3SurfaceGlass = const Color(0xFFFFFFFF).withValues(alpha: 0.06);
