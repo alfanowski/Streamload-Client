@@ -222,6 +222,19 @@ E? _firstWhereOrNull<E>(Iterable<E> source, bool Function(E) test) {
 
 final _videosCacheProvider = Provider<_VideosCache>((_) => _VideosCache());
 
+/// Returns the best-pick YouTube trailer key for a given title, or null
+/// when no playable trailer is available. Backed by the same per-session
+/// cache HeroCarousel uses, so opening a title page after seeing it on
+/// Home doesn't repeat the TMDB videos call.
+///
+/// Used by the Title page hero (Phase E1) to drive HeroBackdrop's
+/// videoId — when null the hero falls back to the static backdrop.
+final titleTrailerProvider =
+    FutureProvider.autoDispose.family<String?, TmdbKey>((ref, key) async {
+  final cache = ref.read(_videosCacheProvider);
+  return cache.get(ref, key);
+});
+
 /// Composes HeroCarousel input from trending-week + per-title trailer.
 ///
 /// Picks the top 5 of the weekly trending row, fetches videos for each in

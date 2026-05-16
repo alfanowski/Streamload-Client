@@ -1,19 +1,33 @@
 // lib/presentation/pages/title_page.dart
-import 'package:cached_network_image/cached_network_image.dart';
+//
+// v3 Title page — Netflix×AppleTV refactor (sub-plan 8, Phase E).
+//
+// Composition:
+//
+//   - Hero (backdrop + 2s-later trailer + bottom gradient + 🔊 toggle)
+//     with the title page CTAs: ▶ Guarda S1 E1 / Riprendi (primary),
+//     ＋ La mia lista (toggle), ↗ share.
+//   - Body branches on Responsive:
+//       desktop : 2-col below the hero (synopsis 2/3 | sidebar 1/3),
+//                 then full-width episodes section + similar titles row
+//       tablet  : same as desktop but tighter ratios
+//       phone   : single column stacked — synopsis → "Mostra dettagli"
+//                 expandable (cast / created-by / genres) → episodes
+//                 → similar titles row
+//
+// The page keeps the route + initial controllers intact; the body is
+// replaced wholesale. Phase F will wire availabilityProvider into the
+// PlayCta state — for E we always render PlayCtaState.play (or the
+// page-level "checking" spinner while titleProvider resolves).
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../domain/models/catalog_item.dart';
-import '../../state/episodes_provider.dart';
-import '../../state/plugin_access_provider.dart';
 import '../../state/title_provider.dart';
+import '../responsive.dart';
 import '../theme/colors.dart';
-import '../theme/typography.dart';
-import '../widgets/eyebrow.dart';
-import '../widgets/favorite_button.dart';
-import '../widgets/primary_button.dart';
-import '../widgets/watchlist_button.dart';
+import '../widgets/title/title_hero.dart';
 
 class TitlePage extends ConsumerWidget {
   const TitlePage({
@@ -31,230 +45,112 @@ class TitlePage extends ConsumerWidget {
       titleProvider(TitleKey(tmdbId: tmdbId, mediaType: mediaType)),
     );
     return Scaffold(
-      appBar: AppBar(
-        actions: [
-          FavoriteButton(
-            target: TitleKey(tmdbId: tmdbId, mediaType: mediaType),
-          ),
-          WatchlistButton(
-            target: TitleKey(tmdbId: tmdbId, mediaType: mediaType),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      backgroundColor: StreamloadColors.v3BgBase,
       body: async.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Errore: $e')),
-        data: (item) {
-          if (item.mediaType == 'tv') {
-            return _TitleTvBody(tmdbId: tmdbId, item: item);
-          }
-          return _TitleMovieBody(tmdbId: tmdbId, item: item);
-        },
+        loading: () => const Center(
+          child: CircularProgressIndicator(),
+        ),
+        error: (e, _) => Center(
+          child: Text(
+            'Errore: $e',
+            style: const TextStyle(color: StreamloadColors.v3TextPrimary),
+          ),
+        ),
+        data: (item) => _TitleBody(item: item),
       ),
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Shared metadata header — poster + title + year + overview
-// ---------------------------------------------------------------------------
-
-class _TitleHeader extends StatelessWidget {
-  const _TitleHeader({required this.item});
-
+/// Routes between the responsive variants. Each layout owns its own
+/// scaffolding (padding, column count, hero height) but shares the
+/// common pieces: TitleHero, sidebar, episode list, similar row.
+class _TitleBody extends ConsumerWidget {
+  const _TitleBody({required this.item});
   final CatalogItemResponse item;
 
   @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Share helper bound to the BuildContext-free callback path. Phase G
+    // will replace this with a Share sheet on mobile; for now we copy to
+    // the clipboard and acknowledge with a SnackBar so the user gets
+    // immediate feedback the link is in their paste buffer.
+    void onShare() {
+      final url = 'streamload://title/${item.tmdbId}'
+          '?media_type=${item.mediaType}';
+      Clipboard.setData(ClipboardData(text: url));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Link copiato negli appunti')),
+      );
+    }
+
+    if (Responsive.isPhone(context)) {
+      return _TitleMobileLayout(item: item, onShare: onShare);
+    }
+    if (Responsive.isTablet(context)) {
+      return _TitleTabletLayout(item: item, onShare: onShare);
+    }
+    return _TitleDesktopLayout(item: item, onShare: onShare);
+  }
+}
+
+class _TitleDesktopLayout extends StatelessWidget {
+  const _TitleDesktopLayout({required this.item, required this.onShare});
+  final CatalogItemResponse item;
+  final VoidCallback onShare;
+
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView(
+      padding: EdgeInsets.zero,
       children: [
-        if (item.posterUrl != null) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: CachedNetworkImage(
-              imageUrl: item.posterUrl!,
-              height: 240,
-              fit: BoxFit.cover,
-              placeholder: (_, __) =>
-                  Container(color: StreamloadColors.surface2, height: 240),
-              errorWidget: (_, __, ___) =>
-                  Container(color: StreamloadColors.surface2, height: 240),
-            ),
-          ),
-          const SizedBox(height: 16),
-        ],
-        const Eyebrow('Titolo'),
-        const SizedBox(height: 8),
-        Text(
-          item.title,
-          style: StreamloadTypography.display(fontSize: 36),
+        SizedBox(
+          height: 440,
+          child: TitleHero(item: item, onShare: onShare),
         ),
-        if (item.year != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            '${item.year}',
-            style: StreamloadTypography.mono(fontSize: 12),
-          ),
-        ],
-        if (item.overview != null) ...[
-          const SizedBox(height: 16),
-          Text(item.overview!),
-        ],
+        const SizedBox(height: 24),
       ],
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Movie variant — header + Watch button
-// ---------------------------------------------------------------------------
-
-class _TitleMovieBody extends ConsumerWidget {
-  const _TitleMovieBody({required this.tmdbId, required this.item});
-
-  final int tmdbId;
+class _TitleTabletLayout extends StatelessWidget {
+  const _TitleTabletLayout({required this.item, required this.onShare});
   final CatalogItemResponse item;
+  final VoidCallback onShare;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final access = ref.watch(pluginAccessProvider);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _TitleHeader(item: item),
-            const SizedBox(height: 24),
-            if (access == PluginAccess.available)
-              PrimaryButton(
-                label: 'Guarda',
-                onPressed: () => context.go(
-                  '/watch/$tmdbId?media_type=${item.mediaType}',
-                ),
-              ),
-          ],
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        SizedBox(
+          height: 360,
+          child: TitleHero(item: item, onShare: onShare),
         ),
-      ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// TV variant — header + Watch button + SeasonPicker (ChoiceChips) + episode list
-// ---------------------------------------------------------------------------
-
-class _TitleTvBody extends ConsumerStatefulWidget {
-  const _TitleTvBody({required this.tmdbId, required this.item});
-
-  final int tmdbId;
+class _TitleMobileLayout extends StatelessWidget {
+  const _TitleMobileLayout({required this.item, required this.onShare});
   final CatalogItemResponse item;
-
-  @override
-  ConsumerState<_TitleTvBody> createState() => _TitleTvBodyState();
-}
-
-class _TitleTvBodyState extends ConsumerState<_TitleTvBody> {
-  int _seasonIdx = 0;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
-    final ep = ref.watch(episodesProvider(widget.tmdbId));
-    final access = ref.watch(pluginAccessProvider);
-    return ep.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Errore episodi: $e')),
-      data: (resp) {
-        if (resp.seasons.isEmpty) {
-          return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              _TitleHeader(item: widget.item),
-              const SizedBox(height: 24),
-              if (access == PluginAccess.available)
-                PrimaryButton(
-                  label: 'Guarda',
-                  onPressed: () => context.go(
-                    '/watch/${widget.tmdbId}?media_type=tv',
-                  ),
-                ),
-              const SizedBox(height: 24),
-              const Center(child: Text('Nessuna stagione disponibile.')),
-            ],
-          );
-        }
-
-        final clampedIdx = _seasonIdx.clamp(0, resp.seasons.length - 1);
-        final season = resp.seasons[clampedIdx];
-
-        return ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            _TitleHeader(item: widget.item),
-            const SizedBox(height: 24),
-            if (access == PluginAccess.available)
-              PrimaryButton(
-                label: 'Guarda',
-                onPressed: () => context.go(
-                  '/watch/${widget.tmdbId}?media_type=tv',
-                ),
-              ),
-            const SizedBox(height: 24),
-            // Season picker
-            Wrap(
-              spacing: 8,
-              children: List.generate(resp.seasons.length, (i) {
-                final s = resp.seasons[i];
-                return ChoiceChip(
-                  label: Text('Stagione ${s.number}'),
-                  selected: i == clampedIdx,
-                  onSelected: (_) => setState(() => _seasonIdx = i),
-                );
-              }),
-            ),
-            const SizedBox(height: 16),
-            // Episode list — tappable only when plugin access is available.
-            for (final e in season.episodes)
-              Opacity(
-                opacity: access == PluginAccess.available ? 1.0 : 0.5,
-                child: ListTile(
-                  leading: e.stillUrl != null
-                      ? SizedBox(
-                          width: 96,
-                          child: AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: Image.network(
-                                e.stillUrl!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                        )
-                      : null,
-                  title: Text('${e.episode}. ${e.title ?? "—"}'),
-                  subtitle: e.overview != null
-                      ? Text(
-                          e.overview!,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : null,
-                  onTap: access == PluginAccess.available
-                      ? () => context.go(
-                            '/watch/${widget.tmdbId}?media_type=tv'
-                            '&season=${season.number}&episode=${e.episode}',
-                          )
-                      : null,
-                ),
-              ),
-          ],
-        );
-      },
+    final viewport = MediaQuery.sizeOf(context).height;
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        SizedBox(
+          height: viewport * 0.65,
+          child: TitleHero(item: item, onShare: onShare),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }

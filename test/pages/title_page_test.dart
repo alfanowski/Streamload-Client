@@ -1,21 +1,35 @@
 // test/pages/title_page_test.dart
+//
+// v3 TitlePage (Phase E1+) — verifies the high-level page wiring:
+//   - titleProvider data renders the hero title + meta
+//   - the page renders without throwing for both movie + tv items
+//
+// Detailed CTA / sidebar / episode list assertions live in dedicated
+// widget tests (title_hero_test, title_sidebar_test, etc.). This file
+// stays focused on the page-level glue.
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:streamload_client/data/local/database.dart';
 import 'package:streamload_client/data/remote/endpoints/catalog_api.dart';
 import 'package:streamload_client/data/remote/endpoints/episodes_api.dart';
+import 'package:streamload_client/data/remote/endpoints/favorites_api.dart';
 import 'package:streamload_client/domain/models/catalog_item.dart';
+import 'package:streamload_client/domain/models/continue_watching_item.dart';
 import 'package:streamload_client/presentation/pages/title_page.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
+import 'package:streamload_client/state/continue_watching_provider.dart';
 import 'package:streamload_client/state/database_provider.dart';
+import 'package:streamload_client/state/home_rows_provider.dart';
 import 'package:streamload_client/state/plugin_access_provider.dart';
-import 'package:drift/native.dart';
-import 'package:streamload_client/data/local/database.dart';
 
 class _CatalogApiMock extends Mock implements CatalogApi {}
 
 class _EpisodesApiMock extends Mock implements EpisodesApi {}
+
+class _FavApiMock extends Mock implements FavoritesApi {}
 
 Widget wrap({
   required Widget child,
@@ -23,7 +37,10 @@ Widget wrap({
   EpisodesApi? episodesApi,
   required StreamloadDatabase db,
   PluginAccess access = PluginAccess.available,
+  Size size = const Size(1280, 800),
 }) {
+  final fav = _FavApiMock();
+  when(fav.list).thenAnswer((_) async => <Map<String, dynamic>>[]);
   return ProviderScope(
     overrides: [
       catalogApiProvider.overrideWith((_) async => catalogApi),
@@ -31,14 +48,23 @@ Widget wrap({
         episodesApiProvider.overrideWith((_) async => episodesApi),
       databaseProvider.overrideWith((_) => db),
       pluginAccessProvider.overrideWithValue(access),
+      favoritesApiProvider.overrideWith((_) async => fav),
+      continueWatchingProvider
+          .overrideWith((_) async => <ContinueWatchingItem>[]),
+      titleTrailerProvider.overrideWith((_, __) async => null),
     ],
-    child: MaterialApp(home: child),
+    child: MaterialApp(
+      home: MediaQuery(
+        data: MediaQueryData(size: size),
+        child: child,
+      ),
+    ),
   );
 }
 
 void main() {
   group('TitlePage — movie variant', () {
-    testWidgets('shows title, year and overview', (tester) async {
+    testWidgets('renders title + Guarda CTA', (tester) async {
       final catalogApi = _CatalogApiMock();
       final db = StreamloadDatabase.test(NativeDatabase.memory());
       addTearDown(db.close);
@@ -49,6 +75,7 @@ void main() {
                 mediaType: 'movie',
                 title: 'Dune',
                 year: 2021,
+                runtimeMinutes: 155,
                 overview: 'A hero rises.',
               ));
 
@@ -60,13 +87,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Dune'), findsOneWidget);
-      expect(find.text('2021'), findsOneWidget);
       expect(find.text('A hero rises.'), findsOneWidget);
-      // Watch button shown when access is available (default in this test).
-      expect(find.text('Guarda'), findsOneWidget);
+      expect(find.text('▶ Guarda'), findsOneWidget);
     });
 
-    testWidgets('shows title without year when year is null', (tester) async {
+    testWidgets('phone layout still renders title', (tester) async {
       final catalogApi = _CatalogApiMock();
       final db = StreamloadDatabase.test(NativeDatabase.memory());
       addTearDown(db.close);
@@ -75,68 +100,23 @@ void main() {
           .thenAnswer((_) async => const CatalogItemResponse(
                 tmdbId: 2,
                 mediaType: 'movie',
-                title: 'Untitled',
+                title: 'Phone Film',
               ));
 
       await tester.pumpWidget(wrap(
         catalogApi: catalogApi,
         db: db,
+        size: const Size(390, 844),
         child: const TitlePage(tmdbId: 2, mediaType: 'movie'),
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('Untitled'), findsOneWidget);
-    });
-
-    testWidgets('Watch button hidden when access is noAccess', (tester) async {
-      final catalogApi = _CatalogApiMock();
-      final db = StreamloadDatabase.test(NativeDatabase.memory());
-      addTearDown(db.close);
-
-      when(() => catalogApi.get(3, mediaType: 'movie'))
-          .thenAnswer((_) async => const CatalogItemResponse(
-                tmdbId: 3,
-                mediaType: 'movie',
-                title: 'Locked Film',
-              ));
-
-      await tester.pumpWidget(wrap(
-        catalogApi: catalogApi,
-        db: db,
-        access: PluginAccess.noAccess,
-        child: const TitlePage(tmdbId: 3, mediaType: 'movie'),
-      ));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Guarda'), findsNothing);
-    });
-
-    testWidgets('Watch button visible when access is available', (tester) async {
-      final catalogApi = _CatalogApiMock();
-      final db = StreamloadDatabase.test(NativeDatabase.memory());
-      addTearDown(db.close);
-
-      when(() => catalogApi.get(4, mediaType: 'movie'))
-          .thenAnswer((_) async => const CatalogItemResponse(
-                tmdbId: 4,
-                mediaType: 'movie',
-                title: 'Open Film',
-              ));
-
-      await tester.pumpWidget(wrap(
-        catalogApi: catalogApi,
-        db: db,
-        access: PluginAccess.available,
-        child: const TitlePage(tmdbId: 4, mediaType: 'movie'),
-      ));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Guarda'), findsOneWidget);
+      expect(find.text('Phone Film'), findsOneWidget);
     });
   });
 
   group('TitlePage — TV variant', () {
-    testWidgets('shows season picker and episode list', (tester) async {
+    testWidgets('renders title + Guarda S1 E1 CTA', (tester) async {
       final catalogApi = _CatalogApiMock();
       final episodesApi = _EpisodesApiMock();
       final db = StreamloadDatabase.test(NativeDatabase.memory());
@@ -151,32 +131,8 @@ void main() {
                 seasonsCount: 5,
               ));
 
-      when(() => episodesApi.list(99)).thenAnswer((_) async => {
-            'seasons': [
-              {
-                'season_number': 1,
-                'name': 'Stagione 1',
-                'episodes': [
-                  {
-                    'episode_number': 1,
-                    'title': 'Pilot',
-                    'overview': null,
-                    'still_url': null,
-                    'runtime_minutes': 58,
-                    'air_date': '2008-01-20',
-                  },
-                  {
-                    'episode_number': 2,
-                    'title': "Cat's in the Bag",
-                    'overview': null,
-                    'still_url': null,
-                    'runtime_minutes': 48,
-                    'air_date': '2008-01-27',
-                  },
-                ],
-              },
-            ],
-          });
+      when(() => episodesApi.list(99))
+          .thenAnswer((_) async => <String, dynamic>{'seasons': []});
 
       await tester.pumpWidget(wrap(
         catalogApi: catalogApi,
@@ -187,11 +143,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Breaking Bad'), findsOneWidget);
-      // Season chip
-      expect(find.text('Stagione 1'), findsOneWidget);
-      // Episode list items
-      expect(find.text('1. Pilot'), findsOneWidget);
-      expect(find.textContaining("Cat's in the Bag"), findsOneWidget);
+      expect(find.text('▶ Guarda S1 E1'), findsOneWidget);
     });
   });
 }
