@@ -92,9 +92,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Dune'), findsOneWidget);
-      // Overview surfaces in both the hero block and the "Trama" section
-      // below it (desktop layout) — finding ≥1 is enough.
-      expect(find.text('A hero rises.'), findsWidgets);
+      // P4 (2026-05-17): the synopsis only renders in the "TRAMA" body
+      // block now, not in the hero — so exactly one match.
+      expect(find.text('A hero rises.'), findsOneWidget);
       expect(find.text('TRAMA'), findsOneWidget);
       expect(find.text('▶ Guarda'), findsOneWidget);
     });

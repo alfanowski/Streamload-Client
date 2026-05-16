@@ -131,18 +131,10 @@ class _Metadata extends ConsumerWidget {
                 style: StreamloadTypography.v3MetaMono(),
                 textAlign: isPhone ? TextAlign.center : TextAlign.start,
               ),
-              if (item.overview != null && item.overview!.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                Text(
-                  item.overview!,
-                  style: StreamloadTypography.v3Body(
-                    color: StreamloadColors.v3TextSecondary,
-                  ),
-                  maxLines: isPhone ? 2 : 3,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: isPhone ? TextAlign.center : TextAlign.start,
-                ),
-              ],
+              // 2026-05-17 (P4 hotfix): the truncated 3-line synopsis used
+              // to render here too, which doubled up with the full TRAMA
+              // block in the body. Operator wants the hero terse — title,
+              // meta, CTAs — and the full synopsis below.
               const SizedBox(height: 14),
               _Ctas(
                 item: item,
