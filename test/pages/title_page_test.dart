@@ -23,7 +23,6 @@ import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/availability_provider.dart';
 import 'package:streamload_client/state/continue_watching_provider.dart';
 import 'package:streamload_client/state/database_provider.dart';
-import 'package:streamload_client/state/home_rows_provider.dart';
 import 'package:streamload_client/state/plugin_access_provider.dart';
 
 class _CatalogApiMock extends Mock implements CatalogApi {}
@@ -52,7 +51,6 @@ Widget wrap({
       favoritesApiProvider.overrideWith((_) async => fav),
       continueWatchingProvider
           .overrideWith((_) async => <ContinueWatchingItem>[]),
-      titleTrailerProvider.overrideWith((_, __) async => null),
       // Phase F3: TitleHero's Guarda CTA now subscribes to
       // availabilityProvider, which by default reaches into the real
       // playControllerProvider (plugin runtime, catalog API). Stub it

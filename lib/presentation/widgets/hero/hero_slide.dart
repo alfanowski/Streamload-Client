@@ -3,9 +3,14 @@
 // HeroSlide — single full-width hero panel composed of:
 //
 //   Stack:
-//     0. HeroBackdrop (backdrop + trailer + bottom gradient + 🔊 toggle)
+//     0. HeroBackdrop (backdrop image + bottom gradient)
 //     1. Metadata block (label + title + meta + synopsis) + CTA row
 //        anchored bottom-left on desktop/tablet, bottom-center on phone
+//
+// 2026-05-16 (P1 hotfix): the YouTube trailer reveal was removed per
+// operator feedback — heroes now show the static backdrop only (no
+// autoplay video, no 🔊 toggle). The [videoId] param is kept for source
+// compatibility but is ignored.
 //
 // HeroSlide is the *home* flavour of a hero panel — it bakes in a
 // "▶ Guarda" PlayCta + "＋ La mia lista" glass pill so HeroCarousel can
@@ -37,6 +42,7 @@ class HeroSlide extends StatelessWidget {
     this.rating,
     this.synopsis,
     this.backdropUrl,
+    this.posterUrl,
     this.videoId,
     this.label = 'IN EVIDENZA',
     this.languageCode = 'IT',
@@ -63,8 +69,12 @@ class HeroSlide extends StatelessWidget {
   /// TMDB backdrop URL (w1280 is fine; the hero stretches anyway).
   final String? backdropUrl;
 
-  /// YouTube video id of the trailer to autoplay over the backdrop.
-  /// When null, the static backdrop alone is shown — no trailer reveal.
+  /// Fallback when [backdropUrl] is null — TMDB poster gets cropped to the
+  /// hero frame so the operator never sees a black slab.
+  final String? posterUrl;
+
+  /// Kept for source compatibility — the YouTube trailer reveal was
+  /// dropped in the P1 hotfix. Ignored by HeroBackdrop now.
   final String? videoId;
 
   /// Eyebrow label above the title. Defaults to "IN EVIDENZA". Carousel
@@ -90,16 +100,7 @@ class HeroSlide extends StatelessWidget {
           children: [
             HeroBackdrop(
               backdropUrl: backdropUrl,
-              videoId: videoId,
-              // Push the mute toggle clear of the bottom-left metadata
-              // block on desktop / tablet. On phone the toggle sits in
-              // the corner above the centered CTAs.
-              muteToggleMargin: EdgeInsets.fromLTRB(
-                0,
-                0,
-                isPhone ? 16 : 48,
-                isPhone ? 16 : 24,
-              ),
+              posterUrl: posterUrl,
             ),
             Positioned.fill(
               child: _MetadataBlock(

@@ -14,9 +14,8 @@
 //   - (F3) tapping Guarda navigates to /watch/<tmdbId> with the right
 //     query string (media_type + season/episode for TV)
 //
-// We override every provider TitleHero reads (favorites, continue
-// watching, availability, trailer) so the widget renders synchronously
-// without hitting the network.
+// 2026-05-16 (P1 hotfix): the trailer is no longer rendered, so we
+// don't override titleTrailerProvider anymore.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -32,7 +31,6 @@ import 'package:streamload_client/presentation/widgets/title/title_hero.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/availability_provider.dart';
 import 'package:streamload_client/state/continue_watching_provider.dart';
-import 'package:streamload_client/state/home_rows_provider.dart';
 import 'package:streamload_client/domain/models/continue_watching_item.dart';
 
 class _FavApiMock extends Mock implements FavoritesApi {}
@@ -53,7 +51,6 @@ void main() {
         // availabilityProvider explicitly via `extra`.
         continueWatchingProvider
             .overrideWith((_) async => <ContinueWatchingItem>[]),
-        titleTrailerProvider.overrideWith((_, __) async => null),
         availabilityProvider.overrideWith((_, __) async => true),
         ...extra,
       ],
@@ -292,7 +289,6 @@ void main() {
         favoritesApiProvider.overrideWith((_) async => fav),
         continueWatchingProvider
             .overrideWith((_) async => <ContinueWatchingItem>[]),
-        titleTrailerProvider.overrideWith((_, __) async => null),
         availabilityProvider.overrideWith((_, __) async => true),
       ],
       child: MaterialApp.router(routerConfig: router),

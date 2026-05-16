@@ -36,6 +36,7 @@ class HeroSlideData {
     this.rating,
     this.synopsis,
     this.backdropUrl,
+    this.posterUrl,
     this.videoId,
     this.languageCode = 'IT',
     this.onPlay,
@@ -55,6 +56,13 @@ class HeroSlideData {
   final double? rating;
   final String? synopsis;
   final String? backdropUrl;
+
+  /// Fallback shown when [backdropUrl] is null — TMDB poster gets cropped
+  /// to the hero's 16:9-ish frame so we never render a black slab.
+  final String? posterUrl;
+
+  /// Kept for source compatibility — heroes no longer autoplay trailers
+  /// (operator dropped that feature on May 16). HeroSlide ignores it.
   final String? videoId;
   final String languageCode;
   final VoidCallback? onPlay;
@@ -162,6 +170,7 @@ class _HeroCarouselState extends State<HeroCarousel> {
           rating: s.rating,
           synopsis: s.synopsis,
           backdropUrl: s.backdropUrl,
+          posterUrl: s.posterUrl,
           videoId: s.videoId,
           languageCode: s.languageCode,
           // Eyebrow label shows position in the carousel ("IN EVIDENZA · 2 DI 5").

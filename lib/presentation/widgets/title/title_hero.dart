@@ -1,9 +1,12 @@
 // lib/presentation/widgets/title/title_hero.dart
 //
 // TitleHero — the title page's variant of the cinematic hero stack
-// (Phase E1 of sub-plan 8). Shares HeroBackdrop (backdrop + trailer +
-// gradient + 🔊 toggle) with the Home hero, but renders its own CTA
-// strip wired to favorites / watchlist toggles + a share copy.
+// (Phase E1 of sub-plan 8). Shares HeroBackdrop (backdrop + bottom
+// gradient) with the Home hero, but renders its own CTA strip wired to
+// favorites / watchlist toggles + a share copy.
+//
+// 2026-05-16 (P1 hotfix): the YouTube trailer reveal was removed per
+// operator feedback — heroes now just show the static backdrop.
 //
 // CTAs row:
 //   - Primary  : ▶ Guarda  (or "▶ Guarda S1 E1" for TV; "▶ Riprendi"
@@ -14,10 +17,6 @@
 //   - Secondary: ＋ La mia lista  (toggles favorites; flips to "✓
 //                Nella lista" when present)
 //   - Tertiary : ↗ share circle (copies a deeplink to the clipboard)
-//
-// Trailer videoId comes from titleTrailerProvider — wraps the same
-// per-session cache the Home carousel uses, so opening a title we just
-// saw featured doesn't re-fetch its videos.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,7 +25,6 @@ import '../../../domain/models/catalog_item.dart';
 import '../../../state/availability_provider.dart';
 import '../../../state/continue_watching_provider.dart';
 import '../../../state/favorites_provider.dart';
-import '../../../state/home_rows_provider.dart';
 import '../../../state/title_provider.dart';
 import '../../responsive.dart';
 import '../../theme/colors.dart';
@@ -48,12 +46,6 @@ class TitleHero extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final key = TmdbKey(tmdbId: item.tmdbId, mediaType: item.mediaType);
-    final trailerAsync = ref.watch(titleTrailerProvider(key));
-    final videoId = trailerAsync.maybeWhen(
-      data: (v) => v,
-      orElse: () => null,
-    );
     final isPhone = Responsive.isPhone(context);
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -62,13 +54,7 @@ class TitleHero extends ConsumerWidget {
           children: [
             HeroBackdrop(
               backdropUrl: item.backdropUrl,
-              videoId: videoId,
-              muteToggleMargin: EdgeInsets.fromLTRB(
-                0,
-                0,
-                isPhone ? 16 : 48,
-                isPhone ? 16 : 24,
-              ),
+              posterUrl: item.posterUrl,
             ),
             Positioned.fill(
               child: _Metadata(

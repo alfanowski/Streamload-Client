@@ -283,6 +283,10 @@ final heroSlidesProvider =
       // synopsis is optional — Phase E will fetch full details for the
       // Title page hero. Home hero stays terse.
       backdropUrl: m.backdropUrl,
+      // Pass the poster so HeroBackdrop can fall back to it when the
+      // title has no backdrop image — without it the operator saw a
+      // solid black hero behind the title text. (P1 fix.)
+      posterUrl: m.posterUrl,
       videoId: videoKeys[i],
     ));
   }
