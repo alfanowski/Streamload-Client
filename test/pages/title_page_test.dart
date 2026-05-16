@@ -118,7 +118,7 @@ void main() {
     });
   });
 
-  group('TitlePage — TV variant', () {
+  group('TitlePage — TV variant + responsive layouts', () {
     testWidgets('renders title + Guarda S1 E1 CTA', (tester) async {
       final catalogApi = _CatalogApiMock();
       final episodesApi = _EpisodesApiMock();
@@ -147,6 +147,96 @@ void main() {
 
       expect(find.text('Breaking Bad'), findsOneWidget);
       expect(find.text('▶ Guarda S1 E1'), findsOneWidget);
+    });
+
+    testWidgets('desktop layout renders 2-col synopsis + sidebar',
+        (tester) async {
+      final catalogApi = _CatalogApiMock();
+      final db = StreamloadDatabase.test(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      when(() => catalogApi.get(50, mediaType: 'movie'))
+          .thenAnswer((_) async => const CatalogItemResponse(
+                tmdbId: 50,
+                mediaType: 'movie',
+                title: 'Desktop',
+                overview: 'Two-column body should render.',
+                genres: ['Drama'],
+              ));
+
+      await tester.pumpWidget(wrap(
+        catalogApi: catalogApi,
+        db: db,
+        size: const Size(1280, 800),
+        child: const TitlePage(tmdbId: 50, mediaType: 'movie'),
+      ));
+      await tester.pumpAndSettle();
+
+      // TRAMA + GENERI both render — desktop body has both columns.
+      expect(find.text('TRAMA'), findsOneWidget);
+      expect(find.text('GENERI'), findsOneWidget);
+    });
+
+    testWidgets('tablet layout renders 2-col body', (tester) async {
+      final catalogApi = _CatalogApiMock();
+      final db = StreamloadDatabase.test(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      when(() => catalogApi.get(60, mediaType: 'movie'))
+          .thenAnswer((_) async => const CatalogItemResponse(
+                tmdbId: 60,
+                mediaType: 'movie',
+                title: 'Tablet',
+                overview: 'Tablet body.',
+                genres: ['Comedy'],
+              ));
+
+      await tester.pumpWidget(wrap(
+        catalogApi: catalogApi,
+        db: db,
+        size: const Size(800, 1200),
+        child: const TitlePage(tmdbId: 60, mediaType: 'movie'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('TRAMA'), findsOneWidget);
+      expect(find.text('GENERI'), findsOneWidget);
+    });
+
+    testWidgets('phone layout hides sidebar until expansion tapped',
+        (tester) async {
+      final catalogApi = _CatalogApiMock();
+      final db = StreamloadDatabase.test(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      when(() => catalogApi.get(70, mediaType: 'movie'))
+          .thenAnswer((_) async => const CatalogItemResponse(
+                tmdbId: 70,
+                mediaType: 'movie',
+                title: 'Phone',
+                overview: 'Phone body.',
+                genres: ['Sci-Fi'],
+              ));
+
+      // Use a phone-narrow MediaQuery so the responsive helper lands on
+      // the mobile layout (the ListView is scrollable so screen height
+      // doesn't matter — we ensureVisible before tapping the expander).
+      await tester.pumpWidget(wrap(
+        catalogApi: catalogApi,
+        db: db,
+        size: const Size(390, 600),
+        child: const TitlePage(tmdbId: 70, mediaType: 'movie'),
+      ));
+      await tester.pumpAndSettle();
+
+      // Mobile layout: expandable "Mostra dettagli" present, GENERI is
+      // inside the collapsed subtree so it's not yet in the tree.
+      expect(find.text('Mostra dettagli'), findsOneWidget);
+      expect(find.text('GENERI'), findsNothing);
+      await tester.ensureVisible(find.text('Mostra dettagli'));
+      await tester.tap(find.text('Mostra dettagli'));
+      await tester.pumpAndSettle();
+      expect(find.text('GENERI'), findsOneWidget);
     });
 
     testWidgets('TV with episodes shows EPISODI section + episode rows',
