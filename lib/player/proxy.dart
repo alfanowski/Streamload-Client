@@ -58,12 +58,17 @@ class LocalProxyServer {
             basePath: '/variant/$sid',
           );
           // Master playlists from real HLS sources (Apple BipBop, etc.) use
-          // RELATIVE rendition URLs. Resolve them against the master URL so
-          // the variant route can dio.get them directly.
-          final masterUri = Uri.parse(session.upstreamMasterUrl);
+          // RELATIVE rendition URLs. Resolve them against the POST-REDIRECT
+          // URL (resp.realUri), not the original request URL.
+          //
+          // RAI's relinkerServlet 302s to a CDN m3u8 — resolving against the
+          // relinker URL produced bogus `mediapolisvod.rai.it/relinker/...`
+          // variant paths that always 500'd. resp.realUri carries the final
+          // CDN host so relative paths land on the right origin.
+          final baseForResolve = resp.realUri;
           session.renditionUpstream.addAll({
             for (final entry in result.renditionUrls.entries)
-              entry.key: masterUri.resolve(entry.value).toString(),
+              entry.key: baseForResolve.resolve(entry.value).toString(),
           });
           return shelf.Response.ok(result.body, headers: {
             'content-type': 'application/vnd.apple.mpegurl',
@@ -103,9 +108,10 @@ class LocalProxyServer {
             basePath: '/variant/$sid',
           );
           // Segments and EXT-X-KEY are usually relative to the VARIANT
-          // playlist URL (not the master). Resolve them now so the seg+key
-          // routes can dio.get them.
-          final variantUri = Uri.parse(upstream);
+          // playlist URL (not the master). Resolve against the POST-REDIRECT
+          // URL so seg+key routes can dio.get them (matches the master
+          // route's resp.realUri fix — same CDN-redirect class of bug).
+          final variantUri = resp.realUri;
           if (result.keyUrl != null) {
             session.keyUrlByRendition[label] =
                 variantUri.resolve(result.keyUrl!).toString();
@@ -146,7 +152,7 @@ class LocalProxyServer {
             rendition: 'audio_$lang',
             basePath: '/variant/$sid',
           );
-          final audioUri = Uri.parse(upstream);
+          final audioUri = resp.realUri;
           // Same key-URL storage as the video variant handler. Without this,
           // a 404 on /variant/<sid>/key/audio_<lang> cascades into "Failed to
           // open" errors across every rendition (mpv falls back to file://
