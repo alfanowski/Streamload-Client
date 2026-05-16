@@ -30,6 +30,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/title/episode_list.dart';
+import '../widgets/title/similar_titles_row.dart';
 import '../widgets/title/title_hero.dart';
 import '../widgets/title/title_sidebar.dart';
 
@@ -180,7 +181,9 @@ class _TitleDesktopLayout extends StatelessWidget {
             child: EpisodeList(tmdbId: item.tmdbId),
           ),
         ],
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
+        SimilarTitlesRow(tmdbId: item.tmdbId, mediaType: item.mediaType),
+        const SizedBox(height: 40),
       ],
     );
   }
@@ -217,7 +220,9 @@ class _TitleTabletLayout extends StatelessWidget {
             child: EpisodeList(tmdbId: item.tmdbId),
           ),
         ],
-        const SizedBox(height: 32),
+        const SizedBox(height: 40),
+        SimilarTitlesRow(tmdbId: item.tmdbId, mediaType: item.mediaType),
+        const SizedBox(height: 40),
       ],
     );
   }
@@ -270,7 +275,9 @@ class _TitleMobileLayout extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
+        SimilarTitlesRow(tmdbId: item.tmdbId, mediaType: item.mediaType),
+        const SizedBox(height: 40),
       ],
     );
   }
