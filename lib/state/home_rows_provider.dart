@@ -1,0 +1,289 @@
+// lib/state/home_rows_provider.dart
+//
+// Riverpod providers that feed the Home page rows (sub-plan 8, Phase D2).
+// Every row is a separate autoDispose FutureProvider so a slow / failing
+// row doesn't block the rest of the page — each Consumer in HomePage
+// renders its own loading / error placeholder.
+//
+// Compound rows ("Nuove uscite movie ∪ tv", "Top di sempre movie ∪ tv")
+// fetch both halves in parallel via Future.wait and concat them. They
+// stay autoDispose so the in-memory cache evicts when the user leaves
+// Home — refreshes hit TMDB again, which is fine given the 40 req/sec
+// budget.
+//
+// heroSlidesProvider composes the trendingWeek result with per-title
+// videos calls so HeroCarousel can autoplay trailers. We use a tiny
+// per-session cache keyed by (tmdbId, mediaType) so successive opens of
+// Home in the same session don't repeat the videos lookups.
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../domain/models/media_summary.dart';
+import '../presentation/widgets/hero/hero_carousel.dart';
+import 'api_client_provider.dart';
+import 'favorites_provider.dart';
+import 'title_provider.dart';
+import 'watchlist_provider.dart';
+
+// ──────────────────────────────────────────────────────────────────────────
+// Row keys — small value-types used as `.family` arguments. They must
+// override == / hashCode so riverpod can dedupe requests.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// Argument for the by-genre family — list of TMDB genre IDs plus the
+/// media_type they apply to (movie or tv). Optional originalLanguage for
+/// rows like "Commedie italiane" (filter to `it`).
+class GenreRowKey {
+  const GenreRowKey({
+    required this.genreIds,
+    required this.mediaType,
+    this.originalLanguage,
+  });
+
+  final List<int> genreIds;
+  final String mediaType;
+  final String? originalLanguage;
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! GenreRowKey) return false;
+    if (other.mediaType != mediaType) return false;
+    if (other.originalLanguage != originalLanguage) return false;
+    if (other.genreIds.length != genreIds.length) return false;
+    for (var i = 0; i < genreIds.length; i++) {
+      if (other.genreIds[i] != genreIds[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        mediaType,
+        originalLanguage,
+        Object.hashAll(genreIds),
+      );
+}
+
+/// Argument for the similar / recommendations families.
+class TmdbKey {
+  const TmdbKey({required this.tmdbId, required this.mediaType});
+
+  final int tmdbId;
+  final String mediaType;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TmdbKey &&
+      other.tmdbId == tmdbId &&
+      other.mediaType == mediaType;
+
+  @override
+  int get hashCode => Object.hash(tmdbId, mediaType);
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Row providers
+// ──────────────────────────────────────────────────────────────────────────
+
+final trendingDayProvider =
+    FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.trending(period: 'day');
+});
+
+final trendingWeekProvider =
+    FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.trending(period: 'week');
+});
+
+final newReleasesProvider = FutureProvider.autoDispose
+    .family<List<MediaSummary>, String>((ref, mediaType) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.newReleases(mediaType: mediaType);
+});
+
+final byGenreProvider = FutureProvider.autoDispose
+    .family<List<MediaSummary>, GenreRowKey>((ref, key) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.byGenre(
+    genreIds: key.genreIds,
+    mediaType: key.mediaType,
+    originalLanguage: key.originalLanguage,
+  );
+});
+
+final topRatedProvider = FutureProvider.autoDispose
+    .family<List<MediaSummary>, String>((ref, mediaType) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.topRated(mediaType: mediaType);
+});
+
+final similarProvider = FutureProvider.autoDispose
+    .family<List<MediaSummary>, TmdbKey>((ref, key) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.similar(tmdbId: key.tmdbId, mediaType: key.mediaType);
+});
+
+final recommendationsProvider = FutureProvider.autoDispose
+    .family<List<MediaSummary>, TmdbKey>((ref, key) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  return api.recommendations(tmdbId: key.tmdbId, mediaType: key.mediaType);
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Aggregations used by Home for compound rows.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// Movies ∪ TV "new releases", concatenated and capped at 20 items. The
+/// backend doesn't expose a unified endpoint because the date fields
+/// differ (primary_release_date vs first_air_date) so we fetch both halves
+/// in parallel and merge here.
+final newReleasesAllProvider =
+    FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  final results = await Future.wait([
+    api.newReleases(mediaType: 'movie'),
+    api.newReleases(mediaType: 'tv'),
+  ]);
+  final combined = <MediaSummary>[...results[0], ...results[1]];
+  // Backend already sorts each half by date desc; we interleave and cap.
+  return combined.take(20).toList(growable: false);
+});
+
+/// Top rated movies ∪ TV.
+final topRatedAllProvider =
+    FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
+  final api = await ref.watch(catalogRowsApiProvider.future);
+  final results = await Future.wait([
+    api.topRated(mediaType: 'movie'),
+    api.topRated(mediaType: 'tv'),
+  ]);
+  final combined = <MediaSummary>[...results[0], ...results[1]];
+  return combined.take(20).toList(growable: false);
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Videos cache — used by heroSlidesProvider to pick a YouTube trailer
+// key per title. We keep a per-session map so reopening Home doesn't
+// repeat the same 5 videos calls. Cleared when the app process exits.
+//
+// The cache lives in a Provider (not autoDispose) so its lifetime is the
+// app session, not the Home page mount.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _VideosCache {
+  final Map<TmdbKey, Future<String?>> _futures = {};
+
+  Future<String?> get(Ref ref, TmdbKey key) {
+    final hit = _futures[key];
+    if (hit != null) return hit;
+    final fut = _fetch(ref, key);
+    _futures[key] = fut;
+    return fut;
+  }
+
+  Future<String?> _fetch(Ref ref, TmdbKey key) async {
+    final api = await ref.read(catalogApiProvider.future);
+    try {
+      final videos = await api.videos(key.tmdbId, mediaType: key.mediaType);
+      if (videos.isEmpty) return null;
+      // Prefer official trailers; fall back to any trailer / teaser; else
+      // first YouTube video.
+      final official = _firstWhereOrNull(
+        videos,
+        (v) => v.official && v.type == 'Trailer',
+      );
+      if (official != null) return official.key;
+      final teaser = _firstWhereOrNull(
+        videos,
+        (v) => v.official && v.type == 'Teaser',
+      );
+      if (teaser != null) return teaser.key;
+      final anyTrailer = _firstWhereOrNull(
+        videos,
+        (v) => v.type == 'Trailer' || v.type == 'Teaser',
+      );
+      if (anyTrailer != null) return anyTrailer.key;
+      return videos.first.key;
+    } catch (_) {
+      // A single missing trailer shouldn't break the carousel; the slide
+      // just falls back to a static backdrop image.
+      return null;
+    }
+  }
+}
+
+E? _firstWhereOrNull<E>(Iterable<E> source, bool Function(E) test) {
+  for (final e in source) {
+    if (test(e)) return e;
+  }
+  return null;
+}
+
+final _videosCacheProvider = Provider<_VideosCache>((_) => _VideosCache());
+
+/// Composes HeroCarousel input from trending-week + per-title trailer.
+///
+/// Picks the top 5 of the weekly trending row, fetches videos for each in
+/// parallel (cached for the session), and assembles HeroSlideData entries
+/// with onPlay (navigates to title page) + onAdd (toggles favorites).
+///
+/// onPlay / onAdd are bound to the BuildContext-free path; the
+/// HomePage wraps them so navigation uses the page's GoRouter context.
+/// We pass back a tuple via heroSlidesProvider (raw data) and HomePage
+/// supplies the callbacks at render time.
+final heroSlidesProvider =
+    FutureProvider.autoDispose<List<HeroSlideData>>((ref) async {
+  final trending = await ref.watch(trendingWeekProvider.future);
+  if (trending.isEmpty) return const <HeroSlideData>[];
+  final top = trending.take(5).toList(growable: false);
+  final cache = ref.read(_videosCacheProvider);
+  final keys = top
+      .map((m) => TmdbKey(tmdbId: m.tmdbId, mediaType: m.mediaType))
+      .toList(growable: false);
+  final videoKeys = await Future.wait(
+    keys.map((k) => cache.get(ref, k)),
+  );
+  final slides = <HeroSlideData>[];
+  for (var i = 0; i < top.length; i++) {
+    final m = top[i];
+    slides.add(HeroSlideData(
+      title: m.title,
+      mediaType: m.mediaType,
+      year: m.year,
+      synopsis: null, // trending row doesn't carry overview; spec says
+      // synopsis is optional — Phase E will fetch full details for the
+      // Title page hero. Home hero stays terse.
+      backdropUrl: m.backdropUrl,
+      videoId: videoKeys[i],
+    ));
+  }
+  return slides;
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// "La mia lista" composition: favorites ∪ watchlist deduped by tmdbId.
+// We resolve TitleKey -> MediaSummary via the local catalog cache (drift
+// upserted on titleProvider hits) — kept light: we don't refetch every
+// title on Home open. Items the user has never opened a title page for
+// fall back to a placeholder MediaSummary with just the tmdbId / title.
+//
+// Implementation lives in HomePage (Phase D5) because it needs DB access
+// and the row is essentially a UI concern. We expose the deduped set
+// here as TitleKey list for convenience.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// Helper: merge favorites + watchlist into a dedup-by-tmdbId list of
+/// TitleKey. Watches both providers so the row recomposes when either
+/// changes.
+final myListKeysProvider = Provider.autoDispose<List<TitleKey>>((ref) {
+  final fav = ref.watch(favoritesProvider).value ?? const <TitleKey>{};
+  final wl = ref.watch(watchlistProvider).value ?? const <TitleKey>{};
+  final seen = <int>{};
+  final out = <TitleKey>[];
+  for (final k in [...fav, ...wl]) {
+    if (seen.add(k.tmdbId)) out.add(k);
+  }
+  return out;
+});
+
