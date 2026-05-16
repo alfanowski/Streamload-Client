@@ -148,5 +148,47 @@ void main() {
       expect(find.text('Breaking Bad'), findsOneWidget);
       expect(find.text('▶ Guarda S1 E1'), findsOneWidget);
     });
+
+    testWidgets('TV with episodes shows EPISODI section + episode rows',
+        (tester) async {
+      final catalogApi = _CatalogApiMock();
+      final episodesApi = _EpisodesApiMock();
+      final db = StreamloadDatabase.test(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      when(() => catalogApi.get(99, mediaType: 'tv'))
+          .thenAnswer((_) async => const CatalogItemResponse(
+                tmdbId: 99,
+                mediaType: 'tv',
+                title: 'Breaking Bad',
+              ));
+
+      when(() => episodesApi.list(99)).thenAnswer((_) async => {
+            'seasons': [
+              {
+                'season_number': 1,
+                'episodes': [
+                  {
+                    'episode_number': 1,
+                    'title': 'Pilot',
+                    'still_url': null,
+                    'runtime_minutes': 58,
+                  },
+                ],
+              },
+            ],
+          });
+
+      await tester.pumpWidget(wrap(
+        catalogApi: catalogApi,
+        episodesApi: episodesApi,
+        db: db,
+        child: const TitlePage(tmdbId: 99, mediaType: 'tv'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('EPISODI · S1'), findsOneWidget);
+      expect(find.text('Pilot'), findsOneWidget);
+    });
   });
 }

@@ -29,6 +29,7 @@ import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../widgets/title/episode_list.dart';
 import '../widgets/title/title_hero.dart';
 import '../widgets/title/title_sidebar.dart';
 
@@ -172,6 +173,13 @@ class _TitleDesktopLayout extends StatelessWidget {
             sidebarFlex: 1,
           ),
         ),
+        if (item.mediaType == 'tv') ...[
+          const SizedBox(height: 32),
+          Padding(
+            padding: StreamloadSpacing.pagePaddingDesktop,
+            child: EpisodeList(tmdbId: item.tmdbId),
+          ),
+        ],
         const SizedBox(height: 32),
       ],
     );
@@ -202,6 +210,13 @@ class _TitleTabletLayout extends StatelessWidget {
             sidebarFlex: 2,
           ),
         ),
+        if (item.mediaType == 'tv') ...[
+          const SizedBox(height: 32),
+          Padding(
+            padding: StreamloadSpacing.pagePaddingTablet,
+            child: EpisodeList(tmdbId: item.tmdbId),
+          ),
+        ],
         const SizedBox(height: 32),
       ],
     );
@@ -248,6 +263,10 @@ class _TitleMobileLayout extends StatelessWidget {
                 ),
               const SizedBox(height: 16),
               TitleSidebarExpandable(item: item),
+              if (item.mediaType == 'tv') ...[
+                const SizedBox(height: 24),
+                EpisodeList(tmdbId: item.tmdbId),
+              ],
             ],
           ),
         ),
