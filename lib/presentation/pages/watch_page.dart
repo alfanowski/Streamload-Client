@@ -86,13 +86,22 @@ class _WatchPageState extends ConsumerState<WatchPage> {
         url = _debugUrl;
       } else {
         final controller = await ref.read(playControllerProvider.future);
-        url = widget.request.season != null && widget.request.episode != null
-            ? await controller.startEpisode(
-                tmdbId: widget.request.tmdbId,
-                season: widget.request.season!,
-                episode: widget.request.episode!,
-              )
-            : await controller.startMovie(tmdbId: widget.request.tmdbId);
+        // Route by mediaType, not by presence of season/episode. A TV-show
+        // title page (e.g. /watch/60572?media_type=tv) links here without
+        // specifying which episode — default to s1e1 so we still resolve a
+        // playable stream rather than falling through to startMovie and
+        // matching against the wrong catalog half (Pokemon series tapped →
+        // startMovie used to pick "Pokemon Detective Pikachu").
+        final isTv = widget.request.mediaType == 'tv';
+        if (isTv) {
+          url = await controller.startEpisode(
+            tmdbId: widget.request.tmdbId,
+            season: widget.request.season ?? 1,
+            episode: widget.request.episode ?? 1,
+          );
+        } else {
+          url = await controller.startMovie(tmdbId: widget.request.tmdbId);
+        }
       }
       // The engine is now a process-level singleton (see player_engine_provider).
       // Pull it once; it survives across watch sessions and so does its

@@ -218,11 +218,15 @@ class ProviderRouter {
         return r;
       }
     }
-    // Tier 3: normalized prefix with word boundary. Pick the shortest title.
+    // Tier 3: normalized prefix with word boundary, with a length cap so
+    // "Pokémon" doesn't match "Pokémon Detective Pikachu" (a different
+    // product entirely). Cap = 1.6 × hint length: covers ":Special Edition"
+    // / " Director's Cut" but rejects ": Detective Pikachu" / " Movie 01".
+    final maxCandidateLen = (hintNorm.length * 1.6).ceil();
     final prefixed = <Map<String, dynamic>>[];
     for (final r in pool) {
       final tNorm = _normalizeTitle(r['title'] as String? ?? '');
-      if (tNorm.startsWith('$hintNorm ')) {
+      if (tNorm.startsWith('$hintNorm ') && tNorm.length <= maxCandidateLen) {
         prefixed.add(r);
       }
     }

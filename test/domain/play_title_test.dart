@@ -208,6 +208,38 @@ void main() {
     verifyNever(() => plugin.getStreams(any()));
   });
 
+  test('match prefix REJECTS candidates 1.6x longer than hint (Pokemon !-> Detective Pikachu)',
+      () async {
+    // Hint "Pokemon" is 7 chars; "Pokemon Detective Pikachu" is 25 chars.
+    // Should NOT be accepted as a tier-3 prefix match because the extra
+    // tail makes it a different product, not a sub-edition.
+    when(() => plugin.search(any())).thenAnswer((_) async => [
+          {
+            'id': 'wrong',
+            'title': 'Pokemon Detective Pikachu',
+            'type': 'movie',
+            'year': 2019,
+          },
+        ]);
+    final resolver = (int _, String __) async =>
+        const TitleHint(title: 'Pokemon', year: 1997);
+    final controller = PlayController(
+      registry: registry,
+      proxyBaseUrl: 'http://127.0.0.1:47821',
+      router: ProviderRouter(runtime: runtime),
+      resolveTitle: resolver,
+    );
+    expect(
+      () => controller.startMovie(tmdbId: 42),
+      throwsA(isA<StateError>().having(
+        (e) => e.message,
+        'message',
+        contains('Tutti i plugin hanno fallito'),
+      )),
+    );
+    verifyNever(() => plugin.getStreams(any()));
+  });
+
   test('match prefix picks shortest title (Dragon Ball Z series over Movie 01)',
       () async {
     when(() => plugin.search(any())).thenAnswer((_) async => [
