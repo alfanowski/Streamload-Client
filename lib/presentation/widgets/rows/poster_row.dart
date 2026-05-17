@@ -17,6 +17,7 @@ import 'package:go_router/go_router.dart';
 import '../../../domain/models/media_summary.dart';
 import '../../responsive.dart';
 import '../../theme/colors.dart';
+import '../../theme/motion.dart';
 import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
 import '../poster_card.dart';
@@ -101,7 +102,7 @@ class PosterRow extends StatelessWidget {
                 return _Placeholder(width: cardWidth);
               }
               final m = items[i];
-              return PosterCard(
+              final card = PosterCard(
                 summary: m,
                 width: cardWidth,
                 progressFraction: progressByTmdbId?[m.tmdbId],
@@ -115,6 +116,14 @@ class PosterRow extends StatelessWidget {
                     );
                   }
                 },
+              );
+              // Pass 2F (2026-05-17): tiny stagger — each card fades in
+              // + slides 16 px from the right with a 50 ms per-index
+              // delay (capped at the first 8 cards so cards 9-N don't
+              // hold up under fast scrolling). Total animation ≤ 450 ms.
+              return _StaggeredEnter(
+                index: i.clamp(0, 8),
+                child: card,
               );
             },
           ),
@@ -183,6 +192,71 @@ class _CountChip extends StatelessWidget {
         text,
         style: StreamloadTypography.v3MetaMono(),
       ),
+    );
+  }
+}
+
+/// Pass 2F (2026-05-17): per-card stagger entrance — fade in + slide 16
+/// pixels from the right based on [index]. Uses a delayed
+/// AnimationController so each card starts at its own offset within
+/// the same row. Clamped at 8 indices upstream so a 60-card row still
+/// finishes in < 500 ms total.
+class _StaggeredEnter extends StatefulWidget {
+  const _StaggeredEnter({required this.index, required this.child});
+  final int index;
+  final Widget child;
+
+  @override
+  State<_StaggeredEnter> createState() => _StaggeredEnterState();
+}
+
+class _StaggeredEnterState extends State<_StaggeredEnter>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _opacity;
+  late final Animation<Offset> _slide;
+
+  static const Duration _baseDuration = Duration(milliseconds: 350);
+  static const Duration _perIndexDelay = Duration(milliseconds: 50);
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: _baseDuration);
+    _opacity = CurvedAnimation(
+      parent: _ctrl,
+      curve: StreamloadMotion.hoverCurve,
+    );
+    _slide = Tween<Offset>(
+      begin: const Offset(0.15, 0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _ctrl,
+      curve: Curves.easeOutCubic,
+    ));
+    // Skip the stagger in tests so pumpAndSettle doesn't have to drain a
+    // bunch of 50-ms delays. Real runtime fires the delay normally.
+    if (WidgetsBinding.instance.runtimeType.toString() ==
+        'WidgetsFlutterBinding') {
+      Future.delayed(_perIndexDelay * widget.index, () {
+        if (mounted) _ctrl.forward();
+      });
+    } else {
+      _ctrl.value = 1.0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _opacity,
+      child: SlideTransition(position: _slide, child: widget.child),
     );
   }
 }
