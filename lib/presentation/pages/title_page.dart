@@ -158,11 +158,17 @@ class _TitleDesktopLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Pass 2D (2026-05-17): hero bumped 440 → 560 on desktop so the
+    // backdrop feels majestic instead of cramped. Capped at 70% of the
+    // viewport so the rest of the page (synopsis + episodes) still has
+    // breathing room above the fold on shorter monitors.
+    final viewportH = MediaQuery.sizeOf(context).height;
+    final heroHeight = (viewportH * 0.70).clamp(520.0, 660.0);
     return ListView(
       padding: EdgeInsets.zero,
       children: [
         SizedBox(
-          height: 440,
+          height: heroHeight,
           child: TitleHero(item: item, onShare: onShare),
         ),
         const SizedBox(height: 24),
@@ -196,11 +202,16 @@ class _TitleTabletLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Pass 2D: hero bumped 360 → 440 on tablet (clamped within a
+    // viewport-relative range so portrait + landscape iPads both feel
+    // cinematic without burying the row content).
+    final viewportH = MediaQuery.sizeOf(context).height;
+    final heroHeight = (viewportH * 0.55).clamp(400.0, 520.0);
     return ListView(
       padding: EdgeInsets.zero,
       children: [
         SizedBox(
-          height: 360,
+          height: heroHeight,
           child: TitleHero(item: item, onShare: onShare),
         ),
         const SizedBox(height: 24),

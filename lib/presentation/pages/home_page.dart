@@ -508,11 +508,21 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   double _heroHeightFor(BuildContext context) {
+    // Pass 2D (2026-05-17): operator said 'la hero è troppo bassa'.
+    // Desktop bumps 480 → 620, tablet 360 → 480, phone stays at 65% of
+    // viewport. On very tall desktop windows we still cap somewhere
+    // sensible so the hero doesn't eat the entire viewport on a 27''
+    // monitor — clamp at 75% of the visible height with a hard ceiling
+    // of 720 px. The metadata block already aligns bottom-left so the
+    // extra headroom reads as cinematic, not as a void.
     if (Responsive.isPhone(context)) {
       return MediaQuery.sizeOf(context).height * 0.65;
     }
-    if (Responsive.isTablet(context)) return 360;
-    return 480;
+    final viewportH = MediaQuery.sizeOf(context).height;
+    if (Responsive.isTablet(context)) {
+      return (viewportH * 0.70).clamp(420.0, 560.0);
+    }
+    return (viewportH * 0.75).clamp(560.0, 720.0);
   }
 }
 
