@@ -5,6 +5,22 @@
 // 2026-05-16: extended with Netflix×AppleTV refactor styles (v3*) — Inter
 // for everything readable, JetBrains Mono for metadata labels. Same
 // google_fonts delivery pattern (no asset bundling).
+//
+// 2026-05-17 (Cinema Magazine pivot, CM-1): the v3 hero / page title /
+// section-header styles get a sober editorial overhaul. We KEEP the
+// `v3*` names so existing call sites just inherit the new look:
+//
+//   - v3DisplayHero  → Fraunces italic serif, big editorial weight
+//   - v3DisplayPage  → Fraunces italic, one tier down
+//   - v3SectionHeader→ Fraunces (non-italic 18px) — row headers like
+//                       "Tendenze settimana"; replaces the old Inter
+//                       14px / 600-weight title which read as "app chrome"
+//                       rather than "editorial heading"
+//   - v3Body         → Inter (kept — best reading face for body)
+//   - v3MetaMono     → JetBrains Mono (kept — "metadata as data" look)
+//   - v3LabelMono    → JetBrains Mono uppercase (kept)
+//   - v3CtaLabel     → Inter w500 (toned down from w600 — typographic CTAs
+//                       in CM-4 want the weight to read as text, not button)
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -96,30 +112,37 @@ class StreamloadTypography {
   // pure Netflix clone.
   // ──────────────────────────────────────────────────────────────────────────
 
-  /// Hero title — 36px / extra-bold / tight tracking. Use for the rotating
-  /// home hero and the title page header.
-  static TextStyle v3DisplayHero({Color? color}) => GoogleFonts.inter(
-        fontSize: 36,
-        fontWeight: FontWeight.w800,
-        letterSpacing: -1.0,
+  /// Hero title — Fraunces serif italic. Big, editorial, "in primo piano"
+  /// magazine feel. CM-5 sets the size per breakpoint (56 / 44 / 36); the
+  /// default here is the desktop size so call sites without an override
+  /// still look right.
+  static TextStyle v3DisplayHero({Color? color}) => GoogleFonts.fraunces(
+        fontSize: 56,
+        fontWeight: FontWeight.w400,
+        fontStyle: FontStyle.italic,
+        letterSpacing: -0.025 * 56,
         height: 1.0,
         color: color ?? StreamloadColors.v3TextPrimary,
       );
 
-  /// Page title (one level down from hero).
-  static TextStyle v3DisplayPage({Color? color}) => GoogleFonts.inter(
-        fontSize: 28,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.6,
+  /// Page title — one level down from hero. Fraunces italic.
+  static TextStyle v3DisplayPage({Color? color}) => GoogleFonts.fraunces(
+        fontSize: 36,
+        fontWeight: FontWeight.w400,
+        fontStyle: FontStyle.italic,
+        letterSpacing: -0.025 * 36,
         height: 1.05,
         color: color ?? StreamloadColors.v3TextPrimary,
       );
 
-  /// Row header ("Tendenze oggi", "Continua a guardare").
-  static TextStyle v3SectionHeader({Color? color}) => GoogleFonts.inter(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        letterSpacing: 0.5,
+  /// Row header ("Tendenze oggi", "Continua a guardare"). Fraunces
+  /// non-italic 18px — gives the row separator a quiet editorial weight
+  /// that says "section" without shouting like a Netflix tab bar would.
+  static TextStyle v3SectionHeader({Color? color}) => GoogleFonts.fraunces(
+        fontSize: 18,
+        fontWeight: FontWeight.w400,
+        fontStyle: FontStyle.normal,
+        letterSpacing: -0.01 * 18,
         color: color ?? StreamloadColors.v3TextPrimary,
       );
 
@@ -147,10 +170,12 @@ class StreamloadTypography {
         color: color ?? StreamloadColors.v3TextMuted,
       );
 
-  /// Pill button label (Guarda / La mia lista / etc).
+  /// CTA label (Guarda / La mia lista / etc). w500 reads as text on the
+  /// typographic CTAs added in CM-4; the pill version (PrimaryPill in
+  /// onboarding) still looks fine at this weight too.
   static TextStyle v3CtaLabel({Color? color}) => GoogleFonts.inter(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
         color: color ?? StreamloadColors.v3CtaPrimaryFg,
       );
 }
