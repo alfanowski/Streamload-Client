@@ -121,21 +121,23 @@ class _BottomGradient extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // CM-5 will own the editorial gradient (transparent top, warm
-    // #0F0E0D 70% over the last 35% of height). For now keep the
-    // existing dark-on-bottom legibility scrim so other hero callers
-    // (TitleHero before CM-6) still get usable contrast.
+    // CM-5: editorial scrim — transparent over the top 65% of the hero,
+    // then a soft warm-bg fade over the bottom 35%. Stops below match
+    // the brief: 0.0 transparent → 0.65 transparent → 1.0 #0F0E0D at
+    // 70% alpha. Reads as a "page tinted underneath the title" rather
+    // than a hard band of darkness, so the title pops without the
+    // backdrop image looking crushed.
     return IgnorePointer(
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: const [0.0, 0.3, 1.0],
+            stops: const [0.0, 0.65, 1.0],
             colors: [
               Colors.transparent,
               Colors.transparent,
-              StreamloadColors.v3BgBase.withValues(alpha: 0.8),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.7),
             ],
           ),
         ),

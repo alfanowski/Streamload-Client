@@ -34,7 +34,6 @@ import 'package:flutter/material.dart';
 import '../../responsive.dart';
 import '../../theme/colors.dart';
 import '../../theme/typography.dart';
-import '../play_cta.dart';
 import '../text_cta.dart';
 import 'hero_backdrop.dart';
 
@@ -260,12 +259,14 @@ class _Ctas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stackVertical = availableWidth < 380;
-    // CM-4: hero CTA is the typographic Guarda → / Riprendi → variant.
-    // For the home hero we always assume "play" — the title page has its
-    // own availability-aware wrapper.
-    final ctaPlay = PlayCta(
-      state: PlayCtaState.play,
+    // CM-5: home hero CTAs are TextCta directly (no PlayCta wrapper) —
+    // the rotating hero never has the availability lifecycle (the user
+    // can't tap Guarda without first navigating to the title page, where
+    // PlayCta + availabilityProvider take over). Leading '▶' makes the
+    // primary action unmistakable in a typographic CTA.
+    final ctaPlay = TextCta(
       label: 'Guarda',
+      leading: '▶',
       onTap: onPlay,
     );
     final ctaAdd = TextCta(
