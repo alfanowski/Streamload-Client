@@ -1,17 +1,24 @@
 // lib/presentation/widgets/primary_pill.dart
 //
-// v3 primary submit pill — the form-flow sibling of [PlayCta]. PlayCta models
-// the availability lifecycle (checking / play / unavailable) and renders the
-// Italian "Al momento non disponibile" copy + the ▶ glyph baked in. That's
-// great for the title page CTA and home hero but wrong for an onboarding
-// "Verifica" / "Salva" / "Continua" submit button — those don't have a third
-// disabled-because-unavailable state, they have idle ↔ busy.
+// v3 primary submit pill — the form-flow sibling of [PlayCta]. PlayCta
+// became a typographic TextCta wrapper in CM-4 (Cinema Magazine pivot),
+// but onboarding submits ("Verifica", "Salva", "Continua") deliberately
+// KEEP the pill chrome. Why:
 //
-// Same visual tokens (v3CtaPrimaryBg + v3CtaPrimaryFg, pillRadius, the v3
-// CtaLabel type style, PressFeedback wrap) so the two pills read as one
-// family in the UI. Keep behavior tiny: caller passes a label + onPressed +
-// optional busy flag. Busy swaps the label for a spinner the same way
-// PlayCta.checking does.
+//   1. Onboarding is a one-way commitment moment — the user has filled a
+//      form and needs an unambiguous "tap this to proceed" surface. A
+//      typographic underline reads as a tertiary link in form contexts;
+//      a pill reads as the obvious next step.
+//   2. The editorial pivot quiets BROWSE surfaces (hero CTAs, row links,
+//      card decorations). Onboarding is a transactional surface, not an
+//      editorial one — different palette of affordances applies.
+//   3. PrimaryPill still uses v3CtaPrimaryBg / v3CtaPrimaryFg, which the
+//      CM-1 rebind moved to the warm amber #D4A574. The pill therefore
+//      already wears the editorial palette, just in a chunkier shape.
+//
+// Behavior stays tiny: caller passes a label + onPressed + optional busy
+// flag. Busy swaps the label for a spinner the same way PlayCta did
+// before it was rewritten.
 //
 // Used in: PluginOnboardingPage (Verifica / Riprova), ProfileCompletionPage
 // (Continua / Salvataggio…). Future onboarding-adjacent flows should reach
