@@ -27,9 +27,33 @@ class PlayerEngine {
   /// so opting in is correct + required for any real HLS source.
   void _configureMpv() {
     final platform = _player.platform;
-    if (platform is NativePlayer) {
-      platform.setProperty('load-unsafe-playlists', 'yes');
+    if (platform is! NativePlayer) return;
+    // Each setProperty is wrapped because some mpv builds lack the option
+    // group ("property not found"). Without try/catch a single missing
+    // option crashes the entire isolate when libmpv hits
+    // m_config_cache_from_shadow with a stale group_index. Defensive: set
+    // every option independently, swallow per-option failures.
+    Future<void> safeSet(String key, String value) async {
+      try {
+        await platform.setProperty(key, value);
+      } catch (_) {
+        // Property unknown to this libmpv build — fine, we tried.
+      }
     }
+
+    // load-unsafe-playlists: required for our HLS proxy to serve loopback
+    // URLs inside .m3u8 playlists (libmpv anti-exploit hardening).
+    safeSet('load-unsafe-playlists', 'yes');
+    // osc=no: explicitly disable mpv's on-screen controller. media_kit_video
+    // tries to enable it on macOS, which fails on a video-only mpv build
+    // and leaves the config cache in a half-initialized state — the very
+    // crash the operator hit on 2026-05-17 (m_config_cache_from_shadow
+    // assertion). Setting `no` up-front skips media_kit_video's later
+    // attempt and keeps libmpv's option cache stable across hw-accel init.
+    safeSet('osc', 'no');
+    // Same hardening for the closely-related on-screen-display tag — some
+    // mpv builds expose either or both.
+    safeSet('osd-bar', 'no');
   }
 
   /// Languages we treat as "Italian" for auto-selection on track-list
