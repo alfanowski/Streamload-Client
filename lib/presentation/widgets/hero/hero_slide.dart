@@ -22,6 +22,11 @@
 //   - desktop / tablet : ~480 / 360 px tall, bottom-left ~40% width block
 //   - phone            : 65% viewport height, full-width stacked metadata,
 //                        CTAs stack vertically below 380px
+//
+// Pass 2F (2026-05-17): the metadata block fades in + slides up 20 px on
+// initial layout via an AnimationController. Combined with the
+// PageView's own crossfade, this gives the impression that the
+// metadata 'lands' into place when a new slide takes over the hero.
 import 'package:flutter/material.dart';
 
 import '../../responsive.dart';
@@ -138,7 +143,7 @@ class HeroSlide extends StatelessWidget {
   }
 }
 
-class _MetadataBlock extends StatelessWidget {
+class _MetadataBlock extends StatefulWidget {
   const _MetadataBlock({
     required this.title,
     required this.synopsis,
@@ -160,19 +165,76 @@ class _MetadataBlock extends StatelessWidget {
   final double availableWidth;
 
   @override
+  State<_MetadataBlock> createState() => _MetadataBlockState();
+}
+
+class _MetadataBlockState extends State<_MetadataBlock>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _enter;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    // 600 ms enter — slow enough to feel cinematic, fast enough that
+    // the user starts reading the title immediately after the carousel
+    // advances.
+    _enter = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+    _fade = CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, 0.10), // 10% of metadata height = ~20-30 px
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic));
+  }
+
+  @override
+  void didUpdateWidget(covariant _MetadataBlock oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Re-trigger the enter animation if the title changed (e.g. the
+    // parent carousel swapped to a different slide while reusing the
+    // same _MetadataBlock element).
+    if (oldWidget.title != widget.title) {
+      _enter
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _enter.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isPhone = widget.isPhone;
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(
+        position: _slide,
+        child: _buildContent(context, isPhone),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, bool isPhone) {
     final horizontalPad = isPhone ? 16.0 : 48.0;
     final align = isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start;
     final titleSize = isPhone ? 28.0 : 36.0;
     // Width budget for the text column — keep narrow on desktop so the
     // synopsis stays readable instead of stretching across the whole hero.
     final maxBlockWidth = isPhone
-        ? availableWidth - (horizontalPad * 2)
-        : (availableWidth * 0.45).clamp(360.0, 720.0);
+        ? widget.availableWidth - (horizontalPad * 2)
+        : (widget.availableWidth * 0.45).clamp(360.0, 720.0);
 
     final children = <Widget>[
       Text(
-        label,
+        widget.label,
         style: StreamloadTypography.v3LabelMono(
           color: StreamloadColors.v3TextSecondary,
         ),
@@ -180,7 +242,7 @@ class _MetadataBlock extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       Text(
-        title,
+        widget.title,
         style: StreamloadTypography.v3DisplayHero().copyWith(fontSize: titleSize),
         textAlign: isPhone ? TextAlign.center : TextAlign.start,
         maxLines: 2,
@@ -188,14 +250,14 @@ class _MetadataBlock extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       Text(
-        metaLine,
+        widget.metaLine,
         style: StreamloadTypography.v3MetaMono(),
         textAlign: isPhone ? TextAlign.center : TextAlign.start,
       ),
-      if (synopsis != null && synopsis!.isNotEmpty) ...[
+      if (widget.synopsis != null && widget.synopsis!.isNotEmpty) ...[
         const SizedBox(height: 10),
         Text(
-          synopsis!,
+          widget.synopsis!,
           style: StreamloadTypography.v3Body(
             color: StreamloadColors.v3TextSecondary,
           ),
@@ -206,9 +268,9 @@ class _MetadataBlock extends StatelessWidget {
       ],
       const SizedBox(height: 14),
       _Ctas(
-        availableWidth: availableWidth - (horizontalPad * 2),
-        onPlay: onPlay,
-        onAdd: onAdd,
+        availableWidth: widget.availableWidth - (horizontalPad * 2),
+        onPlay: widget.onPlay,
+        onAdd: widget.onAdd,
       ),
     ];
 

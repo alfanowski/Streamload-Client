@@ -22,6 +22,12 @@
 // [posterUrl] is used as a fallback for titles that don't have a backdrop
 // (some TMDB entries — especially recent / niche — only have the poster).
 // Without it the operator was seeing a solid black hero with no image.
+//
+// Pass 2F (2026-05-17): the backdrop image now slowly zooms 1.00 → 1.05
+// over [kenBurnsDuration] (25 s) via an AnimationController driven by
+// TickerProvider — Ken Burns ambient motion. Subtle, constant; reads as
+// cinematic without distracting the eye. The controller resets when the
+// image URL changes so the new slide starts fresh at 1.00.
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -73,21 +79,70 @@ class HeroBackdrop extends StatelessWidget {
   }
 }
 
-class _Backdrop extends StatelessWidget {
+/// Ambient Ken Burns motion: the backdrop image slowly zooms from
+/// scale 1.00 → 1.05 over this duration. Long enough to read as a
+/// gentle drift, not a snap. When the backdrop URL changes (carousel
+/// advance), the controller resets to 1.00 for the new slide.
+const Duration kKenBurnsDuration = Duration(seconds: 25);
+
+class _Backdrop extends StatefulWidget {
   const _Backdrop({this.url, this.fallbackUrl});
   final String? url;
   final String? fallbackUrl;
 
   @override
+  State<_Backdrop> createState() => _BackdropState();
+}
+
+class _BackdropState extends State<_Backdrop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _kenBurns;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _kenBurns = AnimationController(
+      vsync: this,
+      duration: kKenBurnsDuration,
+    )..forward();
+    _scale = Tween<double>(begin: 1.0, end: 1.05).animate(CurvedAnimation(
+      parent: _kenBurns,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void didUpdateWidget(covariant _Backdrop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reset the zoom on a fresh slide so each backdrop drifts from 1.0
+    // instead of jumping into the middle of the previous animation.
+    if (oldWidget.url != widget.url ||
+        oldWidget.fallbackUrl != widget.fallbackUrl) {
+      _kenBurns
+        ..reset()
+        ..forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _kenBurns.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final primary = (url == null || url!.isEmpty) ? null : url;
+    final primary = (widget.url == null || widget.url!.isEmpty) ? null : widget.url;
     final fallback =
-        (fallbackUrl == null || fallbackUrl!.isEmpty) ? null : fallbackUrl;
+        (widget.fallbackUrl == null || widget.fallbackUrl!.isEmpty)
+            ? null
+            : widget.fallbackUrl;
     final chosen = primary ?? fallback;
     if (chosen == null) {
       return Container(color: StreamloadColors.v3BgBase);
     }
-    return CachedNetworkImage(
+    final image = CachedNetworkImage(
       imageUrl: chosen,
       fit: BoxFit.cover,
       placeholder: (_, __) => Container(color: StreamloadColors.v3BgBase),
@@ -98,13 +153,25 @@ class _Backdrop extends StatelessWidget {
           return CachedNetworkImage(
             imageUrl: fallback,
             fit: BoxFit.cover,
-            placeholder: (_, __) => Container(color: StreamloadColors.v3BgBase),
+            placeholder: (_, __) =>
+                Container(color: StreamloadColors.v3BgBase),
             errorWidget: (_, __, ___) =>
                 Container(color: StreamloadColors.v3BgBase),
           );
         }
         return Container(color: StreamloadColors.v3BgBase);
       },
+    );
+    return AnimatedBuilder(
+      animation: _scale,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _scale.value,
+          alignment: Alignment.center,
+          child: child,
+        );
+      },
+      child: image,
     );
   }
 }
