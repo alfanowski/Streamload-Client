@@ -44,7 +44,8 @@ void main() {
       ),
     );
     expect(find.text('Continua a guardare'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
+    // CM-7: count chip dropped for editorial header consistency.
+    expect(find.text('3'), findsNothing);
     expect(find.byType(BackdropCard), findsNWidgets(3));
   });
 

@@ -73,7 +73,6 @@ class BackdropRow extends StatelessWidget {
           padding: pagePad,
           child: _Header(
             title: title,
-            countChipText: items.isNotEmpty ? '${items.length}' : null,
             seeAllTo: seeAllTo,
           ),
         ),
@@ -116,34 +115,24 @@ class BackdropRow extends StatelessWidget {
 class _Header extends StatelessWidget {
   const _Header({
     required this.title,
-    this.countChipText,
     this.seeAllTo,
   });
   final String title;
-  final String? countChipText;
   final String? seeAllTo;
 
   @override
   Widget build(BuildContext context) {
+    // CM-7: editorial header — Fraunces non-italic 20 (matches PosterRow).
+    // No count chip, no badge. "Vedi tutti →" stays as a quiet italic
+    // typographic link.
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
-        Text(title, style: StreamloadTypography.v3SectionHeader()),
-        if (countChipText != null) ...[
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: StreamloadColors.v3SurfaceGlass,
-              borderRadius: BorderRadius.circular(StreamloadSpacing.chipRadius),
-              border: Border.all(color: StreamloadColors.v3BorderGlass),
-            ),
-            child: Text(
-              countChipText!,
-              style: StreamloadTypography.v3MetaMono(),
-            ),
-          ),
-        ],
+        Text(
+          title,
+          style: StreamloadTypography.display(fontSize: 20, italic: false),
+        ),
         const Spacer(),
         if (seeAllTo != null)
           InkWell(
@@ -152,9 +141,10 @@ class _Header extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               child: Text(
                 'Vedi tutti →',
-                style: StreamloadTypography.v3MetaMono(
+                style: StreamloadTypography.body(
+                  fontSize: 12,
                   color: StreamloadColors.v3TextSecondary,
-                ),
+                ).copyWith(fontStyle: FontStyle.italic),
               ),
             ),
           ),
