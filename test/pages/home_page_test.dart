@@ -166,12 +166,18 @@ void main() {
     await t.pump(const Duration(milliseconds: 50));
   }
 
-  testWidgets('renders filter chips with the expected labels', (t) async {
+  testWidgets('does NOT render the redundant filter chips (Pass 2C)',
+      (t) async {
+    // Operator dropped the chip row below the hero — the TopNavBar is
+    // now the single source of truth for the filter. We still expect
+    // "Anime" because the default-filter row composition includes an
+    // Anime PosterRow; "Tutto" should not appear anywhere.
     await pump(t);
-    expect(find.text('Tutto'), findsOneWidget);
-    expect(find.text('Film'), findsOneWidget);
-    expect(find.text('Serie TV'), findsOneWidget);
-    expect(find.text('Anime'), findsAtLeastNWidgets(1)); // chip + Anime row
+    await t.pumpAndSettle();
+    expect(find.text('Tutto'), findsNothing);
+    // Other chip labels overlap with valid TopNavBar tab names — the
+    // test fakes don't mount the top nav, so they should be absent here.
+    expect(find.text('Serie TV'), findsNothing);
   });
 
   // Helper: scroll the page ListView until the row with the given title
@@ -216,12 +222,12 @@ void main() {
     // P2 (2026-05-17): /film now renders a full Netflix-style catalog
     // with ~13 rows so the operator can browse by genre. Tests assert
     // the new top-row + a couple of representative genre rows
-    // materialize after scrolling.
+    // materialize after scrolling. Pass 2C dropped the chip row, so
+    // "Anime" no longer appears at the top of /film — the movie row
+    // set is movie-only.
     await pump(t, filter: 'movie');
     await t.pumpAndSettle();
     expect(find.text('Tendenze film oggi'), findsOneWidget);
-    // "Anime" chip is visible at top of page even on the /film route.
-    expect(find.text('Anime'), findsOneWidget);
     await scrollUntilTitle(t, 'Azione');
     expect(find.text('Azione'), findsOneWidget);
     await scrollUntilTitle(t, 'Crime & Thriller');

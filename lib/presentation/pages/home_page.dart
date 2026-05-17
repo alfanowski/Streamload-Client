@@ -20,8 +20,10 @@
 //
 // The optional [filter] parameter (null / movie / tv / anime) is passed
 // from the /film, /serie, /anime routes — it narrows the row composition
-// to the relevant subset. Filter chips below the hero let the user
-// switch between filters without leaving Home.
+// to the relevant subset. The top nav (TopNavBar) is the single source
+// of truth for the active filter — Pass 2C dropped the redundant filter
+// chip row below the hero per operator feedback ("le chips in basso non
+// mi piacciono").
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -39,7 +41,6 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/hero/hero_carousel.dart';
-import '../widgets/press_feedback.dart';
 import '../widgets/rows/poster_row.dart';
 
 class HomePage extends ConsumerStatefulWidget {
@@ -82,7 +83,6 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     final filter = widget.filter;
-    final isPhone = Responsive.isPhone(context);
     final heroHeight = _heroHeightFor(context);
 
     return DecoratedBox(
@@ -107,15 +107,13 @@ class _HomePageState extends ConsumerState<HomePage> {
           // trending titles. On loading / error, we render a backdrop
           // placeholder of the same height.
           _HeroSection(height: heroHeight),
-          // Filter chips below the hero. Always shown so the user can
-          // jump between /film/serie/anime/all without leaving Home.
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isPhone ? 16 : 48,
-              vertical: 16,
-            ),
-            child: _FilterChips(current: filter),
-          ),
+          // Pass 2C: the per-page filter chip row was dropped per
+          // operator feedback. The TopNavBar already exposes Home /
+          // Film / Serie TV / Anime / La mia lista — duplicating those
+          // choices below the hero was visual noise without adding
+          // affordance. The filter routing still works via the top nav
+          // tabs.
+          const SizedBox(height: 24),
           // Rows section. Each row is hidden when the filter excludes it.
           ..._buildRows(context, filter),
           const SizedBox(height: 60),
@@ -641,81 +639,6 @@ class _HeroPlaceholder extends StatelessWidget {
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Filter chips (Home / Film / Serie TV / Anime)
-// ──────────────────────────────────────────────────────────────────────────
-
-class _FilterChips extends ConsumerWidget {
-  const _FilterChips({this.current});
-  final String? current;
-
-  static const _entries = <({String? filter, String label, String path})>[
-    (filter: null, label: 'Tutto', path: '/home'),
-    (filter: 'movie', label: 'Film', path: '/film'),
-    (filter: 'tv', label: 'Serie TV', path: '/serie'),
-    (filter: 'anime', label: 'Anime', path: '/anime'),
-  ];
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final e in _entries)
-          _Chip(
-            label: e.label,
-            selected: e.filter == current,
-            onTap: () => context.go(e.path),
-          ),
-      ],
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = selected
-        ? StreamloadColors.v3CtaPrimaryBg
-        : StreamloadColors.v3SurfaceGlass;
-    final fg = selected
-        ? StreamloadColors.v3CtaPrimaryFg
-        : StreamloadColors.v3TextPrimary;
-    return PressFeedback(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Text(label,
-                  style: StreamloadTypography.v3CtaLabel(color: fg)),
-            ),
-          ),
-        ),
       ),
     );
   }
