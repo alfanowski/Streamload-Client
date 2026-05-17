@@ -156,15 +156,20 @@ class StreamloadTypography {
       );
 
   /// Metadata mono ("2025 · 8 ep · IT · ⭐ 7.8") — read like a data row.
-  static TextStyle v3MetaMono({Color? color}) => GoogleFonts.jetBrainsMono(
-        fontSize: 11,
+  /// Default 11 keeps existing call sites; PersonPage uses 13 for the
+  /// birth/place line under the editorial hero name, and CastCard uses
+  /// 10 under each portrait.
+  static TextStyle v3MetaMono({double fontSize = 11, Color? color}) =>
+      GoogleFonts.jetBrainsMono(
+        fontSize: fontSize,
         fontWeight: FontWeight.w400,
         color: color ?? StreamloadColors.v3TextSecondary,
       );
 
   /// Label mono ("IN EVIDENZA", "EPISODI") — uppercase, wide tracking, small.
-  static TextStyle v3LabelMono({Color? color}) => GoogleFonts.jetBrainsMono(
-        fontSize: 9,
+  static TextStyle v3LabelMono({double fontSize = 9, Color? color}) =>
+      GoogleFonts.jetBrainsMono(
+        fontSize: fontSize,
         fontWeight: FontWeight.w600,
         letterSpacing: 2.0,
         color: color ?? StreamloadColors.v3TextMuted,
