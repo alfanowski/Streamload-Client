@@ -174,17 +174,6 @@ void main() {
     expect(find.text('Anime'), findsAtLeastNWidgets(1)); // chip + Anime row
   });
 
-  // Helper: drag the outer page scrollable downward by [px] so off-screen
-  // rows get built. We dispatch the drag at the very top of the page so
-  // we hit the vertical (page) ListView rather than the horizontal rows
-  // inside it.
-  Future<void> scrollPage(WidgetTester t, double px) async {
-    final list = find.byType(ListView).first;
-    await t.drag(list, Offset(0, -px));
-    await t.pump();
-    await t.pump(const Duration(milliseconds: 16));
-  }
-
   // Helper: scroll the page ListView until the row with the given title
   // is visible. Returns once visible; throws if not found in [maxSteps]
   // 400px steps. Use this instead of fixed-N scrolls so test assertions
