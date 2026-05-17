@@ -15,6 +15,10 @@
 // so the sidebar doesn't visually shout while TMDB resolves.
 // Error / empty state: hidden entirely — the page reads cleanly without
 // a "no credits" placeholder. Genres still render from the catalog item.
+//
+// 2026-05-17 (CM-2 / CM-6): the Pass 2B LiquidGlass card around the
+// blocks was dropped. The sidebar is now flat text against the page
+// background, with a hairline divider between each section. Editorial.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -24,7 +28,6 @@ import '../../../state/home_rows_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
-import '../liquid_glass.dart';
 
 class TitleSidebar extends ConsumerWidget {
   const TitleSidebar({super.key, required this.item});
@@ -38,46 +41,34 @@ class TitleSidebar extends ConsumerWidget {
         TmdbKey(tmdbId: item.tmdbId, mediaType: item.mediaType),
       ),
     );
-    // Pass 2B (2026-05-17): the three info blocks (CAST / CREATO DA /
-    // GENERI) are tucked inside a soft LiquidGlass card so the sidebar
-    // reads as a discrete surface instead of bare text floating on the
-    // page background. The glass picks up the hero gradient bleed at the
-    // top of the page, then settles into a quiet translucent panel
-    // further down — matches the Apple TV+ aesthetic where every block
-    // feels like its own card.
-    return LiquidGlass(
-      borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius + 4),
-      opacity: 0.06,
-      blur: 18,
-      borderOpacity: 0.10,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          async.when(
-            loading: () => const _SidebarSkeleton(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (credits) => _SidebarBody(credits: credits),
-          ),
-          if (item.genres.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            _Block(
-              label: 'GENERI',
-              value: item.genres.join(', '),
-            ),
-          ],
-        ],
+    final blocks = <Widget>[
+      ...async.when(
+        loading: () => <Widget>[const _SidebarSkeleton()],
+        error: (_, __) => const <Widget>[],
+        data: (credits) => _SidebarBody.buildBlocks(credits),
       ),
+      if (item.genres.isNotEmpty)
+        _Block(
+          label: 'GENERI',
+          value: item.genres.join(', '),
+        ),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < blocks.length; i++) ...[
+          if (i > 0) const _Divider(),
+          blocks[i],
+        ],
+      ],
     );
   }
 }
 
-class _SidebarBody extends StatelessWidget {
-  const _SidebarBody({required this.credits});
-  final CatalogCredits credits;
-
-  @override
-  Widget build(BuildContext context) {
+class _SidebarBody {
+  /// Build the CAST / CREATO DA blocks (genres are appended by the parent
+  /// so the divider layout stays consistent).
+  static List<Widget> buildBlocks(CatalogCredits credits) {
     final cast = credits.cast;
     final crew = credits.crew;
     final castNames = cast.map((p) => p.name).join(', ');
@@ -93,17 +84,10 @@ class _SidebarBody extends StatelessWidget {
     final crewLine = crewByJob.values
         .map((names) => names.join(', '))
         .join(' · ');
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (castNames.isNotEmpty)
-          _Block(label: 'CAST', value: castNames),
-        if (castNames.isNotEmpty && crewLine.isNotEmpty)
-          const SizedBox(height: 20),
-        if (crewLine.isNotEmpty)
-          _Block(label: 'CREATO DA', value: crewLine),
-      ],
-    );
+    return [
+      if (castNames.isNotEmpty) _Block(label: 'CAST', value: castNames),
+      if (crewLine.isNotEmpty) _Block(label: 'CREATO DA', value: crewLine),
+    ];
   }
 }
 
@@ -114,16 +98,36 @@ class _Block extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: StreamloadTypography.v3LabelMono()),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: StreamloadTypography.v3Body(fontSize: 12),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // CM-6: label uses v3LabelMono (already uppercase, wide-tracked
+          // mono) — the brief asks for italic, but JetBrainsMono's italic
+          // glyphs are too informal for a sidebar label. We keep the
+          // existing label style; the editorial pivot is carried by the
+          // hairline dividers + flat layout.
+          Text(label, style: StreamloadTypography.v3LabelMono()),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: StreamloadTypography.v3Body(fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  const _Divider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      color: StreamloadColors.v3BorderGlass,
     );
   }
 }
@@ -144,25 +148,28 @@ class _SidebarSkeleton extends StatelessWidget {
             ),
           ),
         );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'CAST',
-          style: StreamloadTypography.v3LabelMono(),
-        ),
-        const SizedBox(height: 6),
-        bar(0.9),
-        const SizedBox(height: 6),
-        bar(0.6),
-        const SizedBox(height: 20),
-        Text(
-          'CREATO DA',
-          style: StreamloadTypography.v3LabelMono(),
-        ),
-        const SizedBox(height: 6),
-        bar(0.5),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'CAST',
+            style: StreamloadTypography.v3LabelMono(),
+          ),
+          const SizedBox(height: 8),
+          bar(0.9),
+          const SizedBox(height: 6),
+          bar(0.6),
+          const SizedBox(height: 16),
+          Text(
+            'CREATO DA',
+            style: StreamloadTypography.v3LabelMono(),
+          ),
+          const SizedBox(height: 8),
+          bar(0.5),
+        ],
+      ),
     );
   }
 }

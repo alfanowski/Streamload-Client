@@ -28,12 +28,10 @@ import '../../../state/favorites_provider.dart';
 import '../../../state/title_provider.dart';
 import '../../responsive.dart';
 import '../../theme/colors.dart';
-import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
 import '../hero/hero_backdrop.dart';
-import '../liquid_glass.dart';
 import '../play_cta.dart';
-import '../press_feedback.dart';
+import '../text_cta.dart';
 
 class TitleHero extends ConsumerWidget {
   const TitleHero({
@@ -87,20 +85,32 @@ class _Metadata extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final horizontalPad = isPhone ? 16.0 : 48.0;
+    // CM-6 editorial sizing: big serif title that anchors the page, mono
+    // meta in the band below, 32 px breathing room before the CTAs.
+    final isTablet = Responsive.isTablet(context);
+    final horizontalPad = isPhone ? 16.0 : 64.0;
     final align =
         isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start;
-    final titleSize = isPhone ? 28.0 : 36.0;
+    final titleSize = isPhone
+        ? 40.0
+        : isTablet
+            ? 52.0
+            : 64.0;
+    final bottomInset = isPhone
+        ? 32.0
+        : isTablet
+            ? 64.0
+            : 96.0;
     final maxBlockWidth = isPhone
         ? availableWidth - (horizontalPad * 2)
-        : (availableWidth * 0.5).clamp(360.0, 760.0);
+        : (availableWidth * 0.55).clamp(360.0, 800.0);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
         horizontalPad,
         0,
         horizontalPad,
-        isPhone ? 24.0 : 40.0,
+        bottomInset,
       ),
       child: Align(
         alignment: isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
@@ -117,7 +127,7 @@ class _Metadata extends ConsumerWidget {
                 ),
                 textAlign: isPhone ? TextAlign.center : TextAlign.start,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
                 item.title,
                 style: StreamloadTypography.v3DisplayHero()
@@ -126,17 +136,16 @@ class _Metadata extends ConsumerWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               Text(
                 _metaLine(item),
-                style: StreamloadTypography.v3MetaMono(),
+                style: StreamloadTypography.v3MetaMono().copyWith(fontSize: 13),
                 textAlign: isPhone ? TextAlign.center : TextAlign.start,
               ),
-              // 2026-05-17 (P4 hotfix): the truncated 3-line synopsis used
-              // to render here too, which doubled up with the full TRAMA
-              // block in the body. Operator wants the hero terse — title,
-              // meta, CTAs — and the full synopsis below.
-              const SizedBox(height: 14),
+              // CM-6: 32 px gap between meta and CTAs so the typographic
+              // cluster reads as its own block, not a continuation of the
+              // meta line.
+              const SizedBox(height: 32),
               _Ctas(
                 item: item,
                 onShare: onShare,
@@ -259,8 +268,17 @@ class _Ctas extends ConsumerWidget {
       error: (_, __) => const PlayCta(state: PlayCtaState.unavailable),
     );
 
-    final ctaAdd = _AddPill(
-      isAdded: isFav,
+    // CM-4 / CM-6: La mia lista and Condividi become typographic TextCtas
+    // — the AnimatedSwitcher between "＋ La mia lista" and "✓ Nella lista"
+    // becomes a label swap on the same TextCta.
+    final addLabel = isFav ? 'Nella lista' : 'La mia lista';
+    final addLeading = isFav ? '✓' : '＋';
+    final ctaAdd = TextCta(
+      label: addLabel,
+      leading: addLeading,
+      // Once added the trailing arrow looks odd — leave it bare so the
+      // CTA reads as "this is a state, not a destination".
+      trailing: isFav ? '' : '→',
       onTap: () async {
         try {
           await ref.read(favoritesProvider.notifier).toggle(key);
@@ -274,24 +292,33 @@ class _Ctas extends ConsumerWidget {
       },
     );
 
-    final ctaShare = _ShareCircle(onTap: onShare);
+    final ctaShare = Tooltip(
+      message: 'Condividi link',
+      // We use an Icon-equivalent inside a TextCta via the leading slot
+      // (↗) so the share affordance reads consistently with the cluster.
+      child: TextCta(
+        label: 'Condividi',
+        leading: '↗',
+        onTap: onShare,
+      ),
+    );
 
     if (stackVertical) {
       return Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ctaPlay,
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           ctaAdd,
-          const SizedBox(height: 8),
-          Align(alignment: Alignment.centerLeft, child: ctaShare),
+          const SizedBox(height: 12),
+          ctaShare,
         ],
       );
     }
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: 32,
+      runSpacing: 16,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [ctaPlay, ctaAdd, ctaShare],
     );
@@ -301,86 +328,5 @@ class _Ctas extends ConsumerWidget {
     if (resume != null) return 'Riprendi';
     if (item.mediaType == 'tv') return 'Guarda S1 E1';
     return 'Guarda';
-  }
-}
-
-/// Toggle pill — collapses favorites add/remove + visual "in list" state
-/// into a single CTA. Pass 2B wraps it in LiquidGlass so the surface
-/// reads as wet glass over the hero backdrop; the "added" state warms
-/// the tint with the brand yellow so the user sees the toggle landed.
-class _AddPill extends StatelessWidget {
-  const _AddPill({required this.isAdded, required this.onTap});
-  final bool isAdded;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final pill = LiquidGlass(
-      borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-      // Once in the list, tint with the brand yellow at low alpha so the
-      // pill subtly glows in brand color without becoming a primary CTA.
-      tint: isAdded ? StreamloadColors.v3AccentYellow : null,
-      opacity: isAdded ? 0.18 : 0.14,
-      blur: 22,
-      borderOpacity: isAdded ? 0.30 : 0.25,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              child: Text(
-                isAdded ? '✓ Nella lista' : '＋ La mia lista',
-                key: ValueKey(isAdded),
-                style: StreamloadTypography.v3CtaLabel(
-                  color: StreamloadColors.v3TextPrimary,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    return PressFeedback(child: pill);
-  }
-}
-
-class _ShareCircle extends StatelessWidget {
-  const _ShareCircle({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    // LiquidGlass-wrapped circular button — same wet-rim treatment as
-    // the other secondary CTAs in the hero strip.
-    final circle = LiquidGlass(
-      borderRadius: BorderRadius.circular(40),
-      opacity: 0.14,
-      blur: 22,
-      borderOpacity: 0.25,
-      child: Material(
-        color: Colors.transparent,
-        shape: const CircleBorder(),
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onTap,
-          child: const Padding(
-            padding: EdgeInsets.all(StreamloadSpacing.cardGap),
-            child: Icon(
-              Icons.ios_share,
-              size: 18,
-              color: StreamloadColors.v3TextPrimary,
-            ),
-          ),
-        ),
-      ),
-    );
-    return Tooltip(
-      message: 'Condividi link',
-      child: PressFeedback(child: circle),
-    );
   }
 }

@@ -123,7 +123,7 @@ void main() {
     expect(find.text('page:/home'), findsOneWidget);
   });
 
-  testWidgets('background animates from glass to solid when scrolled flips',
+  testWidgets('background flips from v3BgBase to v3BgScrolled when scrolled',
       (t) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -139,14 +139,10 @@ void main() {
     }
 
     final initial = findBg();
-    // Pass 2B: top-bar background substrate alpha bumped DOWN to 0.35
-    // because LiquidGlass adds its own white tint on top. Combined the
-    // surface still reads as v3BgScrolled-glass over the hero, but the
-    // raw AnimatedContainer color reflects only the substrate now.
-    expect(initial.a, lessThan(1.0));
-    expect(initial, equals(
-      StreamloadColors.v3BgScrolled.withValues(alpha: 0.35),
-    ));
+    // CM-2 (2026-05-17): the Pass 2B LiquidGlass substrate was dropped.
+    // The nav is now a solid warm-tinted near-black surface that just
+    // flips between v3BgBase and v3BgScrolled, no transparency tricks.
+    expect(initial, equals(StreamloadColors.v3BgBase));
 
     container.read(navScrolledProvider.notifier).state = true;
     await t.pumpAndSettle();

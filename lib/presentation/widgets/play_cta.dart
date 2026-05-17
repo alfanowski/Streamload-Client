@@ -1,21 +1,24 @@
 // lib/presentation/widgets/play_cta.dart
 //
-// v3 primary CTA pill — renders one of three states:
-//   - checking      : spinner inside the pill, ~800ms typical lifetime while
-//                     ProviderRouter.probeAvailability runs
-//   - play          : enabled tappable pill, label "▶ Guarda" (or custom)
-//   - unavailable   : dimmed non-tappable pill with localized
-//                     "Al momento non disponibile" — the exact tone the user
-//                     asked for instead of a clickable button that errors
+// v3 primary CTA — renders one of three states:
+//   - checking      : tiny spinner before the label, ~800ms typical
+//                     lifetime while ProviderRouter.probeAvailability
+//                     runs.
+//   - play          : typographic CTA, label "Guarda →" (or custom);
+//                     tappable.
+//   - unavailable   : dimmed label "Al momento non disponibile" + no
+//                     underline animation; non-tappable.
+//
+// 2026-05-17 (CM-2 / CM-4): PlayCta is now a thin wrapper around TextCta
+// (the Cinema Magazine typographic CTA primitive). The pill shape +
+// AnimatedContainer + InkWell + PressFeedback all live inside TextCta
+// now. Callers don't need to change — the API is the same.
 //
 // Used in: title page header (Phase E), home hero CTA (Phase D), continue-
 // watching card overlay (Phase E).
 import 'package:flutter/material.dart';
 
-import '../theme/colors.dart';
-import '../theme/spacing.dart';
-import '../theme/typography.dart';
-import 'press_feedback.dart';
+import 'text_cta.dart';
 
 enum PlayCtaState { checking, play, unavailable }
 
@@ -30,8 +33,10 @@ class PlayCta extends StatelessWidget {
   /// One of the three lifecycle states.
   final PlayCtaState state;
 
-  /// Used only in [PlayCtaState.play]. Receives a leading "▶ " prefix.
-  /// Pass without prefix; e.g. "Guarda", "Riprendi", "Guarda S1 E1".
+  /// Used only in [PlayCtaState.play]. NO leading prefix — the typographic
+  /// CTA appends a trailing arrow on its own, and the play arrow is no
+  /// longer baked in (editorial wants the label to read as text).
+  /// Pass e.g. "Guarda", "Riprendi", "Guarda S1 E1".
   final String label;
 
   /// Fired in [PlayCtaState.play] only — ignored otherwise.
@@ -39,56 +44,27 @@ class PlayCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isUnavailable = state == PlayCtaState.unavailable;
-    final bg = isUnavailable
-        ? StreamloadColors.v3CtaUnavailableBg
-        : StreamloadColors.v3CtaPrimaryBg;
-    final fg = isUnavailable
-        ? StreamloadColors.v3CtaUnavailableFg
-        : StreamloadColors.v3CtaPrimaryFg;
-    final pill = AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: state == PlayCtaState.play ? onTap : null,
-          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-            child: _content(fg),
-          ),
-        ),
-      ),
-    );
-    // Only the tappable Play state gets the press-down feedback; checking
-    // and unavailable look static and shouldn't squeeze under a click.
-    return state == PlayCtaState.play ? PressFeedback(child: pill) : pill;
-  }
-
-  Widget _content(Color fg) {
     switch (state) {
       case PlayCtaState.checking:
-        return SizedBox(
-          width: 16,
-          height: 16,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation(fg),
-          ),
+        return TextCta(
+          label: label,
+          busy: true,
+          // Don't render the trailing arrow while loading — the spinner
+          // reads as the affordance for "we're working on it".
+          trailing: '',
+          // Busy makes TextCta non-tappable regardless of onTap.
+          onTap: onTap,
         );
       case PlayCtaState.play:
-        return Text(
-          '▶ $label',
-          style: StreamloadTypography.v3CtaLabel(color: fg),
+        return TextCta(
+          label: label,
+          onTap: onTap,
         );
       case PlayCtaState.unavailable:
-        return Text(
-          'Al momento non disponibile',
-          style: StreamloadTypography.v3CtaLabel(color: fg),
+        return const TextCta(
+          label: 'Al momento non disponibile',
+          enabled: false,
+          trailing: '',
         );
     }
   }

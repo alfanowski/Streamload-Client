@@ -16,6 +16,11 @@
 //
 // 2026-05-16 (P1 hotfix): the trailer is no longer rendered, so we
 // don't override titleTrailerProvider anymore.
+//
+// 2026-05-17 (CM-2 / CM-4): the share affordance became a typographic
+// "↗ Condividi" TextCta (no Icon), and the "＋ La mia lista" / "✓
+// Nella lista" toggle became a TextCta with separate leading + label
+// Texts. Tests now find by label text instead of by Icon.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -94,8 +99,10 @@ void main() {
     await t.pumpWidget(host(TitleHero(item: movieItem, onShare: () {})));
     await t.pumpAndSettle();
     expect(find.text('Inception'), findsOneWidget);
-    expect(find.text('▶ Guarda'), findsOneWidget);
-    expect(find.text('＋ La mia lista'), findsOneWidget);
+    // CM-4: PlayCta is now a typographic TextCta wrapper — "Guarda →".
+    // La mia lista and Condividi are also TextCtas with "label →" form.
+    expect(find.text('Guarda →'), findsOneWidget);
+    expect(find.text('La mia lista →'), findsOneWidget);
     // No trailer overridden → no 🔊 toggle.
     expect(find.byIcon(Icons.volume_off), findsNothing);
   });
@@ -103,7 +110,7 @@ void main() {
   testWidgets('tv title shows Guarda S1 E1 when no progress', (t) async {
     await t.pumpWidget(host(TitleHero(item: tvItem, onShare: () {})));
     await t.pumpAndSettle();
-    expect(find.text('▶ Guarda S1 E1'), findsOneWidget);
+    expect(find.text('Guarda S1 E1 →'), findsOneWidget);
   });
 
   testWidgets('tv title shows Riprendi when continue-watching has it',
@@ -125,7 +132,7 @@ void main() {
       ],
     ));
     await t.pumpAndSettle();
-    expect(find.text('▶ Riprendi'), findsOneWidget);
+    expect(find.text('Riprendi →'), findsOneWidget);
   });
 
   testWidgets('share icon copies deep link to clipboard', (t) async {
@@ -152,7 +159,8 @@ void main() {
       },
     )));
     await t.pumpAndSettle();
-    await t.tap(find.byIcon(Icons.ios_share));
+    // CM-4: share is the typographic "↗ Condividi" TextCta, not an Icon.
+    await t.tap(find.text('Condividi →'));
     await t.pumpAndSettle();
     expect(sharedCount, 1);
     expect(copied, 'streamload://title/27205?media_type=movie');
@@ -169,10 +177,13 @@ void main() {
       extra: [favoritesApiProvider.overrideWith((_) async => fav)],
     ));
     await t.pumpAndSettle();
-    expect(find.text('＋ La mia lista'), findsOneWidget);
-    await t.tap(find.text('＋ La mia lista'));
+    // CM-4: leading + label render as separate Texts; the trailing arrow
+    // hangs off the label until the item is added (no arrow on the
+    // "Nella lista" state — it reads as a state, not a destination).
+    expect(find.text('La mia lista →'), findsOneWidget);
+    await t.tap(find.text('La mia lista →'));
     await t.pumpAndSettle();
-    expect(find.text('✓ Nella lista'), findsOneWidget);
+    expect(find.text('Nella lista'), findsOneWidget);
     verify(() => fav.add(27205, 'movie')).called(1);
   });
 
@@ -202,7 +213,7 @@ void main() {
     final cta = t.widget<PlayCta>(find.byType(PlayCta));
     expect(cta.state, PlayCtaState.checking);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
-    expect(find.text('▶ Guarda'), findsNothing);
+    expect(find.text('Guarda →'), findsNothing);
     expect(find.text('Al momento non disponibile'), findsNothing);
   });
 
@@ -215,7 +226,7 @@ void main() {
     expect(cta.state, PlayCtaState.play);
     expect(cta.label, 'Guarda');
     expect(cta.onTap, isNotNull);
-    expect(find.text('▶ Guarda'), findsOneWidget);
+    expect(find.text('Guarda →'), findsOneWidget);
     expect(find.text('Al momento non disponibile'), findsNothing);
   });
 
@@ -233,14 +244,12 @@ void main() {
     final cta = t.widget<PlayCta>(find.byType(PlayCta));
     expect(cta.state, PlayCtaState.unavailable);
     expect(find.text('Al momento non disponibile'), findsOneWidget);
-    expect(find.text('▶ Guarda'), findsNothing);
+    expect(find.text('Guarda →'), findsNothing);
 
-    // The pill is non-tappable in the unavailable state — InkWell.onTap
-    // is null. Tapping should NOT throw and should NOT trigger any
-    // navigation (we don't have a /watch route registered in `host`).
+    // CM-4 unavailable TextCta has no onTap wired — tapping should not
+    // throw and should not trigger navigation (no /watch route in host).
     await t.tap(find.text('Al momento non disponibile'));
     await t.pumpAndSettle();
-    // Still on the unavailable state — no rebuild changed anything.
     expect(find.text('Al momento non disponibile'), findsOneWidget);
   });
 
@@ -295,8 +304,8 @@ void main() {
     ));
     await t.pumpAndSettle();
 
-    expect(find.text('▶ Guarda S1 E1'), findsOneWidget);
-    await t.tap(find.text('▶ Guarda S1 E1'));
+    expect(find.text('Guarda S1 E1 →'), findsOneWidget);
+    await t.tap(find.text('Guarda S1 E1 →'));
     await t.pumpAndSettle();
     expect(find.text('WATCH_PAGE'), findsOneWidget);
     expect(landedOn, '/watch/1396?media_type=tv&season=1&episode=1');

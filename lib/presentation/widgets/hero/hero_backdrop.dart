@@ -23,11 +23,11 @@
 // (some TMDB entries — especially recent / niche — only have the poster).
 // Without it the operator was seeing a solid black hero with no image.
 //
-// Pass 2F (2026-05-17): the backdrop image now slowly zooms 1.00 → 1.05
-// over [kenBurnsDuration] (25 s) via an AnimationController driven by
-// TickerProvider — Ken Burns ambient motion. Subtle, constant; reads as
-// cinematic without distracting the eye. The controller resets when the
-// image URL changes so the new slide starts fresh at 1.00.
+// 2026-05-17 (CM-2): the Pass 2F Ken Burns ambient zoom was dropped.
+// Magazine editorial heroes are still — they let the image breathe and
+// give the typography centre stage. The previous AnimationController +
+// Tween + AnimatedBuilder are gone; the backdrop is now a plain
+// CachedNetworkImage inside the Stack.
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -79,79 +79,21 @@ class HeroBackdrop extends StatelessWidget {
   }
 }
 
-/// Ambient Ken Burns motion: the backdrop image slowly zooms from
-/// scale 1.00 → 1.05 over this duration. Long enough to read as a
-/// gentle drift, not a snap. When the backdrop URL changes (carousel
-/// advance), the controller resets to 1.00 for the new slide.
-const Duration kKenBurnsDuration = Duration(seconds: 25);
-
-class _Backdrop extends StatefulWidget {
+class _Backdrop extends StatelessWidget {
   const _Backdrop({this.url, this.fallbackUrl});
   final String? url;
   final String? fallbackUrl;
 
   @override
-  State<_Backdrop> createState() => _BackdropState();
-}
-
-class _BackdropState extends State<_Backdrop>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _kenBurns;
-  late Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _kenBurns = AnimationController(
-      vsync: this,
-      duration: kKenBurnsDuration,
-    );
-    _scale = Tween<double>(begin: 1.0, end: 1.05).animate(CurvedAnimation(
-      parent: _kenBurns,
-      curve: Curves.easeInOut,
-    ));
-    // In tests the 25-second forward() makes pumpAndSettle time out on
-    // every page that mounts a hero. Tests get the static 1.0 frame;
-    // real runtime gets the ambient drift.
-    if (WidgetsBinding.instance.runtimeType.toString() ==
-        'WidgetsFlutterBinding') {
-      _kenBurns.forward();
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant _Backdrop oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Reset the zoom on a fresh slide so each backdrop drifts from 1.0
-    // instead of jumping into the middle of the previous animation.
-    if (oldWidget.url != widget.url ||
-        oldWidget.fallbackUrl != widget.fallbackUrl) {
-      _kenBurns.reset();
-      if (WidgetsBinding.instance.runtimeType.toString() ==
-          'WidgetsFlutterBinding') {
-        _kenBurns.forward();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _kenBurns.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final primary = (widget.url == null || widget.url!.isEmpty) ? null : widget.url;
+    final primary = (url == null || url!.isEmpty) ? null : url;
     final fallback =
-        (widget.fallbackUrl == null || widget.fallbackUrl!.isEmpty)
-            ? null
-            : widget.fallbackUrl;
+        (fallbackUrl == null || fallbackUrl!.isEmpty) ? null : fallbackUrl;
     final chosen = primary ?? fallback;
     if (chosen == null) {
       return Container(color: StreamloadColors.v3BgBase);
     }
-    final image = CachedNetworkImage(
+    return CachedNetworkImage(
       imageUrl: chosen,
       fit: BoxFit.cover,
       placeholder: (_, __) => Container(color: StreamloadColors.v3BgBase),
@@ -171,17 +113,6 @@ class _BackdropState extends State<_Backdrop>
         return Container(color: StreamloadColors.v3BgBase);
       },
     );
-    return AnimatedBuilder(
-      animation: _scale,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _scale.value,
-          alignment: Alignment.center,
-          child: child,
-        );
-      },
-      child: image,
-    );
   }
 }
 
@@ -190,6 +121,10 @@ class _BottomGradient extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // CM-5 will own the editorial gradient (transparent top, warm
+    // #0F0E0D 70% over the last 35% of height). For now keep the
+    // existing dark-on-bottom legibility scrim so other hero callers
+    // (TitleHero before CM-6) still get usable contrast.
     return IgnorePointer(
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -200,7 +135,7 @@ class _BottomGradient extends StatelessWidget {
             colors: [
               Colors.transparent,
               Colors.transparent,
-              const Color(0xFF000000).withValues(alpha: 0.8),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.8),
             ],
           ),
         ),

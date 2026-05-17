@@ -110,13 +110,10 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-/// Pass 2F (2026-05-17): the bare fade was bumped to a combined fade +
-/// scale 0.96 → 1.0 transition over 280 ms — Apple-style 'depth'
-/// transition that makes navigation feel like the new page steps
-/// forward into view rather than appearing flat. Curve stays
-/// easeOutCubic so the motion settles smoothly without spring overshoot.
-/// Applied to every inner-shell route so navigation feels like a single
-/// continuous canvas rather than discrete page swaps.
+/// 2026-05-17 (CM-2): the Pass 2F "depth" combined fade + scale was
+/// reverted to a pure 250 ms ease-out fade. The scale-up felt like a
+/// cheap reveal effect against the editorial pivot — pages should just
+/// settle into place without theatrics.
 GoRoute _fadeRoute(
     String path, Widget Function(BuildContext, GoRouterState) builder) {
   return GoRoute(
@@ -124,20 +121,15 @@ GoRoute _fadeRoute(
     pageBuilder: (ctx, state) => CustomTransitionPage<void>(
       key: state.pageKey,
       child: builder(ctx, state),
-      transitionDuration: const Duration(milliseconds: 280),
-      reverseTransitionDuration: const Duration(milliseconds: 220),
+      transitionDuration: const Duration(milliseconds: 250),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
       transitionsBuilder: (_, animation, __, child) {
-        final curved = CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-        );
         return FadeTransition(
-          opacity: curved,
-          child: ScaleTransition(
-            // Subtle 0.96 → 1.0 scale; reads as 'page steps forward'.
-            scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
-            child: child,
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOut,
           ),
+          child: child,
         );
       },
     ),

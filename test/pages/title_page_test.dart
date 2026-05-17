@@ -96,7 +96,8 @@ void main() {
       // block now, not in the hero — so exactly one match.
       expect(find.text('A hero rises.'), findsOneWidget);
       expect(find.text('TRAMA'), findsOneWidget);
-      expect(find.text('▶ Guarda'), findsOneWidget);
+      // CM-4: PlayCta is now a typographic TextCta — "Guarda →".
+      expect(find.text('Guarda →'), findsOneWidget);
     });
 
     testWidgets('phone layout still renders title', (tester) async {
@@ -151,7 +152,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Breaking Bad'), findsOneWidget);
-      expect(find.text('▶ Guarda S1 E1'), findsOneWidget);
+      expect(find.text('Guarda S1 E1 →'), findsOneWidget);
     });
 
     testWidgets('desktop layout renders 2-col synopsis + sidebar',

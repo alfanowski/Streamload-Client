@@ -4,8 +4,6 @@
 //
 // Pass 2E (2026-05-17): operator dropped the filter chip row + asked for
 // a Netflix-style search experience. The page now:
-//   - Has a bigger glass-pill input (LiquidGlass wrapper, Inter 24 px,
-//     14 px vertical pad) sitting under the top nav.
 //   - Skips the Tutto / Film / Serie TV / Anime chip row entirely; all
 //     media types mix into the same grid.
 //   - When the query is empty, renders a "Ricerche di tendenza" row of
@@ -14,6 +12,11 @@
 //   - The grid is full-bleed: 24 px page padding on desktop / tablet,
 //     12 px on phone.
 //   - Loading state: skeleton grid bumped to 24 cells (was 12).
+//
+// CM-2 (2026-05-17): the Pass 2E LiquidGlass pill input got swapped for
+// a plain TextField on transparent with a hairline underline. The
+// editorial pivot wants the search input to read like a magazine
+// search field, not an iOS spotlight.
 //
 // The URL is still the source of truth for the query (?q=<query>),
 // the input mirrors it on mount, and submitting writes back via
@@ -33,7 +36,6 @@ import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
-import '../widgets/liquid_glass.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
 import '../widgets/shimmer.dart';
@@ -255,46 +257,54 @@ class _SearchInput extends StatelessWidget {
       shortcuts: const <ShortcutActivator, Intent>{
         SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
       },
-      child: LiquidGlass(
-        borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius * 2),
-        opacity: 0.10,
-        blur: 28,
-        borderOpacity: 0.20,
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
-        child: Row(
-          children: [
-            Icon(
-              Icons.search,
-              color: StreamloadColors.v3TextSecondary,
-              size: 26,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: StreamloadColors.v3BorderGlass,
+              width: 1,
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                cursorColor: StreamloadColors.v3TextPrimary,
-                cursorWidth: 1.5,
-                textInputAction: TextInputAction.search,
-                onSubmitted: onSubmitted,
-                style: const TextStyle(
-                  color: StreamloadColors.v3TextPrimary,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w400,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Cerca un titolo, una serie o un anime…',
-                  hintStyle: StreamloadTypography.v3MetaMono(
-                    color: StreamloadColors.v3TextMuted,
-                  ).copyWith(fontSize: 18),
-                  border: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  isCollapsed: true,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Icon(
+                Icons.search,
+                color: StreamloadColors.v3TextSecondary,
+                size: 26,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  cursorColor: StreamloadColors.v3TextPrimary,
+                  cursorWidth: 1.5,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: onSubmitted,
+                  style: StreamloadTypography.display(
+                    fontSize: 28,
+                    italic: true,
+                    color: StreamloadColors.v3TextPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Cerca un titolo, una serie o un anime…',
+                    hintStyle: StreamloadTypography.display(
+                      fontSize: 22,
+                      italic: true,
+                      color: StreamloadColors.v3TextMuted,
+                    ),
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                    isCollapsed: true,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

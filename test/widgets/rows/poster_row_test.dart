@@ -1,8 +1,12 @@
 // test/widgets/rows/poster_row_test.dart
 //
-// PosterRow renders title + N PosterCards, shows the count chip and the
-// "Vedi tutti →" link when seeAllTo is set, and uses placeholder cards
-// during the loading state.
+// PosterRow renders title + N PosterCards and the "Vedi tutti →" link
+// when seeAllTo is set, and uses placeholder cards during the loading
+// state.
+//
+// 2026-05-17 (CM-7): the count chip ("3" badge next to the title) was
+// dropped — editorial pages don't carry badge counts. The first test
+// only asserts title + N cards now.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,19 +60,19 @@ void main() {
         ),
       );
 
-  testWidgets('renders title + N PosterCards + count chip', (t) async {
+  testWidgets('renders title + N PosterCards', (t) async {
     await pumpRow(t, PosterRow(title: 'Tendenze oggi', items: items(3)));
 
     expect(find.text('Tendenze oggi'), findsOneWidget);
-    expect(find.text('3'), findsOneWidget);
+    // CM-7: no count chip anymore — editorial header.
+    expect(find.text('3'), findsNothing);
     expect(find.byType(PosterCard), findsNWidgets(3));
   });
 
-  testWidgets('hides count chip when items is empty (no loading)', (t) async {
+  testWidgets('header still renders when items is empty (no loading)',
+      (t) async {
     await pumpRow(t, const PosterRow(title: 'Empty', items: []));
     expect(find.text('Empty'), findsOneWidget);
-    // Count chip text "0" should not appear (we only render when items > 0)
-    expect(find.text('0'), findsNothing);
   });
 
   testWidgets('"Vedi tutti →" link is present when seeAllTo set', (t) async {

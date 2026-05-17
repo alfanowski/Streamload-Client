@@ -2,7 +2,8 @@
 //
 // Phase B3 — StreamloadBottomTabBar renders 4 tabs (Home / Cerca / La mia
 // lista / Profilo); each tap navigates to its path; the active tab uses
-// v3AccentYellow (Pass 2A) while inactive use v3TextMuted.
+// v3TextPrimary (warm off-white, CM-2) while inactive use v3TextMuted.
+// The Pass 2A yellow tint was dropped in the Cinema Magazine pivot.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,7 +72,7 @@ void main() {
     expect(find.text('page:/profile'), findsOneWidget);
   });
 
-  testWidgets('active tab uses v3AccentYellow, others use v3TextMuted',
+  testWidgets('active tab uses v3TextPrimary, others use v3TextMuted',
       (t) async {
     await pumpBar(t, initial: '/search');
     await t.pump();
@@ -79,7 +80,7 @@ void main() {
     final searchIcon = t.widget<Icon>(find.byIcon(Icons.search));
     final homeIcon = t.widget<Icon>(find.byIcon(Icons.home_outlined));
 
-    expect(searchIcon.color, StreamloadColors.v3AccentYellow);
+    expect(searchIcon.color, StreamloadColors.v3TextPrimary);
     expect(homeIcon.color, StreamloadColors.v3TextMuted);
   });
 }

@@ -13,28 +13,29 @@
 // compatibility but is ignored.
 //
 // HeroSlide is the *home* flavour of a hero panel — it bakes in a
-// "▶ Guarda" PlayCta + "＋ La mia lista" glass pill so HeroCarousel can
+// "Guarda →" TextCta + "＋ La mia lista" TextCta so HeroCarousel can
 // hand it pure data + onPlay / onAdd callbacks. The title page uses
 // HeroBackdrop directly with its own CTA row (Phase E1) because it
-// needs a richer set (Guarda S1 E1 / Riprendi / share / dynamic add).
+// needs a richer set (Guarda S1 E1 / Riprendi / La mia lista / share /
+// dynamic add).
 //
 // Responsive:
 //   - desktop / tablet : ~480 / 360 px tall, bottom-left ~40% width block
 //   - phone            : 65% viewport height, full-width stacked metadata,
 //                        CTAs stack vertically below 380px
 //
-// Pass 2F (2026-05-17): the metadata block fades in + slides up 20 px on
-// initial layout via an AnimationController. Combined with the
-// PageView's own crossfade, this gives the impression that the
-// metadata 'lands' into place when a new slide takes over the hero.
+// 2026-05-17 (CM-2): the Pass 2F metadata fade+slide-up StatefulWidget
+// was dropped — metadata is just there, statically. The PageView's own
+// crossfade handles slide-to-slide transitions; the metadata doesn't
+// need to "land" on top of that. CM-4 also swapped the LiquidGlass pill
+// for a typographic TextCta cluster.
 import 'package:flutter/material.dart';
 
 import '../../responsive.dart';
 import '../../theme/colors.dart';
-import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
-import '../liquid_glass.dart';
 import '../play_cta.dart';
+import '../text_cta.dart';
 import 'hero_backdrop.dart';
 
 class HeroSlide extends StatelessWidget {
@@ -69,7 +70,9 @@ class HeroSlide extends StatelessWidget {
   /// TMDB rating (0..10). Shown as "⭐ 7.8".
   final double? rating;
 
-  /// 1-2 line summary. Ellipsised on phone to 1 line.
+  /// 1-2 line summary. CM-5 drops this from the hero — the synopsis lives
+  /// in the title page body. The param stays for source compatibility but
+  /// no longer renders.
   final String? synopsis;
 
   /// TMDB backdrop URL (w1280 is fine; the hero stretches anyway).
@@ -90,7 +93,7 @@ class HeroSlide extends StatelessWidget {
   /// Locale chip shown in the meta line. Defaults to "IT".
   final String languageCode;
 
-  /// Primary CTA (▶ Guarda) tap handler.
+  /// Primary CTA (Guarda →) tap handler.
   final VoidCallback? onPlay;
 
   /// Secondary CTA (＋ La mia lista) tap handler.
@@ -111,7 +114,6 @@ class HeroSlide extends StatelessWidget {
             Positioned.fill(
               child: _MetadataBlock(
                 title: title,
-                synopsis: synopsis,
                 metaLine: _metaLine(),
                 label: label,
                 isPhone: isPhone,
@@ -143,10 +145,9 @@ class HeroSlide extends StatelessWidget {
   }
 }
 
-class _MetadataBlock extends StatefulWidget {
+class _MetadataBlock extends StatelessWidget {
   const _MetadataBlock({
     required this.title,
-    required this.synopsis,
     required this.metaLine,
     required this.label,
     required this.isPhone,
@@ -156,7 +157,6 @@ class _MetadataBlock extends StatefulWidget {
   });
 
   final String title;
-  final String? synopsis;
   final String metaLine;
   final String label;
   final bool isPhone;
@@ -165,112 +165,62 @@ class _MetadataBlock extends StatefulWidget {
   final double availableWidth;
 
   @override
-  State<_MetadataBlock> createState() => _MetadataBlockState();
-}
-
-class _MetadataBlockState extends State<_MetadataBlock>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _enter;
-  late final Animation<double> _fade;
-  late final Animation<Offset> _slide;
-
-  @override
-  void initState() {
-    super.initState();
-    // 600 ms enter — slow enough to feel cinematic, fast enough that
-    // the user starts reading the title immediately after the carousel
-    // advances.
-    _enter = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    )..forward();
-    _fade = CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic);
-    _slide = Tween<Offset>(
-      begin: const Offset(0, 0.10), // 10% of metadata height = ~20-30 px
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic));
-  }
-
-  @override
-  void didUpdateWidget(covariant _MetadataBlock oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Re-trigger the enter animation if the title changed (e.g. the
-    // parent carousel swapped to a different slide while reusing the
-    // same _MetadataBlock element).
-    if (oldWidget.title != widget.title) {
-      _enter
-        ..reset()
-        ..forward();
-    }
-  }
-
-  @override
-  void dispose() {
-    _enter.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final isPhone = widget.isPhone;
-    return FadeTransition(
-      opacity: _fade,
-      child: SlideTransition(
-        position: _slide,
-        child: _buildContent(context, isPhone),
-      ),
-    );
-  }
-
-  Widget _buildContent(BuildContext context, bool isPhone) {
-    final horizontalPad = isPhone ? 16.0 : 48.0;
-    final align = isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start;
-    final titleSize = isPhone ? 28.0 : 36.0;
+    // CM-5: title size 56 / 44 / 36 by breakpoint. Tablet branch was
+    // implicit before (just "not phone"); we now make it explicit so the
+    // hero typography down-scales gracefully on iPad.
+    final isTablet = Responsive.isTablet(context);
+    final horizontalPad = isPhone ? 16.0 : 64.0;
+    final align =
+        isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+    final titleSize = isPhone
+        ? 36.0
+        : isTablet
+            ? 44.0
+            : 56.0;
+    // CM-5 bottom inset: title should sit HIGH in the hero (96 desktop /
+    // 64 tablet / 32 phone). Editorial framing — the title looks placed
+    // on the image, not stuck to the bottom edge.
+    final bottomInset = isPhone
+        ? 32.0
+        : isTablet
+            ? 64.0
+            : 96.0;
     // Width budget for the text column — keep narrow on desktop so the
     // synopsis stays readable instead of stretching across the whole hero.
     final maxBlockWidth = isPhone
-        ? widget.availableWidth - (horizontalPad * 2)
-        : (widget.availableWidth * 0.45).clamp(360.0, 720.0);
+        ? availableWidth - (horizontalPad * 2)
+        : (availableWidth * 0.5).clamp(360.0, 760.0);
 
     final children = <Widget>[
       Text(
-        widget.label,
+        label,
         style: StreamloadTypography.v3LabelMono(
           color: StreamloadColors.v3TextSecondary,
         ),
         textAlign: isPhone ? TextAlign.center : TextAlign.start,
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: 12),
       Text(
-        widget.title,
+        title,
         style: StreamloadTypography.v3DisplayHero().copyWith(fontSize: titleSize),
         textAlign: isPhone ? TextAlign.center : TextAlign.start,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
       ),
-      const SizedBox(height: 8),
+      const SizedBox(height: 12),
       Text(
-        widget.metaLine,
-        style: StreamloadTypography.v3MetaMono(),
+        metaLine,
+        style: StreamloadTypography.v3MetaMono().copyWith(fontSize: 12),
         textAlign: isPhone ? TextAlign.center : TextAlign.start,
       ),
-      if (widget.synopsis != null && widget.synopsis!.isNotEmpty) ...[
-        const SizedBox(height: 10),
-        Text(
-          widget.synopsis!,
-          style: StreamloadTypography.v3Body(
-            color: StreamloadColors.v3TextSecondary,
-          ),
-          maxLines: isPhone ? 1 : 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: isPhone ? TextAlign.center : TextAlign.start,
-        ),
-      ],
-      const SizedBox(height: 14),
+      // CM-5 dropped the synopsis from the hero — the full TRAMA lives
+      // in the title page body. Keeps the hero terse.
+      const SizedBox(height: 24),
       _Ctas(
-        availableWidth: widget.availableWidth - (horizontalPad * 2),
-        onPlay: widget.onPlay,
-        onAdd: widget.onAdd,
+        availableWidth: availableWidth - (horizontalPad * 2),
+        onPlay: onPlay,
+        onAdd: onAdd,
       ),
     ];
 
@@ -279,7 +229,7 @@ class _MetadataBlockState extends State<_MetadataBlock>
         horizontalPad,
         0,
         horizontalPad,
-        isPhone ? 24.0 : 40.0,
+        bottomInset,
       ),
       child: Align(
         alignment: isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
@@ -310,70 +260,39 @@ class _Ctas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stackVertical = availableWidth < 380;
+    // CM-4: hero CTA is the typographic Guarda → / Riprendi → variant.
+    // For the home hero we always assume "play" — the title page has its
+    // own availability-aware wrapper.
     final ctaPlay = PlayCta(
       state: PlayCtaState.play,
       label: 'Guarda',
       onTap: onPlay,
     );
-    final ctaAdd = _GlassPill(
-      label: '＋ La mia lista',
+    final ctaAdd = TextCta(
+      label: 'La mia lista',
+      leading: '＋',
       onTap: onAdd,
     );
 
     if (stackVertical) {
       return Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           ctaPlay,
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           ctaAdd,
         ],
       );
     }
     return Wrap(
-      spacing: 10,
-      runSpacing: 10,
+      spacing: 32,
+      runSpacing: 16,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         ctaPlay,
         ctaAdd,
       ],
-    );
-  }
-}
-
-/// Glass-pill secondary CTA — used by "＋ La mia lista". Pass 2B wraps
-/// the surface in LiquidGlass so it picks up the wet-edge highlight +
-/// blur over the hero backdrop, instead of a flat translucent fill.
-class _GlassPill extends StatelessWidget {
-  const _GlassPill({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return LiquidGlass(
-      borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-      opacity: 0.14,
-      blur: 24,
-      borderOpacity: 0.25,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-            child: Text(
-              label,
-              style: StreamloadTypography.v3CtaLabel(
-                color: StreamloadColors.v3TextPrimary,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
