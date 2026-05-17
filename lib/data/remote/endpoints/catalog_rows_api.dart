@@ -2,9 +2,9 @@
 //
 // Thin client wrapper over the backend's /api/catalog/rows/* endpoints
 // (sub-plan 8, Phase D1). The backend proxies TMDB so the client never
-// sees the API key. Default row length is 40 items (bumped from 20 per
-// operator feedback May 16 — home rows felt repetitive). Callers can
-// pass a custom [limit] (1..100) and [page] for paginated reads.
+// sees the API key. Default row length is 60 items (bumped from 20 →
+// 40 → 60 over two passes of operator feedback). Callers can pass a
+// custom [limit] (1..100) and [page] for paginated reads.
 //
 // We talk to dio directly (not ApiClient.getJson) because the responses
 // are JSON arrays — ApiClient only unwraps object responses. The cookie
@@ -12,10 +12,10 @@
 import '../../../domain/models/media_summary.dart';
 import '../api_client.dart';
 
-/// Default row length — matches the backend default. Bumped from 20 → 40
-/// per operator (May 16): home felt repetitive with only 20 cards per
-/// horizontal row.
-const int kDefaultRowLimit = 40;
+/// Default row length — matches the backend default. Bumped from 20 →
+/// 40 (May 16) → 60 (May 17) per operator: rows still looked thin at
+/// 40, 60 = 3 TMDB pages, enough for ~3 viewport-widths of scroll.
+const int kDefaultRowLimit = 60;
 
 abstract class CatalogRowsApi {
   /// Trending across both types or filtered to a single media type.

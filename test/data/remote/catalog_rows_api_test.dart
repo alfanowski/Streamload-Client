@@ -25,7 +25,7 @@ void main() {
     );
   }
 
-  test('trending() defaults to period=week, media_type=all, limit=40, page=1',
+  test('trending() defaults to period=week, media_type=all, limit=60, page=1',
       () async {
     final dio = _DioMock();
     when(() => dio.get<dynamic>(
@@ -33,7 +33,7 @@ void main() {
           queryParameters: {
             'period': 'week',
             'media_type': 'all',
-            'limit': 40,
+            'limit': 60,
             'page': 1,
           },
         )).thenAnswer((_) async => mkResp([
@@ -66,7 +66,7 @@ void main() {
     final dio = _DioMock();
     when(() => dio.get<dynamic>(
           '/api/catalog/rows/new-releases',
-          queryParameters: {'media_type': 'movie', 'limit': 40, 'page': 1},
+          queryParameters: {'media_type': 'movie', 'limit': 60, 'page': 1},
         )).thenAnswer((_) async => mkResp(
               [
                 {'tmdb_id': 9, 'media_type': 'movie', 'title': 'N'},
@@ -87,7 +87,7 @@ void main() {
             'genre_ids': '80,53',
             'media_type': 'movie',
             'original_language': 'it',
-            'limit': 40,
+            'limit': 60,
             'page': 1,
           },
         )).thenAnswer((_) async => mkResp(
@@ -110,7 +110,7 @@ void main() {
     final dio = _DioMock();
     when(() => dio.get<dynamic>(
           '/api/catalog/rows/top-rated',
-          queryParameters: {'media_type': 'tv', 'limit': 40, 'page': 1},
+          queryParameters: {'media_type': 'tv', 'limit': 60, 'page': 1},
         )).thenAnswer((_) async => mkResp(
               [
                 {'tmdb_id': 12, 'media_type': 'tv', 'title': 'GOAT'},
@@ -127,7 +127,7 @@ void main() {
     final dio = _DioMock();
     when(() => dio.get<dynamic>(
           '/api/catalog/1396/similar',
-          queryParameters: {'media_type': 'tv', 'limit': 40},
+          queryParameters: {'media_type': 'tv', 'limit': 60},
         )).thenAnswer((_) async => mkResp(
               [
                 {'tmdb_id': 1397, 'media_type': 'tv', 'title': 'sim'},
@@ -136,7 +136,7 @@ void main() {
             ));
     when(() => dio.get<dynamic>(
           '/api/catalog/1396/recommendations',
-          queryParameters: {'media_type': 'tv', 'limit': 40},
+          queryParameters: {'media_type': 'tv', 'limit': 60},
         )).thenAnswer((_) async => mkResp(
               [
                 {'tmdb_id': 1398, 'media_type': 'tv', 'title': 'rec'},
@@ -158,7 +158,7 @@ void main() {
           queryParameters: {
             'period': 'week',
             'media_type': 'all',
-            'limit': 40,
+            'limit': 60,
             'page': 1,
           },
         )).thenAnswer((_) async => Response<dynamic>(
