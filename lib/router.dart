@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'presentation/pages/home_page.dart';
 import 'presentation/pages/library_page.dart';
+import 'presentation/pages/person_page.dart';
 import 'presentation/pages/plugin_onboarding_page.dart';
 import 'presentation/pages/profile_completion_page.dart';
 import 'presentation/pages/profile_page.dart';
@@ -82,6 +83,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           _fadeRoute('/title/:tmdbId', (ctx, state) => TitlePage(
                 tmdbId: int.parse(state.pathParameters['tmdbId']!),
                 mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+              )),
+          // Pass 3 CAST-5 — actor / director dedicated page. CastCard
+          // taps and any future "person link" land here.
+          _fadeRoute('/person/:tmdbId', (ctx, state) => PersonPage(
+                tmdbId: int.parse(state.pathParameters['tmdbId']!),
               )),
           _fadeRoute('/watch/:tmdbId', (ctx, state) => WatchPage(
                 request: PlaybackRequest(
