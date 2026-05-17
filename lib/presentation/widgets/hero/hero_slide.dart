@@ -28,6 +28,7 @@ import '../../responsive.dart';
 import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
+import '../liquid_glass.dart';
 import '../play_cta.dart';
 import 'hero_backdrop.dart';
 
@@ -280,7 +281,9 @@ class _Ctas extends StatelessWidget {
   }
 }
 
-/// Glass-pill secondary CTA — used by "＋ La mia lista".
+/// Glass-pill secondary CTA — used by "＋ La mia lista". Pass 2B wraps
+/// the surface in LiquidGlass so it picks up the wet-edge highlight +
+/// blur over the hero backdrop, instead of a flat translucent fill.
 class _GlassPill extends StatelessWidget {
   const _GlassPill({required this.label, required this.onTap});
   final String label;
@@ -288,12 +291,11 @@ class _GlassPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: StreamloadColors.v3CtaSecondaryBg,
-        borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-        border: Border.all(color: StreamloadColors.v3BorderGlass),
-      ),
+    return LiquidGlass(
+      borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
+      opacity: 0.14,
+      blur: 24,
+      borderOpacity: 0.25,
       child: Material(
         color: Colors.transparent,
         child: InkWell(

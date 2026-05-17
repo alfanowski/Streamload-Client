@@ -9,14 +9,18 @@
 // Settings + logout live behind the Profilo tab on phone (full-page
 // profile screen) — no avatar popover here. That mirrors the spec's
 // "no modals on phone" rule.
-import 'dart:ui';
-
+//
+// Pass 2B (2026-05-17): the BackdropFilter + colored DecoratedBox was
+// replaced with the LiquidGlass primitive so the phone bottom bar reads
+// as Apple-style liquid glass — same blur, but with the wet-rim
+// highlight along the top edge and the subtle diagonal tint gradient.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/colors.dart';
 import '../theme/typography.dart';
+import 'liquid_glass.dart';
 
 class StreamloadBottomTabBar extends ConsumerWidget {
   const StreamloadBottomTabBar({super.key});
@@ -31,32 +35,37 @@ class StreamloadBottomTabBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = GoRouterState.of(context).matchedLocation;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: StreamloadColors.v3BgScrolled.withValues(alpha: 0.85),
-            border: Border(
-              top: BorderSide(color: StreamloadColors.v3BorderGlass),
-            ),
+    return LiquidGlass(
+      borderRadius: BorderRadius.zero,
+      // The bar sits on a pure-black page bg most of the time. Push the
+      // opacity a hair higher than the top nav so labels stay legible
+      // even when the user is on the Search page (which is a flat dark
+      // surface, no hero backdrop to bleed through).
+      opacity: 0.25,
+      blur: 28,
+      borderOpacity: 0.10,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: StreamloadColors.v3BgScrolled.withValues(alpha: 0.55),
+          border: Border(
+            top: BorderSide(color: StreamloadColors.v3BorderGlass),
           ),
-          child: SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  for (final tab in _tabs)
-                    _Tab(
-                      icon: tab.icon,
-                      label: tab.label,
-                      path: tab.path,
-                      active: _isActive(current, tab.path),
-                    ),
-                ],
-              ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                for (final tab in _tabs)
+                  _Tab(
+                    icon: tab.icon,
+                    label: tab.label,
+                    path: tab.path,
+                    active: _isActive(current, tab.path),
+                  ),
+              ],
             ),
           ),
         ),

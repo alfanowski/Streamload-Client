@@ -39,14 +39,18 @@ class AvatarMenu extends ConsumerWidget {
     return PopupMenuButton<_AvatarAction>(
       tooltip: 'Account',
       offset: const Offset(0, 32),
-      // P5 (2026-05-17): the previous v3SurfaceGlassMax (white @ 15%) was
-      // unreadable over light Home backdrops — PopupMenu doesn't apply a
-      // BackdropFilter blur, so all that white-on-white "glass" did was
-      // wash out the text. Use a near-solid dark surface with a stronger
-      // glass border for crisp contrast on any page background.
+      // Pass 2B (2026-05-17): PopupMenu doesn't render an underlying
+      // BackdropFilter substrate, so a real LiquidGlass surface would
+      // wash out without anything to blur. We keep v3PopoverBg as the
+      // near-solid dark base (carries text legibility on any page) and
+      // bumping the elevation + shadow + a brighter outer rim border
+      // gives the same "lifted glass card" feel without the rendering
+      // pitfalls. The Liquid Glass aesthetic in the spec is applied to
+      // surfaces that float over a backdrop (top/bottom nav, search
+      // overlay) — popovers stay opaque on purpose.
       color: StreamloadColors.v3PopoverBg,
-      elevation: 12,
-      shadowColor: Colors.black.withValues(alpha: 0.4),
+      elevation: 24,
+      shadowColor: Colors.black.withValues(alpha: 0.55),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(StreamloadSpacing.chipRadius),
         side: BorderSide(

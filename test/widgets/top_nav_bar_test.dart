@@ -139,10 +139,13 @@ void main() {
     }
 
     final initial = findBg();
-    // Glass starts translucent.
+    // Pass 2B: top-bar background substrate alpha bumped DOWN to 0.35
+    // because LiquidGlass adds its own white tint on top. Combined the
+    // surface still reads as v3BgScrolled-glass over the hero, but the
+    // raw AnimatedContainer color reflects only the substrate now.
     expect(initial.a, lessThan(1.0));
     expect(initial, equals(
-      StreamloadColors.v3BgScrolled.withValues(alpha: 0.85),
+      StreamloadColors.v3BgScrolled.withValues(alpha: 0.35),
     ));
 
     container.read(navScrolledProvider.notifier).state = true;

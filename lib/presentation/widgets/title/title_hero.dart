@@ -31,6 +31,7 @@ import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
 import '../hero/hero_backdrop.dart';
+import '../liquid_glass.dart';
 import '../play_cta.dart';
 import '../press_feedback.dart';
 
@@ -304,8 +305,9 @@ class _Ctas extends ConsumerWidget {
 }
 
 /// Toggle pill — collapses favorites add/remove + visual "in list" state
-/// into a single CTA that animates via AnimatedContainer. We keep the
-/// same width via fixed padding so the row doesn't jump on toggle.
+/// into a single CTA. Pass 2B wraps it in LiquidGlass so the surface
+/// reads as wet glass over the hero backdrop; the "added" state warms
+/// the tint with the brand yellow so the user sees the toggle landed.
 class _AddPill extends StatelessWidget {
   const _AddPill({required this.isAdded, required this.onTap});
   final bool isAdded;
@@ -313,16 +315,14 @@ class _AddPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pill = AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
-      decoration: BoxDecoration(
-        color: isAdded
-            ? StreamloadColors.v3SurfaceGlassHi
-            : StreamloadColors.v3CtaSecondaryBg,
-        borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-        border: Border.all(color: StreamloadColors.v3BorderGlass),
-      ),
+    final pill = LiquidGlass(
+      borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
+      // Once in the list, tint with the brand yellow at low alpha so the
+      // pill subtly glows in brand color without becoming a primary CTA.
+      tint: isAdded ? StreamloadColors.v3AccentYellow : null,
+      opacity: isAdded ? 0.18 : 0.14,
+      blur: 22,
+      borderOpacity: isAdded ? 0.30 : 0.25,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -330,10 +330,14 @@ class _AddPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-            child: Text(
-              isAdded ? '✓ Nella lista' : '＋ La mia lista',
-              style: StreamloadTypography.v3CtaLabel(
-                color: StreamloadColors.v3TextPrimary,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              child: Text(
+                isAdded ? '✓ Nella lista' : '＋ La mia lista',
+                key: ValueKey(isAdded),
+                style: StreamloadTypography.v3CtaLabel(
+                  color: StreamloadColors.v3TextPrimary,
+                ),
               ),
             ),
           ),
@@ -350,20 +354,26 @@ class _ShareCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final circle = Material(
-      color: StreamloadColors.v3CtaSecondaryBg,
-      shape: CircleBorder(
-        side: BorderSide(color: StreamloadColors.v3BorderGlass),
-      ),
-      child: InkWell(
-        customBorder: const CircleBorder(),
-        onTap: onTap,
-        child: const Padding(
-          padding: EdgeInsets.all(StreamloadSpacing.cardGap),
-          child: Icon(
-            Icons.ios_share,
-            size: 18,
-            color: StreamloadColors.v3TextPrimary,
+    // LiquidGlass-wrapped circular button — same wet-rim treatment as
+    // the other secondary CTAs in the hero strip.
+    final circle = LiquidGlass(
+      borderRadius: BorderRadius.circular(40),
+      opacity: 0.14,
+      blur: 22,
+      borderOpacity: 0.25,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: const Padding(
+            padding: EdgeInsets.all(StreamloadSpacing.cardGap),
+            child: Icon(
+              Icons.ios_share,
+              size: 18,
+              color: StreamloadColors.v3TextPrimary,
+            ),
           ),
         ),
       ),

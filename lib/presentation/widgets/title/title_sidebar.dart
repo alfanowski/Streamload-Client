@@ -24,6 +24,7 @@ import '../../../state/home_rows_provider.dart';
 import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
+import '../liquid_glass.dart';
 
 class TitleSidebar extends ConsumerWidget {
   const TitleSidebar({super.key, required this.item});
@@ -37,22 +38,36 @@ class TitleSidebar extends ConsumerWidget {
         TmdbKey(tmdbId: item.tmdbId, mediaType: item.mediaType),
       ),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        async.when(
-          loading: () => const _SidebarSkeleton(),
-          error: (_, __) => const SizedBox.shrink(),
-          data: (credits) => _SidebarBody(credits: credits),
-        ),
-        if (item.genres.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _Block(
-            label: 'GENERI',
-            value: item.genres.join(', '),
+    // Pass 2B (2026-05-17): the three info blocks (CAST / CREATO DA /
+    // GENERI) are tucked inside a soft LiquidGlass card so the sidebar
+    // reads as a discrete surface instead of bare text floating on the
+    // page background. The glass picks up the hero gradient bleed at the
+    // top of the page, then settles into a quiet translucent panel
+    // further down — matches the Apple TV+ aesthetic where every block
+    // feels like its own card.
+    return LiquidGlass(
+      borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius + 4),
+      opacity: 0.06,
+      blur: 18,
+      borderOpacity: 0.10,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          async.when(
+            loading: () => const _SidebarSkeleton(),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (credits) => _SidebarBody(credits: credits),
           ),
+          if (item.genres.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _Block(
+              label: 'GENERI',
+              value: item.genres.join(', '),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

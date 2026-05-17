@@ -35,6 +35,7 @@ import '../../state/api_client_provider.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import 'liquid_glass.dart';
 import 'press_feedback.dart';
 
 /// Live search FutureProvider used by [SearchOverlay] (and reusable by
@@ -246,33 +247,54 @@ class _SearchInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      autofocus: true,
-      cursorColor: StreamloadColors.v3TextPrimary,
-      cursorWidth: 1.5,
-      textInputAction: TextInputAction.search,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      style: const TextStyle(
-        color: StreamloadColors.v3TextPrimary,
-        fontSize: 22,
-        fontWeight: FontWeight.w400,
-      ),
-      decoration: InputDecoration(
-        // Use the v3 mono token for the placeholder per spec ("indie
-        // editorial" feel — metadata as data).
-        hintText: 'Cerca un titolo…',
-        hintStyle: StreamloadTypography.v3MetaMono(
-          color: StreamloadColors.v3TextMuted,
-        ).copyWith(fontSize: 22),
-        // No border, no fill — the blurred backdrop carries the surface.
-        border: InputBorder.none,
-        focusedBorder: InputBorder.none,
-        enabledBorder: InputBorder.none,
-        contentPadding: EdgeInsets.zero,
-        isCollapsed: true,
+    // Pass 2B (2026-05-17): the bare TextField is now wrapped in a
+    // LiquidGlass pill with a leading search icon — gives the overlay a
+    // visible, tappable surface for the input instead of floating text
+    // on a blurred backdrop. The radius is large (pillRadius * 2) so it
+    // reads as a Netflix-style search bar, not a chip.
+    return LiquidGlass(
+      borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius * 2),
+      opacity: 0.14,
+      blur: 28,
+      borderOpacity: 0.22,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+      child: Row(
+        children: [
+          Icon(
+            Icons.search,
+            color: StreamloadColors.v3TextSecondary,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              autofocus: true,
+              cursorColor: StreamloadColors.v3TextPrimary,
+              cursorWidth: 1.5,
+              textInputAction: TextInputAction.search,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
+              style: const TextStyle(
+                color: StreamloadColors.v3TextPrimary,
+                fontSize: 22,
+                fontWeight: FontWeight.w400,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Cerca un titolo…',
+                hintStyle: StreamloadTypography.v3MetaMono(
+                  color: StreamloadColors.v3TextMuted,
+                ).copyWith(fontSize: 22),
+                border: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                isCollapsed: true,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

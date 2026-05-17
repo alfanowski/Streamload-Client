@@ -14,8 +14,13 @@
 //
 // Phone variant is the StreamloadBottomTabBar in bottom_tab_bar.dart — this
 // widget is desktop / tablet only and is not used on phone.
-import 'dart:ui';
-
+//
+// Pass 2B (2026-05-17): the BackdropFilter + Container glass surface was
+// replaced by the LiquidGlass primitive so the nav reads as Apple-style
+// "wet glass" instead of a flat translucent strip. When the user scrolls
+// past 80 px the AnimatedContainer fades to v3BgScrolled (~solid black)
+// like before; while still at the top, LiquidGlass with 35% opacity over
+// the page backdrop gives the wet-rim highlight + saturated tint.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +31,7 @@ import '../theme/colors.dart';
 import '../theme/motion.dart';
 import '../theme/typography.dart';
 import 'avatar_menu.dart';
+import 'liquid_glass.dart';
 import 'search_overlay.dart';
 
 class TopNavBar extends ConsumerWidget {
@@ -49,76 +55,84 @@ class TopNavBar extends ConsumerWidget {
     final scrolled = ref.watch(navScrolledProvider);
     final bg = scrolled
         ? StreamloadColors.v3BgScrolled
-        : StreamloadColors.v3BgScrolled.withValues(alpha: 0.85);
+        : StreamloadColors.v3BgScrolled.withValues(alpha: 0.35);
     final currentLoc = GoRouterState.of(context).matchedLocation;
 
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: AnimatedContainer(
-          duration: StreamloadMotion.navBarFade,
-          decoration: BoxDecoration(color: bg),
-          child: SafeArea(
-            bottom: false,
-            child: LayoutBuilder(builder: (context, constraints) {
-              // Tighten horizontal padding + tab gap on narrow tablet widths
-              // so the 5 tabs + logo + search + avatar still fit.
-              final tight = constraints.maxWidth < 1000;
-              final hPad = tight ? 16.0 : 28.0;
-              final tabGap = tight ? 14.0 : 22.0;
-              final logoGap = tight ? 16.0 : 28.0;
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 12),
-                child: Row(
-                  children: [
-                    const _Logo(),
-                    SizedBox(width: logoGap),
-                    // Tabs in a flexible scrollable region — keeps the search
-                    // + avatar pinned to the right edge even at the most
-                    // compressed tablet widths, and gracefully scrolls if a
-                    // localization pushes labels too wide.
-                    Flexible(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 0; i < _tabs.length; i++) ...[
-                              _NavTab(
-                                label: _tabs[i].label,
-                                path: _tabs[i].path,
-                                active: _isActive(
-                                    currentLoc, _tabs[i].path),
-                              ),
-                              if (i < _tabs.length - 1)
-                                SizedBox(width: tabGap),
-                            ],
+    return LiquidGlass(
+      // Sharp corners — the bar is full-width and pinned to the device
+      // top, no rounding.
+      borderRadius: BorderRadius.zero,
+      // We layer LiquidGlass + AnimatedContainer so the surface goes from
+      // "glass over hero" → "solid black after scroll". LiquidGlass owns
+      // the blur + the wet highlight; the AnimatedContainer animates the
+      // tint substrate underneath.
+      opacity: scrolled ? 0.0 : 0.18,
+      borderOpacity: scrolled ? 0.0 : 0.12,
+      highlight: false,
+      blur: scrolled ? 0 : 30,
+      child: AnimatedContainer(
+        duration: StreamloadMotion.navBarFade,
+        decoration: BoxDecoration(color: bg),
+        child: SafeArea(
+          bottom: false,
+          child: LayoutBuilder(builder: (context, constraints) {
+            // Tighten horizontal padding + tab gap on narrow tablet widths
+            // so the 5 tabs + logo + search + avatar still fit.
+            final tight = constraints.maxWidth < 1000;
+            final hPad = tight ? 16.0 : 28.0;
+            final tabGap = tight ? 14.0 : 22.0;
+            final logoGap = tight ? 16.0 : 28.0;
+            return Padding(
+              padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 12),
+              child: Row(
+                children: [
+                  const _Logo(),
+                  SizedBox(width: logoGap),
+                  // Tabs in a flexible scrollable region — keeps the search
+                  // + avatar pinned to the right edge even at the most
+                  // compressed tablet widths, and gracefully scrolls if a
+                  // localization pushes labels too wide.
+                  Flexible(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < _tabs.length; i++) ...[
+                            _NavTab(
+                              label: _tabs[i].label,
+                              path: _tabs[i].path,
+                              active:
+                                  _isActive(currentLoc, _tabs[i].path),
+                            ),
+                            if (i < _tabs.length - 1)
+                              SizedBox(width: tabGap),
                           ],
-                        ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // Desktop / tablet: open the live-suggestions overlay
-                    // (G1). Phone is handled by the bottom tab bar, but
-                    // we keep the responsive branch here so resizing the
-                    // window to a phone width still does the right thing
-                    // (navigates to the dedicated /search page instead).
-                    _SearchButton(
-                      onTap: () {
-                        if (Responsive.isPhone(context)) {
-                          context.go('/search');
-                        } else {
-                          SearchOverlay.show(context);
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 12),
-                    const AvatarMenu(),
-                  ],
-                ),
-              );
-            }),
-          ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Desktop / tablet: open the live-suggestions overlay
+                  // (G1). Phone is handled by the bottom tab bar, but
+                  // we keep the responsive branch here so resizing the
+                  // window to a phone width still does the right thing
+                  // (navigates to the dedicated /search page instead).
+                  _SearchButton(
+                    onTap: () {
+                      if (Responsive.isPhone(context)) {
+                        context.go('/search');
+                      } else {
+                        SearchOverlay.show(context);
+                      }
+                    },
+                  ),
+                  const SizedBox(width: 12),
+                  const AvatarMenu(),
+                ],
+              ),
+            );
+          }),
         ),
       ),
     );
