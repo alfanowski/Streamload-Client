@@ -24,6 +24,13 @@
 // of truth for the active filter — Pass 2C dropped the redundant filter
 // chip row below the hero per operator feedback ("le chips in basso non
 // mi piacciono").
+//
+// 2026-05-17 (Cinema Magazine pivot, CM-8): the default Home row count
+// dropped 9 → 6 (Tendenze oggi + Continua + Nuove uscite + La mia lista
+// + Visti di recente + Top di sempre). Operator wants less density —
+// "less is more" in editorial. The /film, /serie, /anime filter
+// catalogs keep their fuller compositions because they're the BROWSE
+// pages — there the user is explicitly looking for variety.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -139,59 +146,21 @@ class _HomePageState extends ConsumerState<HomePage> {
   // ──────────────────────────────────────────────────────────────────
 
   List<Widget> _buildDefaultRows() {
-    // /home — mix of movie + tv across categories. Continue watching
-    // and "La mia lista" are user-specific rows, so they only show on
-    // the default tab.
+    // CM-8 (2026-05-17): trimmed to 6 rows — Tendenze oggi + Continua +
+    // Nuove uscite + La mia lista + Visti di recente + Top di sempre.
+    // The previous genre rows (Crime & Thriller / Commedie italiane /
+    // Anime / Documentari) moved off Home: the filter catalogs
+    // (/film, /serie, /anime) carry them. Editorial /home is a curated
+    // landing page, not a catalog browser.
     final rows = <Widget>[];
-    _addRow(rows, const _ContinueWatchingRow());
     _addRow(rows,
         _RowConsumer(title: 'Tendenze oggi', provider: trendingDayProvider));
+    _addRow(rows, const _ContinueWatchingRow());
     _addRow(
       rows,
       _RowConsumer(
         title: 'Nuove uscite',
         provider: newReleasesAllProvider,
-      ),
-    );
-    _addRow(
-      rows,
-      _RowConsumer(
-        title: 'Crime & Thriller',
-        provider: byGenreProvider(const GenreRowKey(
-          genreIds: [80, 53],
-          mediaType: 'movie',
-        )),
-      ),
-    );
-    _addRow(
-      rows,
-      _RowConsumer(
-        title: 'Commedie italiane',
-        provider: byGenreProvider(const GenreRowKey(
-          genreIds: [35],
-          mediaType: 'movie',
-          originalLanguage: 'it',
-        )),
-      ),
-    );
-    _addRow(
-      rows,
-      _RowConsumer(
-        title: 'Anime',
-        provider: byGenreProvider(const GenreRowKey(
-          genreIds: [16],
-          mediaType: 'tv',
-        )),
-      ),
-    );
-    _addRow(
-      rows,
-      _RowConsumer(
-        title: 'Documentari',
-        provider: byGenreProvider(const GenreRowKey(
-          genreIds: [99],
-          mediaType: 'tv',
-        )),
       ),
     );
     _addRow(rows, const _MyListRow());
@@ -500,11 +469,19 @@ class _HomePageState extends ConsumerState<HomePage> {
     return rows;
   }
 
-  /// Push a row + its trailing spacer to the list in one call. Cuts the
-  /// per-row noise from `addAll([row, SizedBox])` to a single line.
+  /// Push a row + its trailing spacer to the list in one call. The
+  /// spacer height is per-breakpoint (CM-8): 56 desktop / 32 tablet /
+  /// 24 phone — editorial breathing room on big screens, tighter on
+  /// the phone where scroll-distance budget is precious.
   void _addRow(List<Widget> rows, Widget row) {
     rows.add(row);
-    rows.add(const SizedBox(height: StreamloadSpacing.rowGap));
+    rows.add(SizedBox(height: _rowGapFor(context)));
+  }
+
+  double _rowGapFor(BuildContext context) {
+    if (Responsive.isPhone(context)) return StreamloadSpacing.rowGapPhone;
+    if (Responsive.isTablet(context)) return StreamloadSpacing.rowGapTablet;
+    return StreamloadSpacing.rowGapDesktop;
   }
 
   double _heroHeightFor(BuildContext context) {

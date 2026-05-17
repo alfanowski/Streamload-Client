@@ -169,9 +169,9 @@ void main() {
   testWidgets('does NOT render the redundant filter chips (Pass 2C)',
       (t) async {
     // Operator dropped the chip row below the hero — the TopNavBar is
-    // now the single source of truth for the filter. We still expect
-    // "Anime" because the default-filter row composition includes an
-    // Anime PosterRow; "Tutto" should not appear anywhere.
+    // now the single source of truth for the filter. The /home row set
+    // (CM-8) no longer includes the Anime/Crime/etc. genre rows, so
+    // none of the chip labels show up here either.
     await pump(t);
     await t.pumpAndSettle();
     expect(find.text('Tutto'), findsNothing);
@@ -208,14 +208,17 @@ void main() {
     expect(find.text('Top di sempre'), findsOneWidget);
   });
 
-  testWidgets('default filter renders the per-genere rows once scrolled',
+  testWidgets(
+      'default filter does NOT carry per-genere rows (CM-8 trimmed Home)',
       (t) async {
+    // CM-8 (2026-05-17): default /home is now a curated 6-row landing,
+    // not a catalog browser. Crime & Thriller / Commedie italiane /
+    // Anime / Documentari moved off Home — the filter catalogs
+    // (/film, /serie, /anime) carry them.
     await pump(t);
     await t.pumpAndSettle();
-    await scrollUntilTitle(t, 'Crime & Thriller');
-    expect(find.text('Crime & Thriller'), findsOneWidget);
-    await scrollUntilTitle(t, 'Commedie italiane');
-    expect(find.text('Commedie italiane'), findsOneWidget);
+    expect(find.text('Crime & Thriller'), findsNothing);
+    expect(find.text('Commedie italiane'), findsNothing);
   });
 
   testWidgets('filter=movie shows movie-specific genre rows', (t) async {
