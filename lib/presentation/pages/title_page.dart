@@ -118,30 +118,42 @@ class _SynopsisAndSidebar extends StatelessWidget {
       children: [
         Expanded(
           flex: synopsisFlex,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'TRAMA',
-                style: StreamloadTypography.v3LabelMono(),
-              ),
-              const SizedBox(height: 8),
-              if ((item.overview ?? '').isNotEmpty)
+          // CM-6: constrain the reading column to ~720 px max so the
+          // synopsis stays in magazine-readable line length on wide
+          // monitors. ConstrainedBox lives INSIDE the Expanded so the
+          // flex layout still gets its share of the row, we just don't
+          // stretch the text across the entire share.
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  item.overview!,
-                  style: StreamloadTypography.v3Body(),
-                )
-              else
-                Text(
-                  'Sinossi non disponibile.',
-                  style: StreamloadTypography.v3Body(
-                    color: StreamloadColors.v3TextMuted,
-                  ),
+                  'TRAMA',
+                  style: StreamloadTypography.v3LabelMono(),
                 ),
-            ],
+                const SizedBox(height: 12),
+                if ((item.overview ?? '').isNotEmpty)
+                  Text(
+                    item.overview!,
+                    // CM-6: Inter 16 + 1.6 line-height — magazine body.
+                    style: StreamloadTypography.v3Body(fontSize: 16).copyWith(
+                      height: 1.6,
+                    ),
+                  )
+                else
+                  Text(
+                    'Sinossi non disponibile.',
+                    style: StreamloadTypography.v3Body(
+                      fontSize: 16,
+                      color: StreamloadColors.v3TextMuted,
+                    ).copyWith(height: 1.6),
+                  ),
+              ],
+            ),
           ),
         ),
-        const SizedBox(width: 32),
+        const SizedBox(width: 48),
         Expanded(
           flex: sidebarFlex,
           child: TitleSidebar(item: item),
@@ -264,20 +276,25 @@ class _TitleMobileLayout extends StatelessWidget {
                 'TRAMA',
                 style: StreamloadTypography.v3LabelMono(),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 12),
               if ((item.overview ?? '').isNotEmpty)
                 Text(
                   item.overview!,
-                  style: StreamloadTypography.v3Body(),
+                  // CM-6: same Inter 16 + 1.6 line-height on phone — the
+                  // constrained 720 px max doesn't bite at phone widths.
+                  style: StreamloadTypography.v3Body(fontSize: 16).copyWith(
+                    height: 1.6,
+                  ),
                 )
               else
                 Text(
                   'Sinossi non disponibile.',
                   style: StreamloadTypography.v3Body(
+                    fontSize: 16,
                     color: StreamloadColors.v3TextMuted,
-                  ),
+                  ).copyWith(height: 1.6),
                 ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               TitleSidebarExpandable(item: item),
               if (item.mediaType == 'tv') ...[
                 const SizedBox(height: 24),

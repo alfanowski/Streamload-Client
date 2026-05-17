@@ -230,8 +230,10 @@ class _EpisodeRow extends StatelessWidget {
                   '&season=$seasonNumber&episode=${episode.episode}',
                 )
             : null,
+        // CM-6: roomier episode rows — 20 px vertical padding (was 10)
+        // so the list breathes like a magazine table of contents.
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 20),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -240,24 +242,32 @@ class _EpisodeRow extends StatelessWidget {
                 width: thumbWidth,
                 height: thumbHeight,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
+              // Episode number — keep mono so it reads as data, not as
+              // a tiny editorial display.
               Text(
                 '${episode.episode}',
-                style: StreamloadTypography.v3Body(
-                  fontSize: 14,
-                ).copyWith(fontWeight: FontWeight.w700),
+                style: StreamloadTypography.v3MetaMono().copyWith(
+                  fontSize: 13,
+                  color: StreamloadColors.v3TextSecondary,
+                ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
+                // CM-6: title is Fraunces italic 18 — editorial, in line
+                // with row headers + small card titles.
                 child: Text(
                   episode.title ?? 'Episodio ${episode.episode}',
-                  style: StreamloadTypography.v3Body(fontSize: 14),
+                  style: StreamloadTypography.display(
+                    fontSize: 18,
+                    italic: true,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (episode.runtimeMinutes != null) ...[
-                const SizedBox(width: 12),
+                const SizedBox(width: 16),
                 Text(
                   '${episode.runtimeMinutes} min',
                   style: StreamloadTypography.v3MetaMono(),
