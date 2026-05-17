@@ -60,6 +60,15 @@ class StreamloadColors {
   static Color v3SurfaceGlassHi = const Color(0xFFFFFFFF).withValues(alpha: 0.10);
   static Color v3SurfaceGlassMax = const Color(0xFFFFFFFF).withValues(alpha: 0.15);
   static Color v3BorderGlass = const Color(0xFFFFFFFF).withValues(alpha: 0.08);
+  // Stronger border for popovers / menus where we need crisper edges.
+  static Color v3BorderGlassStrong =
+      const Color(0xFFFFFFFF).withValues(alpha: 0.20);
+
+  // Popover surface — near-solid dark for menus that float OVER hero
+  // backdrops without a BackdropFilter blur (PopupMenu, dropdown
+  // pickers). The glass tokens above wash out without blur, so popovers
+  // pin a darker base for readability.
+  static const Color v3PopoverBg = Color(0xFF1B1B1B);
 
   // Text — pure white with alpha for hierarchy (v3 is more "TV" than "editorial")
   static const Color v3TextPrimary = Color(0xFFFFFFFF);

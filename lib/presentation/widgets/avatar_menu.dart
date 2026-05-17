@@ -39,10 +39,20 @@ class AvatarMenu extends ConsumerWidget {
     return PopupMenuButton<_AvatarAction>(
       tooltip: 'Account',
       offset: const Offset(0, 32),
-      color: StreamloadColors.v3SurfaceGlassMax,
+      // P5 (2026-05-17): the previous v3SurfaceGlassMax (white @ 15%) was
+      // unreadable over light Home backdrops — PopupMenu doesn't apply a
+      // BackdropFilter blur, so all that white-on-white "glass" did was
+      // wash out the text. Use a near-solid dark surface with a stronger
+      // glass border for crisp contrast on any page background.
+      color: StreamloadColors.v3PopoverBg,
+      elevation: 12,
+      shadowColor: Colors.black.withValues(alpha: 0.4),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(StreamloadSpacing.chipRadius),
-        side: BorderSide(color: StreamloadColors.v3BorderGlass),
+        side: BorderSide(
+          color: StreamloadColors.v3BorderGlassStrong,
+          width: 1,
+        ),
       ),
       padding: EdgeInsets.zero,
       itemBuilder: (context) => <PopupMenuEntry<_AvatarAction>>[
