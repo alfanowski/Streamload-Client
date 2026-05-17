@@ -53,19 +53,30 @@ class BackdropCard extends StatelessWidget {
                 if (progressFraction != null) _progressBar(),
               ],
             ),
-            const SizedBox(height: 6),
+            // CM-7: editorial card title — Fraunces italic 14 (matches
+            // PosterCard). 12 px gap below the image so the title block
+            // breathes the same way PosterCard does.
+            const SizedBox(height: 12),
             Text(
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: StreamloadTypography.v3Body(fontSize: 12),
+              style: StreamloadTypography.display(
+                fontSize: 14,
+                italic: true,
+              ),
             ),
             if (subtitle != null && subtitle!.isNotEmpty)
-              Text(
-                subtitle!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: StreamloadTypography.v3MetaMono(),
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: StreamloadTypography.v3MetaMono().copyWith(
+                    fontSize: 10,
+                  ),
+                ),
               ),
           ],
         ),
