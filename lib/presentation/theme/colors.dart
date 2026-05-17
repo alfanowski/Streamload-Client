@@ -5,6 +5,17 @@
 // surfaceGlass*, ctaPrimary*, ctaUnavailable*) — additive, the v2 cinematic
 // editorial tokens above stay so existing widgets don't break during the
 // gradual migration of Phase D-I.
+//
+// 2026-05-17 (Pass 2A): the Pass 1 white CTA pills become yellow (#FFC700)
+// per operator feedback "voglio uno stile più Netflix, ma al posto del
+// rosso voglio un altro colore, vorrei tipo un giallo". v3CtaPrimaryBg is
+// the load-bearing token — PlayCta + PrimaryPill + filter chips all read
+// it, so swapping it propagates the brand color through the whole UI
+// without touching the call sites. v3CtaPrimaryFg stays black for AAA
+// contrast on the bright yellow surface. The new v3AccentYellow /
+// v3AccentYellowHover / v3SurfaceGlassYellow tokens give the hover + soft
+// "active state" tier the same brand language without copy-pasting the
+// raw hex.
 
 import 'package:flutter/material.dart';
 
@@ -75,8 +86,19 @@ class StreamloadColors {
   static Color v3TextSecondary = const Color(0xFFFFFFFF).withValues(alpha: 0.65);
   static Color v3TextMuted = const Color(0xFFFFFFFF).withValues(alpha: 0.45);
 
-  // CTAs
-  static Color v3CtaPrimaryBg = const Color(0xFFFFFFFF).withValues(alpha: 0.95);
+  // Brand accent — Streamload yellow. Sits between Apple's system #FFCC00
+  // and a punchier amber so the pill reads "warm gold" rather than "warning
+  // strip". Used as the v3CtaPrimaryBg fill and the soft "active state"
+  // tint on filter chips / tabs (v3SurfaceGlassYellow). Foreground on top
+  // of either tone stays black (v3CtaPrimaryFg) for AAA contrast.
+  static const Color v3AccentYellow = Color(0xFFFFC700);
+  static const Color v3AccentYellowHover = Color(0xFFFFDB4D);
+  static Color v3SurfaceGlassYellow =
+      const Color(0xFFFFC700).withValues(alpha: 0.18);
+
+  // CTAs — primary pill is the brand yellow (Pass 2A). The Pass 1 white
+  // tier is gone; if a one-off needs a white pill again, build it locally.
+  static const Color v3CtaPrimaryBg = v3AccentYellow;
   static const Color v3CtaPrimaryFg = Color(0xFF000000);
   static Color v3CtaSecondaryBg = const Color(0xFFFFFFFF).withValues(alpha: 0.10);
   static Color v3CtaUnavailableBg = const Color(0xFFFFFFFF).withValues(alpha: 0.04);

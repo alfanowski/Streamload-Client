@@ -166,14 +166,45 @@ class _NavTab extends StatelessWidget {
     final color = active
         ? StreamloadColors.v3TextPrimary
         : StreamloadColors.v3TextSecondary;
+    // Brand reinforcement (Pass 2A): the active tab gets a thin yellow
+    // underline so the user always sees Streamload's accent color
+    // somewhere in the chrome, not only inside CTAs.
     return InkWell(
       onTap: () => context.go(path),
       borderRadius: BorderRadius.circular(6),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        child: Text(
-          label,
-          style: StreamloadTypography.v3CtaLabel(color: color),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: StreamloadTypography.v3CtaLabel(color: color),
+            ),
+            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: StreamloadMotion.hoverDuration,
+              curve: StreamloadMotion.hoverCurve,
+              height: 2,
+              width: active ? 18 : 0,
+              decoration: BoxDecoration(
+                color: StreamloadColors.v3AccentYellow,
+                borderRadius: BorderRadius.circular(1),
+                boxShadow: active
+                    ? [
+                        BoxShadow(
+                          color: StreamloadColors.v3AccentYellow
+                              .withValues(alpha: 0.4),
+                          blurRadius: 6,
+                          spreadRadius: 0,
+                          offset: const Offset(0, 1),
+                        ),
+                      ]
+                    : null,
+              ),
+            ),
+          ],
         ),
       ),
     );

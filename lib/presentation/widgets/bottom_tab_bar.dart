@@ -86,8 +86,12 @@ class _Tab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Brand reinforcement (Pass 2A): icon + label tint to brand yellow on
+    // the active tab. Phone surface is denser than desktop nav, so we use
+    // color (not an underline) to indicate selection — keeps the touch
+    // target tight without adding a second hit-test layer.
     final color = active
-        ? StreamloadColors.v3TextPrimary
+        ? StreamloadColors.v3AccentYellow
         : StreamloadColors.v3TextMuted;
     return InkWell(
       onTap: () => context.go(path),
