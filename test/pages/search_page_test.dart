@@ -1,11 +1,10 @@
 // test/pages/search_page_test.dart
 //
 // Phase G2 — Full-results /search page. Verifies:
-//  - renders the input + chip row at all widths
+//  - renders the input + Suggerite per te suggestions when empty
 //  - initialQuery pre-fills the input + triggers a page=1 fetch
 //  - submitting the input updates the URL (context.go fires)
-//  - filter chip narrows the visible grid (Film → only movies)
-//  - empty query shows the prompt
+//  - all media types mix into the same grid (no filter chips after Pass 2E)
 //  - no-results shows the "Nessun risultato" message
 //  - loading state renders the skeleton grid
 import 'dart:async';
@@ -16,11 +15,70 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
+import 'package:streamload_client/data/remote/endpoints/catalog_rows_api.dart';
 import 'package:streamload_client/data/remote/endpoints/search_api.dart';
+import 'package:streamload_client/domain/models/media_summary.dart';
 import 'package:streamload_client/presentation/pages/search_page.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 
 class _SearchApiMock extends Mock implements SearchApi {}
+
+class _CatalogRowsApiStub implements CatalogRowsApi {
+  _CatalogRowsApiStub(this.trendingItems);
+  final List<MediaSummary> trendingItems;
+
+  @override
+  Future<List<MediaSummary>> trending({
+    String period = 'week',
+    String mediaType = 'all',
+    int limit = 60,
+    int page = 1,
+  }) async {
+    return trendingItems;
+  }
+
+  @override
+  Future<List<MediaSummary>> newReleases({
+    required String mediaType,
+    int limit = 60,
+    int page = 1,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<MediaSummary>> byGenre({
+    required List<int> genreIds,
+    required String mediaType,
+    String? originalLanguage,
+    int limit = 60,
+    int page = 1,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<MediaSummary>> topRated({
+    required String mediaType,
+    int limit = 60,
+    int page = 1,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<MediaSummary>> similar({
+    required int tmdbId,
+    required String mediaType,
+    int limit = 60,
+  }) async =>
+      const [];
+
+  @override
+  Future<List<MediaSummary>> recommendations({
+    required int tmdbId,
+    required String mediaType,
+    int limit = 60,
+  }) async =>
+      const [];
+}
 
 class _NavSpy {
   final List<String> visited = [];
@@ -55,6 +113,7 @@ Future<void> pumpPage(
   required _NavSpy spy,
   String initial = '/search',
   Size surface = const Size(1400, 900),
+  List<MediaSummary> trendingItems = const [],
 }) async {
   t.view.devicePixelRatio = 1.0;
   t.view.physicalSize = surface;
@@ -65,7 +124,11 @@ Future<void> pumpPage(
     t.binding.setSurfaceSize(null);
   });
   await t.pumpWidget(ProviderScope(
-    overrides: [searchApiProvider.overrideWith((_) async => api)],
+    overrides: [
+      searchApiProvider.overrideWith((_) async => api),
+      catalogRowsApiProvider
+          .overrideWith((_) async => _CatalogRowsApiStub(trendingItems)),
+    ],
     child: MaterialApp.router(routerConfig: _router(spy, initial: initial)),
   ));
   await t.pump();
@@ -90,18 +153,34 @@ void main() {
     registerFallbackValue(0);
   });
 
-  testWidgets('renders input + filter chips with no query', (t) async {
+  testWidgets('renders input + Ricerche di tendenza when empty (Pass 2E)',
+      (t) async {
     final api = _SearchApiMock();
     final spy = _NavSpy();
-    await pumpPage(t, api: api, spy: spy);
+    await pumpPage(
+      t,
+      api: api,
+      spy: spy,
+      trendingItems: const [
+        MediaSummary(
+          tmdbId: 99,
+          mediaType: 'movie',
+          title: 'TrendingPick',
+          year: 2026,
+        ),
+      ],
+    );
     await t.pumpAndSettle();
+    // Glass-pill input is the headline affordance.
     expect(find.byType(TextField), findsOneWidget);
-    expect(find.text('Tutto'), findsOneWidget);
-    expect(find.text('Film'), findsOneWidget);
-    expect(find.text('Serie TV'), findsOneWidget);
-    expect(find.text('Anime'), findsOneWidget);
-    // Empty query → centered prompt.
-    expect(find.text('Cerca un titolo, una serie o un anime'), findsOneWidget);
+    // No filter chips after Pass 2E.
+    expect(find.text('Tutto'), findsNothing);
+    expect(find.text('Film'), findsNothing);
+    // The "Suggerite per te" eyebrow + "Ricerche di tendenza" header are
+    // rendered alongside the trending poster grid.
+    expect(find.text('SUGGERITE PER TE'), findsOneWidget);
+    expect(find.text('Ricerche di tendenza'), findsOneWidget);
+    expect(find.text('TrendingPick'), findsOneWidget);
     verifyNever(() => api.run(any()));
   });
 
@@ -135,7 +214,8 @@ void main() {
     expect(spy.visited, contains('/search?q=matrix'));
   });
 
-  testWidgets('Film chip narrows the grid to movies only', (t) async {
+  testWidgets('grid mixes all media types — chips dropped (Pass 2E)',
+      (t) async {
     final api = _SearchApiMock();
     when(() => api.run('mix', page: any(named: 'page'))).thenAnswer(
       (_) async => {
@@ -150,11 +230,9 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('MixMovie'), findsOneWidget);
     expect(find.text('MixSeries'), findsOneWidget);
-    // Tap the "Film" chip.
-    await t.tap(find.text('Film'));
-    await t.pumpAndSettle();
-    expect(find.text('MixMovie'), findsOneWidget);
-    expect(find.text('MixSeries'), findsNothing);
+    // Chips are gone — neither label appears as a chip OR a button.
+    expect(find.text('Tutto'), findsNothing);
+    expect(find.text('Film'), findsNothing);
   });
 
   testWidgets('no-results state shows the "Nessun risultato" message',

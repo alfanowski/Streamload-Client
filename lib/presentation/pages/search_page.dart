@@ -1,21 +1,23 @@
 // lib/presentation/pages/search_page.dart
 //
-// v3 Netflix×AppleTV refactor — full-results /search page (Phase G2).
+// v3 Netflix×AppleTV refactor — full-results /search page.
 //
-// Lives at /search?q=<query>. The URL is the source of truth for the
-// query; the input mirrors the query param on mount and writes back to
-// the URL via context.go on submit (Enter on desktop, keyboard search
-// action on phone). That makes results shareable + survives back nav.
+// Pass 2E (2026-05-17): operator dropped the filter chip row + asked for
+// a Netflix-style search experience. The page now:
+//   - Has a bigger glass-pill input (LiquidGlass wrapper, Inter 24 px,
+//     14 px vertical pad) sitting under the top nav.
+//   - Skips the Tutto / Film / Serie TV / Anime chip row entirely; all
+//     media types mix into the same grid.
+//   - When the query is empty, renders a "Ricerche di tendenza" row of
+//     up to 12 poster cards from trendingDayProvider (Top searches
+//     parallel — clicking a poster jumps to the title page).
+//   - The grid is full-bleed: 24 px page padding on desktop / tablet,
+//     12 px on phone.
+//   - Loading state: skeleton grid bumped to 24 cells (was 12).
 //
-// Layout:
-//   - Top input row (full-width on phone, max ~720px centered elsewhere)
-//   - Filter chip row (Tutto / Film / Serie TV / Anime) — local state
-//   - Below: GridView.builder of PosterCard. Uses
-//     SliverGridDelegateWithMaxCrossAxisExtent so width adapts smoothly
-//     (5-ish cols desktop / 3 tablet / 2 phone).
-//   - Empty / no-results / error / loading variants per spec.
-//   - Infinite scroll: when within 200 px of the bottom and not already
-//     loading, fetches the next page (capped at 5 = 100 results).
+// The URL is still the source of truth for the query (?q=<query>),
+// the input mirrors it on mount, and submitting writes back via
+// context.go so results stay shareable and survive back nav.
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -26,43 +28,14 @@ import 'package:go_router/go_router.dart';
 import '../../data/remote/endpoints/search_api.dart';
 import '../../domain/models/media_summary.dart';
 import '../../state/api_client_provider.dart';
+import '../../state/home_rows_provider.dart';
 import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../widgets/liquid_glass.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
-
-/// Filter the type-chip row exposes. `null` = no filter ("Tutto").
-enum SearchTypeFilter { all, movie, tv, anime }
-
-extension on SearchTypeFilter {
-  String get label {
-    switch (this) {
-      case SearchTypeFilter.all:
-        return 'Tutto';
-      case SearchTypeFilter.movie:
-        return 'Film';
-      case SearchTypeFilter.tv:
-        return 'Serie TV';
-      case SearchTypeFilter.anime:
-        return 'Anime';
-    }
-  }
-
-  bool matches(MediaSummary m) {
-    switch (this) {
-      case SearchTypeFilter.all:
-        return true;
-      case SearchTypeFilter.movie:
-        return m.mediaType == 'movie';
-      case SearchTypeFilter.tv:
-        return m.mediaType == 'tv';
-      case SearchTypeFilter.anime:
-        return m.mediaType == 'anime';
-    }
-  }
-}
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key, this.initialQuery = ''});
@@ -77,14 +50,12 @@ class SearchPage extends ConsumerStatefulWidget {
 
 class _SearchPageState extends ConsumerState<SearchPage> {
   // Hard cap to keep TMDB happy and the grid finite. 5 pages × 20 items
-  // = 100 results, which is more than enough for the filter chip to
-  // bite into meaningfully.
+  // = 100 results, which is more than enough for the user to skim.
   static const int _maxPages = 5;
 
   late final TextEditingController _controller;
   late final ScrollController _scrollController;
   String _activeQuery = '';
-  SearchTypeFilter _filter = SearchTypeFilter.all;
 
   final List<MediaSummary> _items = [];
   bool _loading = false;
@@ -99,8 +70,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _scrollController = ScrollController()..addListener(_onScroll);
     _activeQuery = widget.initialQuery.trim();
     if (_activeQuery.isNotEmpty) {
-      // Defer to the first frame so ref.read works and the input is
-      // present in the tree.
       WidgetsBinding.instance.addPostFrameCallback((_) => _runFirstPage());
     }
   }
@@ -108,8 +77,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void didUpdateWidget(covariant SearchPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // The URL changed (user submitted a new query or hit back). Reset
-    // the input + results to match.
     if (oldWidget.initialQuery != widget.initialQuery) {
       _controller.text = widget.initialQuery;
       _activeQuery = widget.initialQuery.trim();
@@ -166,8 +133,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       setState(() {
         _items.addAll(list);
         _pagesLoaded = nextPage;
-        // TMDB returns up to 20 per page. Anything less means we're at
-        // the tail. Either way the page cap also exhausts.
         if (list.length < 20 || _pagesLoaded >= _maxPages) {
           _exhausted = true;
         }
@@ -193,116 +158,81 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _onSubmit(String value) {
     final v = value.trim();
     if (v == _activeQuery) return;
-    // URL is the source of truth — update it and let didUpdateWidget
-    // reset our state.
+    // URL is the source of truth.
     context.go('/search?q=${Uri.encodeQueryComponent(v)}');
   }
 
   @override
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
-    final isTablet = Responsive.isTablet(context);
-    // Reserve room for the floating TopNavBar on desktop/tablet so the
-    // input doesn't slip behind it. Phone shells don't have a top bar.
+    // Pass 2E: full-bleed — 24 px desktop/tablet, 12 px phone. The Inter
+    // 24 input expects ~16 px of breathing room; chip + grid bleed all
+    // the way to those page paddings.
     final topPad = isPhone ? 16.0 : 72.0;
-    final horizontalPad = isPhone
-        ? StreamloadSpacing.pagePaddingPhone.horizontal / 2
-        : isTablet
-            ? StreamloadSpacing.pagePaddingTablet.horizontal / 2
-            : StreamloadSpacing.pagePaddingDesktop.horizontal / 2;
-    final filtered = _filter == SearchTypeFilter.all
-        ? _items
-        : _items.where(_filter.matches).toList(growable: false);
+    final horizontalPad = isPhone ? 12.0 : 24.0;
 
     return Material(
-      // Transparent so the AppShell's Scaffold background shows through;
-      // the TextField + InkWell descendants need a Material ancestor.
       type: MaterialType.transparency,
       child: DecoratedBox(
         decoration: const BoxDecoration(color: StreamloadColors.v3BgBase),
         child: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          // Input row.
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPad,
-                topPad,
-                horizontalPad,
-                12,
-              ),
-              child: _MaxWidth(
-                maxWidth: isPhone ? double.infinity : 720,
-                child: _SearchInput(
-                  controller: _controller,
-                  onSubmitted: _onSubmit,
-                ),
-              ),
-            ),
-          ),
-          // Filter chips.
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                horizontalPad,
-                4,
-                horizontalPad,
-                12,
-              ),
-              child: _MaxWidth(
-                maxWidth: isPhone ? double.infinity : 720,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final f in SearchTypeFilter.values)
-                      _Chip(
-                        label: f.label,
-                        selected: _filter == f,
-                        onTap: () => setState(() => _filter = f),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Body: empty/loading/error/grid.
-          if (_activeQuery.isEmpty)
-            _EmptyPromptSliver(padding: horizontalPad)
-          else if (_loading && _items.isEmpty)
-            _SkeletonGridSliver(padding: horizontalPad)
-          else if (_error != null && _items.isEmpty)
-            _ErrorSliver(
-              padding: horizontalPad,
-              onRetry: _runFirstPage,
-            )
-          else if (filtered.isEmpty)
-            _NoResultsSliver(
-              padding: horizontalPad,
-              query: _activeQuery,
-            )
-          else
-            _ResultsGridSliver(
-              padding: horizontalPad,
-              items: filtered,
-            ),
-          // Footer: trailing spinner during incremental fetches.
-          if (_loading && _items.isNotEmpty)
-            const SliverToBoxAdapter(
+          controller: _scrollController,
+          slivers: [
+            // Input row.
+            SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 1.5),
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPad,
+                  topPad,
+                  horizontalPad,
+                  16,
+                ),
+                child: _MaxWidth(
+                  maxWidth: isPhone ? double.infinity : 820,
+                  child: _SearchInput(
+                    controller: _controller,
+                    onSubmitted: _onSubmit,
                   ),
                 ),
               ),
             ),
-          const SliverToBoxAdapter(child: SizedBox(height: 80)),
-        ],
+            // Body branches: empty → "Ricerche di tendenza" row;
+            // otherwise loading/error/no-results/grid.
+            if (_activeQuery.isEmpty)
+              _TopSearchesSection(padding: horizontalPad)
+            else if (_loading && _items.isEmpty)
+              _SkeletonGridSliver(padding: horizontalPad)
+            else if (_error != null && _items.isEmpty)
+              _ErrorSliver(
+                padding: horizontalPad,
+                onRetry: _runFirstPage,
+              )
+            else if (_items.isEmpty)
+              _NoResultsSliver(
+                padding: horizontalPad,
+                query: _activeQuery,
+              )
+            else
+              _ResultsGridSliver(
+                padding: horizontalPad,
+                items: _items,
+              ),
+            // Footer: trailing spinner during incremental fetches.
+            if (_loading && _items.isNotEmpty)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    ),
+                  ),
+                ),
+              ),
+            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+          ],
         ),
       ),
     );
@@ -310,7 +240,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Input + chips
+// Input — Netflix-style glass pill (Pass 2E)
 // ──────────────────────────────────────────────────────────────────────────
 
 class _SearchInput extends StatelessWidget {
@@ -324,76 +254,46 @@ class _SearchInput extends StatelessWidget {
       shortcuts: const <ShortcutActivator, Intent>{
         SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
       },
-      child: TextField(
-        controller: controller,
-        cursorColor: StreamloadColors.v3TextPrimary,
-        cursorWidth: 1.5,
-        textInputAction: TextInputAction.search,
-        onSubmitted: onSubmitted,
-        style: const TextStyle(
-          color: StreamloadColors.v3TextPrimary,
-          fontSize: 22,
-          fontWeight: FontWeight.w400,
-        ),
-        decoration: InputDecoration(
-          hintText: 'Cerca un titolo…',
-          hintStyle: StreamloadTypography.v3MetaMono(
-            color: StreamloadColors.v3TextMuted,
-          ).copyWith(fontSize: 22),
-          border: const UnderlineInputBorder(
-            borderSide: BorderSide(color: Color(0x1FFFFFFF)),
-          ),
-          enabledBorder: const UnderlineInputBorder(
-            borderSide: BorderSide(color: Color(0x1FFFFFFF)),
-          ),
-          focusedBorder: const UnderlineInputBorder(
-            borderSide: BorderSide(color: Color(0x66FFFFFF)),
-          ),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-          isCollapsed: true,
-        ),
-      ),
-    );
-  }
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final bg = selected
-        ? StreamloadColors.v3CtaPrimaryBg
-        : StreamloadColors.v3SurfaceGlass;
-    final fg = selected
-        ? StreamloadColors.v3CtaPrimaryFg
-        : StreamloadColors.v3TextPrimary;
-    return PressFeedback(
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child:
-                  Text(label, style: StreamloadTypography.v3CtaLabel(color: fg)),
+      child: LiquidGlass(
+        borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius * 2),
+        opacity: 0.10,
+        blur: 28,
+        borderOpacity: 0.20,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search,
+              color: StreamloadColors.v3TextSecondary,
+              size: 26,
             ),
-          ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                cursorColor: StreamloadColors.v3TextPrimary,
+                cursorWidth: 1.5,
+                textInputAction: TextInputAction.search,
+                onSubmitted: onSubmitted,
+                style: const TextStyle(
+                  color: StreamloadColors.v3TextPrimary,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w400,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Cerca un titolo, una serie o un anime…',
+                  hintStyle: StreamloadTypography.v3MetaMono(
+                    color: StreamloadColors.v3TextMuted,
+                  ).copyWith(fontSize: 18),
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  isCollapsed: true,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -422,33 +322,107 @@ class _MaxWidth extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// State slivers
+// Empty-query → "Ricerche di tendenza" (Pass 2E)
 // ──────────────────────────────────────────────────────────────────────────
 
-class _EmptyPromptSliver extends StatelessWidget {
-  const _EmptyPromptSliver({required this.padding});
+class _TopSearchesSection extends ConsumerWidget {
+  const _TopSearchesSection({required this.padding});
   final double padding;
 
   @override
-  Widget build(BuildContext context) {
-    return SliverFillRemaining(
-      hasScrollBody: false,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(trendingDayProvider);
+    return SliverToBoxAdapter(
       child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: padding),
-        child: Center(
-          child: Text(
-            'Cerca un titolo, una serie o un anime',
-            textAlign: TextAlign.center,
-            style: StreamloadTypography.v3Body(
-              color: StreamloadColors.v3TextMuted,
-              fontSize: 16,
+        padding: EdgeInsets.fromLTRB(padding, 12, padding, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Mono eyebrow label keeps with the v3 "metadata as data"
+            // typography. Operator wanted a real Netflix-style suggestion
+            // row above the empty grid instead of a centered text prompt.
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'SUGGERITE PER TE',
+                style: StreamloadTypography.v3LabelMono(
+                  color: StreamloadColors.v3TextSecondary,
+                ),
+              ),
             ),
-          ),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                'Ricerche di tendenza',
+                style: StreamloadTypography.v3SectionHeader(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            async.when(
+              loading: () => const _SkeletonGrid(padding: 0, cells: 12),
+              error: (_, __) => Text(
+                'Errore nel caricamento delle tendenze',
+                style: StreamloadTypography.v3MetaMono(
+                  color: StreamloadColors.v3TextMuted,
+                ),
+              ),
+              data: (items) {
+                final top = items.take(12).toList(growable: false);
+                if (top.isEmpty) {
+                  return Text(
+                    'Cerca un titolo, una serie o un anime',
+                    style: StreamloadTypography.v3Body(
+                      color: StreamloadColors.v3TextMuted,
+                      fontSize: 16,
+                    ),
+                  );
+                }
+                return _Grid(items: top);
+              },
+            ),
+          ],
         ),
       ),
     );
   }
 }
+
+class _Grid extends StatelessWidget {
+  const _Grid({required this.items});
+  final List<MediaSummary> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      // Section is embedded in a CustomScrollView; this inner grid must
+      // not scroll on its own.
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.55,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, i) {
+        final m = items[i];
+        return PosterCard(
+          summary: m,
+          width: 180,
+          onTap: () => context.go(
+            '/title/${m.tmdbId}?media_type=${m.mediaType}',
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// State slivers
+// ──────────────────────────────────────────────────────────────────────────
 
 class _NoResultsSliver extends StatelessWidget {
   const _NoResultsSliver({required this.padding, required this.query});
@@ -514,7 +488,8 @@ class _ErrorSliver extends StatelessWidget {
               PressFeedback(
                 child: Material(
                   color: StreamloadColors.v3SurfaceGlass,
-                  borderRadius: BorderRadius.circular(StreamloadSpacing.pillRadius),
+                  borderRadius:
+                      BorderRadius.circular(StreamloadSpacing.pillRadius),
                   child: InkWell(
                     borderRadius:
                         BorderRadius.circular(StreamloadSpacing.pillRadius),
@@ -553,7 +528,6 @@ class _SkeletonGridSliver extends StatelessWidget {
           maxCrossAxisExtent: 200,
           mainAxisSpacing: 16,
           crossAxisSpacing: 12,
-          // 2:3 poster + a small label strip beneath.
           childAspectRatio: 0.62,
         ),
         delegate: SliverChildBuilderDelegate(
@@ -563,7 +537,41 @@ class _SkeletonGridSliver extends StatelessWidget {
               borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
             ),
           ),
-          childCount: 12,
+          // Pass 2E: bump to 24 cells so the empty + loading state fills
+          // a Netflix-sized viewport instead of looking sparse.
+          childCount: 24,
+        ),
+      ),
+    );
+  }
+}
+
+/// Non-sliver variant of the skeleton grid for embedding inside the
+/// "Ricerche di tendenza" section before TMDB resolves.
+class _SkeletonGrid extends StatelessWidget {
+  const _SkeletonGrid({required this.padding, required this.cells});
+  final double padding;
+  final int cells;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: padding),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: 200,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.62,
+        ),
+        itemCount: cells,
+        itemBuilder: (_, __) => DecoratedBox(
+          decoration: BoxDecoration(
+            color: StreamloadColors.v3SurfaceGlass,
+            borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
+          ),
         ),
       ),
     );
@@ -584,7 +592,6 @@ class _ResultsGridSliver extends StatelessWidget {
           maxCrossAxisExtent: 200,
           mainAxisSpacing: 16,
           crossAxisSpacing: 12,
-          // Same aspect as the skeleton so swap-in doesn't jolt.
           childAspectRatio: 0.55,
         ),
         delegate: SliverChildBuilderDelegate(
@@ -592,8 +599,7 @@ class _ResultsGridSliver extends StatelessWidget {
             final m = items[i];
             return PosterCard(
               summary: m,
-              width: 180, // delegate gives the real width; PosterCard
-                          // sizes its children proportionally.
+              width: 180,
               onTap: () => context.go(
                 '/title/${m.tmdbId}?media_type=${m.mediaType}',
               ),

@@ -344,7 +344,12 @@ class _SuggestionsList extends ConsumerWidget {
     final async = ref.watch(searchSuggestionsProvider(query));
     return async.when(
       data: (items) {
-        final top = items.take(5).toList(growable: false);
+        // Pass 2E (2026-05-17): the original 5-suggestion limit was a
+        // hand-tuned guess from sub-plan 8 — operator wants the overlay
+        // to feel as rich as Netflix's "did you mean" stack, so we bump
+        // it to 8. Eight rows still fits comfortably above the fold on
+        // a 13-inch laptop without scrolling the dialog.
+        final top = items.take(8).toList(growable: false);
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
