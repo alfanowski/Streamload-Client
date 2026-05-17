@@ -24,11 +24,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/catalog_item.dart';
+import '../../state/home_rows_provider.dart';
 import '../../state/title_provider.dart';
 import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
+import '../widgets/cast/cast_card.dart';
+import '../widgets/cast/cast_row.dart';
 import '../widgets/title/episode_list.dart';
 import '../widgets/title/similar_titles_row.dart';
 import '../widgets/title/title_hero.dart';
@@ -96,6 +99,40 @@ class _TitleBody extends ConsumerWidget {
       return _TitleTabletLayout(item: item, onShare: onShare);
     }
     return _TitleDesktopLayout(item: item, onShare: onShare);
+  }
+}
+
+/// Pass 3 CAST-4 — bridges creditsProvider into the photo CastRow.
+/// Maps each cast member to CastCardData, keeping the row widget unaware
+/// of the credits domain model. Hides itself completely when the list is
+/// empty (CastRow already has the same fallback, but doing it here also
+/// suppresses the surrounding SizedBox spacing the page would add).
+class _CastSection extends ConsumerWidget {
+  const _CastSection({required this.item});
+  final CatalogItemResponse item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(
+      creditsProvider(
+        TmdbKey(tmdbId: item.tmdbId, mediaType: item.mediaType),
+      ),
+    );
+    return async.when(
+      loading: () => const CastRow(members: [], isLoading: true),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (credits) {
+        final members = credits.cast
+            .map((p) => CastCardData(
+                  tmdbId: p.id,
+                  name: p.name,
+                  character: p.character,
+                  profileUrl: p.profileUrl,
+                ))
+            .toList(growable: false);
+        return CastRow(members: members);
+      },
+    );
   }
 }
 
@@ -192,6 +229,11 @@ class _TitleDesktopLayout extends StatelessWidget {
             sidebarFlex: 1,
           ),
         ),
+        // CAST-4: photo cast row spans the full page width (NOT inside the
+        // 2/3 synopsis column). Sits above episodes for both desktop and
+        // tablet so the reader meets the faces before the episode grid.
+        const SizedBox(height: 32),
+        _CastSection(item: item),
         if (item.mediaType == 'tv') ...[
           const SizedBox(height: 32),
           Padding(
@@ -236,6 +278,9 @@ class _TitleTabletLayout extends StatelessWidget {
             sidebarFlex: 2,
           ),
         ),
+        // CAST-4: photo cast row spans full width above episodes.
+        const SizedBox(height: 32),
+        _CastSection(item: item),
         if (item.mediaType == 'tv') ...[
           const SizedBox(height: 32),
           Padding(
@@ -296,13 +341,21 @@ class _TitleMobileLayout extends StatelessWidget {
                 ),
               const SizedBox(height: 24),
               TitleSidebarExpandable(item: item),
-              if (item.mediaType == 'tv') ...[
-                const SizedBox(height: 24),
-                EpisodeList(tmdbId: item.tmdbId),
-              ],
             ],
           ),
         ),
+        // CAST-4: cast row sits OUTSIDE the page padding so it spans full
+        // width like the home rows. The row itself injects the phone
+        // page padding on its inner list.
+        const SizedBox(height: 24),
+        _CastSection(item: item),
+        if (item.mediaType == 'tv') ...[
+          const SizedBox(height: 24),
+          Padding(
+            padding: StreamloadSpacing.pagePaddingPhone,
+            child: EpisodeList(tmdbId: item.tmdbId),
+          ),
+        ],
         const SizedBox(height: 32),
         SimilarTitlesRow(tmdbId: item.tmdbId, mediaType: item.mediaType),
         const SizedBox(height: 40),

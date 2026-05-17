@@ -16,13 +16,16 @@ import 'package:streamload_client/data/local/database.dart';
 import 'package:streamload_client/data/remote/endpoints/catalog_api.dart';
 import 'package:streamload_client/data/remote/endpoints/episodes_api.dart';
 import 'package:streamload_client/data/remote/endpoints/favorites_api.dart';
+import 'package:streamload_client/domain/models/catalog_credits.dart';
 import 'package:streamload_client/domain/models/catalog_item.dart';
 import 'package:streamload_client/domain/models/continue_watching_item.dart';
 import 'package:streamload_client/presentation/pages/title_page.dart';
+import 'package:streamload_client/presentation/widgets/cast/cast_card.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/availability_provider.dart';
 import 'package:streamload_client/state/continue_watching_provider.dart';
 import 'package:streamload_client/state/database_provider.dart';
+import 'package:streamload_client/state/home_rows_provider.dart';
 import 'package:streamload_client/state/plugin_access_provider.dart';
 
 class _CatalogApiMock extends Mock implements CatalogApi {}
@@ -38,6 +41,7 @@ Widget wrap({
   required StreamloadDatabase db,
   PluginAccess access = PluginAccess.available,
   Size size = const Size(1280, 800),
+  CatalogCredits credits = const CatalogCredits(),
 }) {
   final fav = _FavApiMock();
   when(fav.list).thenAnswer((_) async => <Map<String, dynamic>>[]);
@@ -57,6 +61,10 @@ Widget wrap({
       // to a settled true here so the page-level tests still render
       // the play CTA without spinning up plugins.
       availabilityProvider.overrideWith((_, __) async => true),
+      // Pass 3 CAST-4: the cast row + sidebar both read creditsProvider.
+      // Default to an empty payload so existing tests don't have to care;
+      // the cast-row tests override per-call with synthetic cast data.
+      creditsProvider.overrideWith((_, __) async => credits),
     ],
     child: MaterialApp(
       home: MediaQuery(
@@ -243,6 +251,69 @@ void main() {
       await tester.tap(find.text('Mostra dettagli'));
       await tester.pumpAndSettle();
       expect(find.text('GENERI'), findsOneWidget);
+    });
+
+    testWidgets(
+        'CAST-4: cast row with photos renders, sidebar CAST block does NOT',
+        (tester) async {
+      final catalogApi = _CatalogApiMock();
+      final db = StreamloadDatabase.test(NativeDatabase.memory());
+      addTearDown(db.close);
+
+      when(() => catalogApi.get(123, mediaType: 'movie'))
+          .thenAnswer((_) async => const CatalogItemResponse(
+                tmdbId: 123,
+                mediaType: 'movie',
+                title: 'Once Upon a Time in Hollywood',
+                overview: 'A western fairytale.',
+                genres: ['Drama'],
+              ));
+
+      await tester.pumpWidget(wrap(
+        catalogApi: catalogApi,
+        db: db,
+        credits: const CatalogCredits(
+          cast: [
+            CatalogCreditPerson(
+              id: 287,
+              name: 'Brad Pitt',
+              character: 'Cliff Booth',
+            ),
+            CatalogCreditPerson(
+              id: 6193,
+              name: 'Leonardo DiCaprio',
+              character: 'Rick Dalton',
+            ),
+          ],
+          crew: [
+            CatalogCreditPerson(
+              id: 138,
+              name: 'Quentin Tarantino',
+              job: 'Director',
+            ),
+          ],
+        ),
+        child: const TitlePage(tmdbId: 123, mediaType: 'movie'),
+      ));
+      await tester.pumpAndSettle();
+
+      // Sidebar CAST block is gone — replaced by the photo row. The
+      // CREATO DA + GENERI blocks stay in the sidebar.
+      expect(find.text('CAST'), findsNothing);
+      expect(find.text('CREATO DA'), findsOneWidget);
+      expect(find.text('GENERI'), findsOneWidget);
+
+      // Cast row renders with the Fraunces "Cast" header (CastRow heading).
+      // Scroll until the row is in the build tree.
+      await tester.scrollUntilVisible(
+        find.text('Cast'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Cast'), findsOneWidget);
+      expect(find.byType(CastCard), findsNWidgets(2));
+      expect(find.text('Brad Pitt'), findsOneWidget);
+      expect(find.text('Cliff Booth'), findsOneWidget);
     });
 
     testWidgets('TV with episodes shows EPISODI section + episode rows',

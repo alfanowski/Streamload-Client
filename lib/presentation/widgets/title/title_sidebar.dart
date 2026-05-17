@@ -1,8 +1,8 @@
 // lib/presentation/widgets/title/title_sidebar.dart
 //
-// Title page sidebar — three labeled blocks: CAST · CREATO DA · GENERI
-// (Phase E2 of sub-plan 8). Renders cast + crew names from
-// creditsProvider plus genres from CatalogItemResponse.genres.
+// Title page sidebar — labeled blocks for crew (CREATO DA) + genres
+// (GENERI). Renders crew names from creditsProvider plus genres from
+// CatalogItemResponse.genres.
 //
 // Used in two layouts:
 //   - Desktop / Tablet : right-hand sidebar (1/3 width). Each block
@@ -19,6 +19,10 @@
 // 2026-05-17 (CM-2 / CM-6): the Pass 2B LiquidGlass card around the
 // blocks was dropped. The sidebar is now flat text against the page
 // background, with a hairline divider between each section. Editorial.
+//
+// 2026-05-17 (Pass 3 CAST-4): the CAST text block is gone. Cast lives
+// in the photo CastRow on the title page itself (Prime Video / IMDb
+// style); the sidebar keeps only CREATO DA + GENERI.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -66,12 +70,12 @@ class TitleSidebar extends ConsumerWidget {
 }
 
 class _SidebarBody {
-  /// Build the CAST / CREATO DA blocks (genres are appended by the parent
-  /// so the divider layout stays consistent).
+  /// Build the CREATO DA block (genres are appended by the parent so the
+  /// divider layout stays consistent). CAST was moved out of the sidebar
+  /// in Pass 3 CAST-4 — the new CastRow renders actor photos directly on
+  /// the title page.
   static List<Widget> buildBlocks(CatalogCredits credits) {
-    final cast = credits.cast;
     final crew = credits.crew;
-    final castNames = cast.map((p) => p.name).join(', ');
     // Group crew by their job so multiple Producers don't read as
     // "Producer, Producer, Producer". We keep the per-job ordering
     // the backend returned (insertion order = relevance).
@@ -85,7 +89,6 @@ class _SidebarBody {
         .map((names) => names.join(', '))
         .join(' · ');
     return [
-      if (castNames.isNotEmpty) _Block(label: 'CAST', value: castNames),
       if (crewLine.isNotEmpty) _Block(label: 'CREATO DA', value: crewLine),
     ];
   }
@@ -153,15 +156,9 @@ class _SidebarSkeleton extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'CAST',
-            style: StreamloadTypography.v3LabelMono(),
-          ),
-          const SizedBox(height: 8),
-          bar(0.9),
-          const SizedBox(height: 6),
-          bar(0.6),
-          const SizedBox(height: 16),
+          // CAST-4: the CAST sidebar block was removed (cast lives in the
+          // photo row now), so the skeleton drops to a single CREATO DA
+          // placeholder while credits resolve.
           Text(
             'CREATO DA',
             style: StreamloadTypography.v3LabelMono(),

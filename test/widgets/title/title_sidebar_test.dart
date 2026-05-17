@@ -1,12 +1,12 @@
 // test/widgets/title/title_sidebar_test.dart
 //
-// Sidebar — Phase E2 of sub-plan 8. We stub creditsProvider via riverpod
-// override (no network mocks needed) and assert what the three blocks
-// render: CAST · CREATO DA · GENERI.
+// Sidebar — Phase E2 of sub-plan 8, updated Pass 3 CAST-4: the CAST
+// block is gone (replaced by the photo CastRow on the page itself).
+// Sidebar now renders CREATO DA + GENERI only.
 //
 // Branches verified:
 //   - loading shows skeleton placeholders
-//   - data shows comma-joined cast + crew grouped by job
+//   - data shows comma-joined crew grouped by job (no CAST block)
 //   - genres render even when credits failed (empty cast/crew)
 //   - empty genres are hidden — section is conditional
 //   - expandable variant (phone) starts collapsed and reveals on tap
@@ -46,7 +46,7 @@ void main() {
     genres: ['Drama', 'Crime'],
   );
 
-  testWidgets('renders cast + crew + genres when loaded', (t) async {
+  testWidgets('renders crew + genres when loaded (no CAST block)', (t) async {
     await t.pumpWidget(host(
       const TitleSidebar(item: item),
       extra: [
@@ -63,10 +63,12 @@ void main() {
       ],
     ));
     await t.pumpAndSettle();
-    expect(find.text('CAST'), findsOneWidget);
+    // CAST-4: CAST sidebar block dropped — the photo row above the page
+    // is the new home for that information.
+    expect(find.text('CAST'), findsNothing);
+    expect(find.text('Bryan Cranston, Aaron Paul'), findsNothing);
     expect(find.text('CREATO DA'), findsOneWidget);
     expect(find.text('GENERI'), findsOneWidget);
-    expect(find.text('Bryan Cranston, Aaron Paul'), findsOneWidget);
     expect(find.textContaining('Vince Gilligan'), findsOneWidget);
     expect(find.text('Drama, Crime'), findsOneWidget);
   });
@@ -81,8 +83,8 @@ void main() {
     ));
     // First pump while the future is still unresolved.
     await t.pump();
-    expect(find.text('CAST'), findsOneWidget);
-    // Genres section still renders alongside the loading placeholder.
+    // Loading skeleton no longer hints CAST (since the section is gone).
+    // We assert the genres still render alongside the loading placeholder.
     expect(find.text('GENERI'), findsOneWidget);
     completer.complete(const CatalogCredits());
     await t.pumpAndSettle();
@@ -102,7 +104,7 @@ void main() {
     ));
     await t.pumpAndSettle();
     expect(find.text('GENERI'), findsNothing);
-    // No cast / crew → those sections are also hidden.
+    // No crew → CREATO DA also hidden. CAST never renders here anymore.
     expect(find.text('CAST'), findsNothing);
     expect(find.text('CREATO DA'), findsNothing);
   });
@@ -112,8 +114,10 @@ void main() {
       const TitleSidebarExpandable(item: item),
       extra: [
         creditsProvider.overrideWith((_, __) async => const CatalogCredits(
-              cast: [
-                CatalogCreditPerson(id: 1, name: 'Bryan Cranston'),
+              crew: [
+                CatalogCreditPerson(
+                  id: 9, name: 'Vince Gilligan', job: 'Creator',
+                ),
               ],
             )),
       ],
@@ -125,6 +129,7 @@ void main() {
     await t.tap(find.text('Mostra dettagli'));
     await t.pumpAndSettle();
     expect(find.text('GENERI'), findsOneWidget);
-    expect(find.text('Bryan Cranston'), findsOneWidget);
+    // CAST-4: cast is gone from the sidebar — crew member surfaces instead.
+    expect(find.textContaining('Vince Gilligan'), findsOneWidget);
   });
 }
