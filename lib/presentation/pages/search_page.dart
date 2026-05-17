@@ -36,6 +36,7 @@ import '../theme/typography.dart';
 import '../widgets/liquid_glass.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
+import '../widgets/shimmer.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key, this.initialQuery = ''});
@@ -531,14 +532,19 @@ class _SkeletonGridSliver extends StatelessWidget {
           childAspectRatio: 0.62,
         ),
         delegate: SliverChildBuilderDelegate(
-          (_, __) => DecoratedBox(
-            decoration: BoxDecoration(
-              color: StreamloadColors.v3SurfaceGlass,
-              borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
+          (_, __) => Shimmer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: StreamloadColors.v3SurfaceGlass,
+                borderRadius:
+                    BorderRadius.circular(StreamloadSpacing.cardRadius),
+              ),
             ),
           ),
           // Pass 2E: bump to 24 cells so the empty + loading state fills
           // a Netflix-sized viewport instead of looking sparse.
+          // Pass 2F: each cell shimmers individually for the wet 'load'
+          // feel — heavy in tests but smooth on real GPUs.
           childCount: 24,
         ),
       ),
@@ -547,7 +553,8 @@ class _SkeletonGridSliver extends StatelessWidget {
 }
 
 /// Non-sliver variant of the skeleton grid for embedding inside the
-/// "Ricerche di tendenza" section before TMDB resolves.
+/// "Ricerche di tendenza" section before TMDB resolves. Same shimmer
+/// treatment as the sliver variant.
 class _SkeletonGrid extends StatelessWidget {
   const _SkeletonGrid({required this.padding, required this.cells});
   final double padding;
@@ -567,10 +574,12 @@ class _SkeletonGrid extends StatelessWidget {
           childAspectRatio: 0.62,
         ),
         itemCount: cells,
-        itemBuilder: (_, __) => DecoratedBox(
-          decoration: BoxDecoration(
-            color: StreamloadColors.v3SurfaceGlass,
-            borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
+        itemBuilder: (_, __) => Shimmer(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: StreamloadColors.v3SurfaceGlass,
+              borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
+            ),
           ),
         ),
       ),

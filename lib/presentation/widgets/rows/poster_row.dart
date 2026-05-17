@@ -20,6 +20,7 @@ import '../../theme/colors.dart';
 import '../../theme/spacing.dart';
 import '../../theme/typography.dart';
 import '../poster_card.dart';
+import '../shimmer.dart';
 
 class PosterRow extends StatelessWidget {
   const PosterRow({
@@ -192,31 +193,37 @@ class _Placeholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: width,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          AspectRatio(
-            aspectRatio: 2 / 3,
-            child: Container(
-              decoration: BoxDecoration(
-                color: StreamloadColors.v3SurfaceGlass,
-                borderRadius:
-                    BorderRadius.circular(StreamloadSpacing.cardRadius),
+    // Pass 2F (2026-05-17): wrap the static glass blocks in a Shimmer so
+    // the row loading state has the same 'alive' sweep as Netflix /
+    // Apple TV+ skeletons — instead of the previous flat tone that the
+    // user couldn't distinguish from a permanent empty card.
+    return Shimmer(
+      child: SizedBox(
+        width: width,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AspectRatio(
+              aspectRatio: 2 / 3,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: StreamloadColors.v3SurfaceGlass,
+                  borderRadius:
+                      BorderRadius.circular(StreamloadSpacing.cardRadius),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Container(
-            width: width * 0.7,
-            height: 12,
-            decoration: BoxDecoration(
-              color: StreamloadColors.v3SurfaceGlass,
-              borderRadius: BorderRadius.circular(2),
+            const SizedBox(height: 8),
+            Container(
+              width: width * 0.7,
+              height: 12,
+              decoration: BoxDecoration(
+                color: StreamloadColors.v3SurfaceGlass,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

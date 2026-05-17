@@ -7,6 +7,12 @@
 // hover which we don't want), so the effect auto-disables there. The cell
 // stays 160w externally — only the visual layer scales — so layout shifts
 // don't cascade in the surrounding row.
+//
+// Pass 2F.2 (2026-05-17): the desktop hover effect was scaled up from a
+// flat 1.08 scale to a more cinematic 'tilt forward + glow' — the card
+// now picks up a soft yellow shadow that tints the poster's surround
+// and a subtle 2deg Y-axis tilt that suggests depth. Phones still skip
+// the effect because they don't fire mouse-hover events.
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -148,10 +154,12 @@ class _PlaceholderPoster extends StatelessWidget {
   }
 }
 
-/// Tiny private widget: scale the child 1.0 → 1.08 on mouse hover. When
-/// [enabled] is false (phones / tablets), passes the child through
-/// untouched. Uses TransformAlignment.center so the card grows from its
-/// own centroid and doesn't shift toward the row's leading edge.
+/// Pass 2F.2: hover effect on desktop / tablet promotes the card with a
+/// soft yellow glow + slight 3D tilt forward (2° Y-axis rotation) on top
+/// of the existing 1.08 scale. Cumulative effect feels like the card
+/// 'lifts off the row toward the viewer'. Phones / tablets where
+/// MouseRegion never fires hover events get the bare child back, no
+/// effect overhead.
 class _HoverScale extends StatefulWidget {
   const _HoverScale({required this.child, required this.enabled});
   final Widget child;
@@ -167,14 +175,52 @@ class _HoverScaleState extends State<_HoverScale> {
   @override
   Widget build(BuildContext context) {
     if (!widget.enabled) return widget.child;
+    // Build the Y-axis tilt + soft glow into a single AnimatedContainer
+    // so all three properties (scale, shadow, rotation) animate in
+    // sync with the same StreamloadMotion.hoverDuration / curve.
     return MouseRegion(
       onEnter: (_) => setState(() => _hovering = true),
       onExit: (_) => setState(() => _hovering = false),
-      child: AnimatedScale(
-        scale: _hovering ? 1.08 : 1.0,
+      child: AnimatedContainer(
         duration: StreamloadMotion.hoverDuration,
         curve: StreamloadMotion.hoverCurve,
-        child: widget.child,
+        decoration: BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(StreamloadSpacing.cardRadius),
+          boxShadow: _hovering
+              ? [
+                  BoxShadow(
+                    color: StreamloadColors.v3AccentYellow
+                        .withValues(alpha: 0.25),
+                    blurRadius: 40,
+                    spreadRadius: -10,
+                    offset: const Offset(0, 12),
+                  ),
+                  // A second cooler shadow underneath gives depth
+                  // without doubling the yellow cast.
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.35),
+                    blurRadius: 28,
+                    spreadRadius: -16,
+                    offset: const Offset(0, 18),
+                  ),
+                ]
+              : const [],
+        ),
+        child: AnimatedScale(
+          scale: _hovering ? 1.08 : 1.0,
+          duration: StreamloadMotion.hoverDuration,
+          curve: StreamloadMotion.hoverCurve,
+          child: AnimatedRotation(
+            // ~2° tilt around Z, just enough to suggest the card is
+            // leaning toward the viewer. Counter-clockwise so the lower
+            // edge appears to come 'forward'.
+            turns: _hovering ? -0.0056 : 0.0, // 0.0056 turns ≈ 2°
+            duration: StreamloadMotion.hoverDuration,
+            curve: StreamloadMotion.hoverCurve,
+            child: widget.child,
+          ),
+        ),
       ),
     );
   }

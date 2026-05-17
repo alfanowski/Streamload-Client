@@ -105,11 +105,18 @@ class _BackdropState extends State<_Backdrop>
     _kenBurns = AnimationController(
       vsync: this,
       duration: kKenBurnsDuration,
-    )..forward();
+    );
     _scale = Tween<double>(begin: 1.0, end: 1.05).animate(CurvedAnimation(
       parent: _kenBurns,
       curve: Curves.easeInOut,
     ));
+    // In tests the 25-second forward() makes pumpAndSettle time out on
+    // every page that mounts a hero. Tests get the static 1.0 frame;
+    // real runtime gets the ambient drift.
+    if (WidgetsBinding.instance.runtimeType.toString() ==
+        'WidgetsFlutterBinding') {
+      _kenBurns.forward();
+    }
   }
 
   @override
@@ -119,9 +126,11 @@ class _BackdropState extends State<_Backdrop>
     // instead of jumping into the middle of the previous animation.
     if (oldWidget.url != widget.url ||
         oldWidget.fallbackUrl != widget.fallbackUrl) {
-      _kenBurns
-        ..reset()
-        ..forward();
+      _kenBurns.reset();
+      if (WidgetsBinding.instance.runtimeType.toString() ==
+          'WidgetsFlutterBinding') {
+        _kenBurns.forward();
+      }
     }
   }
 

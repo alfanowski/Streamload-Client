@@ -110,25 +110,34 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-/// 220ms fade-only page transition. Subtle, professional, no horizontal
-/// slide that would fight with the fixed top nav bar. Applied to every
-/// inner-shell route so navigation feels like a single continuous canvas
-/// rather than discrete page swaps.
-GoRoute _fadeRoute(String path, Widget Function(BuildContext, GoRouterState) builder) {
+/// Pass 2F (2026-05-17): the bare fade was bumped to a combined fade +
+/// scale 0.96 → 1.0 transition over 280 ms — Apple-style 'depth'
+/// transition that makes navigation feel like the new page steps
+/// forward into view rather than appearing flat. Curve stays
+/// easeOutCubic so the motion settles smoothly without spring overshoot.
+/// Applied to every inner-shell route so navigation feels like a single
+/// continuous canvas rather than discrete page swaps.
+GoRoute _fadeRoute(
+    String path, Widget Function(BuildContext, GoRouterState) builder) {
   return GoRoute(
     path: path,
     pageBuilder: (ctx, state) => CustomTransitionPage<void>(
       key: state.pageKey,
       child: builder(ctx, state),
-      transitionDuration: const Duration(milliseconds: 220),
-      reverseTransitionDuration: const Duration(milliseconds: 180),
+      transitionDuration: const Duration(milliseconds: 280),
+      reverseTransitionDuration: const Duration(milliseconds: 220),
       transitionsBuilder: (_, animation, __, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+        );
         return FadeTransition(
-          opacity: CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
+          opacity: curved,
+          child: ScaleTransition(
+            // Subtle 0.96 → 1.0 scale; reads as 'page steps forward'.
+            scale: Tween<double>(begin: 0.96, end: 1.0).animate(curved),
+            child: child,
           ),
-          child: child,
         );
       },
     ),

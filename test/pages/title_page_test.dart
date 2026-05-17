@@ -282,6 +282,15 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
+      // Pass 2D bumped the title hero to ~560 px on desktop so the
+      // EPISODI section now sits below the fold of the 800-tall test
+      // surface. Scroll the ListView until the section header is in
+      // the build tree before asserting on it.
+      await tester.scrollUntilVisible(
+        find.text('EPISODI · S1'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('EPISODI · S1'), findsOneWidget);
       expect(find.text('Pilot'), findsOneWidget);
     });
