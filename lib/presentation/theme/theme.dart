@@ -5,51 +5,56 @@
 import 'package:flutter/material.dart';
 
 import 'colors.dart';
+import 'tokens.dart';
 import 'typography.dart';
 
 ThemeData streamloadTheme() {
-  const colorScheme = ColorScheme.dark(
-    surface: StreamloadColors.surface1,
-    onSurface: StreamloadColors.textPrimary,
-    primary: StreamloadColors.accent,
-    onPrimary: Color(0xFF1A1308),
-    secondary: StreamloadColors.gold,
-    onSecondary: Color(0xFF1A1308),
-    error: StreamloadColors.critical,
+  // Colors are sourced from StreamloadTokens — the single design-system
+  // source of truth (spec §3). textTheme + filledButtonTheme stay on the
+  // legacy helpers for now so onboarding/form buttons don't regress; they
+  // migrate when those screens do.
+  final colorScheme = ColorScheme.dark(
+    surface: StreamloadTokens.surface,
+    onSurface: StreamloadTokens.textPrimary,
+    primary: StreamloadTokens.accent,
+    onPrimary: StreamloadTokens.ctaPrimaryFg,
+    secondary: StreamloadTokens.accentHover,
+    onSecondary: StreamloadTokens.ctaPrimaryFg,
+    error: StreamloadTokens.critical,
     onError: Colors.white,
-    surfaceContainerHighest: StreamloadColors.surface3,
-    outline: StreamloadColors.borderStrong,
-    outlineVariant: StreamloadColors.border,
+    surfaceContainerHighest: StreamloadTokens.surfaceHi,
+    outline: StreamloadTokens.borderStrong,
+    outlineVariant: StreamloadTokens.border,
   );
 
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
-    scaffoldBackgroundColor: StreamloadColors.bg,
-    canvasColor: StreamloadColors.bg,
+    scaffoldBackgroundColor: StreamloadTokens.bg,
+    canvasColor: StreamloadTokens.bg,
     colorScheme: colorScheme,
     textTheme: StreamloadTypography.textTheme(),
     splashFactory: NoSplash.splashFactory,
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: StreamloadColors.surface2,
-      hoverColor: StreamloadColors.surface3,
+      fillColor: StreamloadTokens.surface,
+      hoverColor: StreamloadTokens.surfaceHi,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: StreamloadColors.border),
+        borderSide: BorderSide(color: StreamloadTokens.border),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: StreamloadColors.border),
+        borderSide: BorderSide(color: StreamloadTokens.border),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: StreamloadColors.accent, width: 1.5),
+        borderSide: const BorderSide(color: StreamloadTokens.accent, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: StreamloadColors.critical),
+        borderSide: const BorderSide(color: StreamloadTokens.critical),
       ),
       labelStyle: StreamloadTypography.mono(
         fontSize: 11,
@@ -76,8 +81,8 @@ ThemeData streamloadTheme() {
       ),
     ),
     snackBarTheme: const SnackBarThemeData(
-      backgroundColor: StreamloadColors.surface2,
-      contentTextStyle: TextStyle(color: StreamloadColors.textPrimary),
+      backgroundColor: StreamloadTokens.surface,
+      contentTextStyle: TextStyle(color: StreamloadTokens.textPrimary),
     ),
   );
 }

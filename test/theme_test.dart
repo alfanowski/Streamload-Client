@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:streamload_client/presentation/theme/theme.dart';
 import 'package:streamload_client/presentation/theme/colors.dart';
+import 'package:streamload_client/presentation/theme/tokens.dart';
 
 void main() {
   setUpAll(() {
@@ -21,10 +22,10 @@ void main() {
       await tester.pump();
 
       expect(theme.brightness, Brightness.dark);
-      expect(theme.scaffoldBackgroundColor, StreamloadColors.bg);
-      expect(theme.colorScheme.surface, StreamloadColors.surface1);
-      expect(theme.colorScheme.primary, StreamloadColors.accent);
-      expect(theme.colorScheme.error, StreamloadColors.critical);
+      expect(theme.scaffoldBackgroundColor, StreamloadTokens.bg);
+      expect(theme.colorScheme.surface, StreamloadTokens.surface);
+      expect(theme.colorScheme.primary, StreamloadTokens.accent);
+      expect(theme.colorScheme.error, StreamloadTokens.critical);
     });
 
     testWidgets('text theme is non-empty and primary text is warm off-white',
