@@ -34,7 +34,7 @@ import 'package:flutter/material.dart';
 import '../../responsive.dart';
 import '../../theme/colors.dart';
 import '../../theme/typography.dart';
-import '../text_cta.dart';
+import '../primitives/cta_button.dart';
 import 'hero_backdrop.dart';
 
 class HeroSlide extends StatelessWidget {
@@ -179,8 +179,9 @@ class _MetadataBlock extends StatelessWidget {
             : 56.0;
     // CM-5 bottom inset: title should sit HIGH in the hero (96 desktop /
     // 64 tablet / 32 phone). Editorial framing — the title looks placed
-    // on the image, not stuck to the bottom edge.
-    final bottomInset = isPhone
+    // on the image, not stuck to the bottom edge. Clamped against the
+    // hero height below so a short hero never overflows (spec: no overflow).
+    final baseBottomInset = isPhone
         ? 32.0
         : isTablet
             ? 64.0
@@ -223,24 +224,26 @@ class _MetadataBlock extends StatelessWidget {
       ),
     ];
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(
-        horizontalPad,
-        0,
-        horizontalPad,
-        bottomInset,
-      ),
-      child: Align(
-        alignment: isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
-        child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxBlockWidth),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: align,
-            children: children,
+    return LayoutBuilder(
+      builder: (context, c) {
+        // Never let the inset push the metadata block past the hero edge:
+        // on a short hero the inset shrinks (cap at 15% of hero height).
+        final bottomInset = baseBottomInset.clamp(0.0, c.maxHeight * 0.15);
+        return Padding(
+          padding: EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, bottomInset),
+          child: Align(
+            alignment: isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxBlockWidth),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: align,
+                children: children,
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -259,20 +262,22 @@ class _Ctas extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stackVertical = availableWidth < 380;
-    // CM-5: home hero CTAs are TextCta directly (no PlayCta wrapper) —
-    // the rotating hero never has the availability lifecycle (the user
-    // can't tap Guarda without first navigating to the title page, where
-    // PlayCta + availabilityProvider take over). Leading '▶' makes the
-    // primary action unmistakable in a typographic CTA.
-    final ctaPlay = TextCta(
+    // UI refactor (2026-05-29): the approved "Cinematic Premium" mockup
+    // uses a solid cream Play pill + a ghost "La mia lista" pill (Apple
+    // TV+ lean), overriding the older CM-4 typographic-only cluster. The
+    // rotating hero has no availability lifecycle (that lives on the title
+    // page), so these are plain CtaButtons wired to onPlay / onAdd.
+    final ctaPlay = CtaButton(
       label: 'Guarda',
       leading: '▶',
       onTap: onPlay,
+      filled: true,
     );
-    final ctaAdd = TextCta(
+    final ctaAdd = CtaButton(
       label: 'La mia lista',
       leading: '＋',
       onTap: onAdd,
+      filled: false,
     );
 
     if (stackVertical) {
