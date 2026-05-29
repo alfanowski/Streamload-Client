@@ -27,10 +27,14 @@ import '../../state/database_provider.dart';
 import '../../state/favorites_provider.dart';
 import '../../state/title_provider.dart';
 import '../../state/watchlist_provider.dart';
+import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
-import '../widgets/media_grid.dart';
+import '../view_models/media_card_vm.dart';
+import '../widgets/primitives/async_state_view.dart';
+import '../widgets/primitives/media_poster_card.dart';
+import '../widgets/primitives/responsive_grid.dart';
 
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -89,11 +93,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
           return const Center(child: CircularProgressIndicator());
         }
         if (error != null) {
-          return Center(
-            child: Text(
-              'Errore: $error',
-              style: const TextStyle(color: StreamloadColors.v3TextPrimary),
-            ),
+          return StreamloadErrorState(
+            onRetry: () {
+              ref.invalidate(favoritesProvider);
+              ref.invalidate(watchlistProvider);
+            },
           );
         }
         if (keys.isEmpty) {
@@ -180,14 +184,35 @@ class _ResolvedGrid extends ConsumerWidget {
           return const Center(child: CircularProgressIndicator());
         }
         final items = snap.data ?? const <MediaSummary>[];
-        return MediaGrid(
-          items: items,
-          onTap: (m) => context.go(
-            '/title/${m.tmdbId}?media_type=${m.mediaType}',
-          ),
-          padding: StreamloadSpacing.pagePaddingDesktop.copyWith(
-            top: 16,
-            bottom: 32,
+        if (items.isEmpty) {
+          return Center(
+            child: Text(
+              'Nessun titolo in questa sezione.',
+              style: StreamloadTypography.v3Body(
+                color: StreamloadColors.v3TextMuted,
+              ),
+            ),
+          );
+        }
+        final pad = Responsive.isPhone(context)
+            ? StreamloadSpacing.pagePaddingPhone
+            : Responsive.isTablet(context)
+                ? StreamloadSpacing.pagePaddingTablet
+                : StreamloadSpacing.pagePaddingDesktop;
+        return SingleChildScrollView(
+          padding: pad.copyWith(top: 16, bottom: 32),
+          child: ResponsiveGrid(
+            itemCount: items.length,
+            itemAspectRatio: 0.55,
+            itemBuilder: (context, i) {
+              final vm = MediaCardVm.fromSummary(items[i]);
+              return MediaPosterCard(
+                item: vm,
+                onTap: () => context.go(
+                  '/title/${vm.tmdbId}?media_type=${vm.mediaType}',
+                ),
+              );
+            },
           ),
         );
       },

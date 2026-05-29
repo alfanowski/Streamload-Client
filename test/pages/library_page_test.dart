@@ -91,8 +91,10 @@ void main() {
     await tester.pumpWidget(_wrap(fav: fav, wl: wl, db: db));
     await tester.pumpAndSettle();
 
-    expect(find.text('Film'), findsOneWidget);
-    expect(find.text('Serie TV'), findsOneWidget);
+    // Scope to the Tab widget — cards now carry a 'Film'/'Serie' meta
+    // label too, so a bare find.text('Film') would match both.
+    expect(find.widgetWithText(Tab, 'Film'), findsOneWidget);
+    expect(find.widgetWithText(Tab, 'Serie TV'), findsOneWidget);
     expect(find.text('La mia lista'), findsOneWidget);
   });
 
