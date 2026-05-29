@@ -1,11 +1,16 @@
 // lib/presentation/widgets/top_nav_bar.dart
 //
-// Desktop / tablet top navigation bar — "Cinematic Premium" refactor v2
-// (2026-05-30). Flat editorial disposition (NOT a segmented pill, which the
-// operator found ugly): wordmark left · section tabs in a row · search pill
-// + avatar right. The bar sits on a liquid-glass surface (shader on
-// Impeller macOS, fallback in tests). The active tab gets a smoothly
-// animated amber underline + a colour cross-fade on section change.
+// Desktop / tablet top navigation bar — "Cinematic Premium" v3 (2026-05-30).
+// Clean frosted-glass bar (BackdropFilter blur — NOT the shader, whose
+// refraction rim read as an ugly outline on a full-width rectangle). One
+// hairline under the bar; everything vertically centered.
+//
+// Layout (Apple TV+ / Netflix): wordmark + section tabs grouped LEFT,
+// search pill + avatar pinned RIGHT. The active tab has a smoothly animated
+// amber underline anchored to the bar's bottom edge (so it never shifts the
+// label vertically).
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -15,7 +20,6 @@ import '../responsive.dart';
 import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import 'avatar_menu.dart';
-import 'primitives/glass_surface.dart';
 import 'search_overlay.dart';
 
 class TopNavBar extends ConsumerWidget {
@@ -36,52 +40,66 @@ class TopNavBar extends ConsumerWidget {
     final scrolled = ref.watch(navScrolledProvider);
     final currentLoc = GoRouterState.of(context).matchedLocation;
 
-    return GlassSurface(
-      borderRadius: 0,
-      blur: scrolled ? 18 : 10,
-      thickness: 10,
-      tint: StreamloadTokens.bg.withValues(alpha: scrolled ? 0.66 : 0.30),
-      child: SafeArea(
-        bottom: false,
-        child: SizedBox(
-          height: height,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Row(
-              children: [
-                const _Wordmark(),
-                const SizedBox(width: 36),
-                // Tabs in a flexible scroll region so they never overflow on
-                // narrow tablet widths; search + avatar stay pinned right.
-                Flexible(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (final t in _tabs)
-                          _NavTab(
-                            label: t.label,
-                            path: t.path,
-                            active: _isActive(currentLoc, t.path),
-                          ),
-                      ],
+    return ClipRect(
+      child: BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: scrolled ? 24 : 14,
+          sigmaY: scrolled ? 24 : 14,
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: StreamloadTokens.bg
+                .withValues(alpha: scrolled ? 0.72 : 0.32),
+            border: Border(
+              bottom: BorderSide(
+                color: StreamloadTokens.border,
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: SizedBox(
+              height: height,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 32, right: 24),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const _Wordmark(),
+                    const SizedBox(width: 40),
+                    // Tabs grouped left; the Expanded fills the gap so the
+                    // search + avatar cluster pins to the right edge.
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            for (final t in _tabs)
+                              _NavTab(
+                                label: t.label,
+                                path: t.path,
+                                active: _isActive(currentLoc, t.path),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 12),
+                    _SearchPill(
+                      onTap: () {
+                        if (Responsive.isPhone(context)) {
+                          context.go('/search');
+                        } else {
+                          SearchOverlay.show(context);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 16),
+                    const AvatarMenu(),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                _SearchPill(
-                  onTap: () {
-                    if (Responsive.isPhone(context)) {
-                      context.go('/search');
-                    } else {
-                      SearchOverlay.show(context);
-                    }
-                  },
-                ),
-                const SizedBox(width: 14),
-                const AvatarMenu(),
-              ],
+              ),
             ),
           ),
         ),
@@ -103,7 +121,7 @@ class _Wordmark extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       'Streamload',
-      style: StreamloadTypography.display(fontSize: 20, italic: true)
+      style: StreamloadTypography.display(fontSize: 21, italic: true)
           .copyWith(letterSpacing: -0.3, color: StreamloadTokens.textPrimary),
     );
   }
@@ -121,35 +139,40 @@ class _NavTab extends StatelessWidget {
     return GestureDetector(
       onTap: () => context.go(path),
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
+      child: SizedBox(
+        height: TopNavBar.height,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            AnimatedDefaultTextStyle(
-              duration: StreamloadTokens.hover,
-              curve: StreamloadTokens.standardCurve,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-                color: active
-                    ? StreamloadTokens.textPrimary
-                    : StreamloadTokens.textSecondary,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: AnimatedDefaultTextStyle(
+                duration: StreamloadTokens.hover,
+                curve: StreamloadTokens.standardCurve,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                  color: active
+                      ? StreamloadTokens.textPrimary
+                      : StreamloadTokens.textSecondary,
+                ),
+                child: Text(label),
               ),
-              child: Text(label),
             ),
-            const SizedBox(height: 6),
-            // Smoothly animated amber underline: grows in under the active
-            // tab and shrinks out of the previous one — a soft slide-handoff.
-            AnimatedContainer(
-              duration: StreamloadTokens.page,
-              curve: StreamloadTokens.standardCurve,
-              height: 2,
-              width: active ? 22 : 0,
-              decoration: BoxDecoration(
-                color: StreamloadTokens.accent,
-                borderRadius: BorderRadius.circular(2),
+            // Underline anchored to the bottom edge — never shifts the label.
+            Positioned(
+              bottom: 0,
+              child: AnimatedContainer(
+                duration: StreamloadTokens.page,
+                curve: StreamloadTokens.standardCurve,
+                height: 2,
+                width: active ? 22 : 0,
+                decoration: const BoxDecoration(
+                  color: StreamloadTokens.accent,
+                  borderRadius: BorderRadius.vertical(
+                    top: Radius.circular(2),
+                  ),
+                ),
               ),
             ),
           ],
