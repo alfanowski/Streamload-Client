@@ -11,6 +11,8 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 
 import 'package:streamload_client/data/remote/endpoints/search_api.dart';
+import 'package:streamload_client/domain/models/media_summary.dart';
+import 'package:streamload_client/domain/models/search_results.dart';
 import 'package:streamload_client/presentation/widgets/search_overlay.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 
@@ -48,6 +50,13 @@ GoRouter _router(_NavSpy spy, Widget Function() opener) {
             '/search?q=${state.uri.queryParameters['q'] ?? ''}',
           );
           return const Scaffold(body: Text('search-page'));
+        },
+      ),
+      GoRoute(
+        path: '/person/:id',
+        builder: (_, state) {
+          spy.visited.add('/person/${state.pathParameters['id']}');
+          return const Scaffold(body: Text('person-page'));
         },
       ),
     ],
@@ -92,29 +101,28 @@ void main() {
     expect(find.text('Cerca un titolo…'), findsOneWidget);
     // No query → suggestions list is not built, so no "Mostra tutti".
     expect(find.text('Mostra tutti i risultati →'), findsNothing);
-    verifyNever(() => api.run(any()));
+    verifyNever(() => api.search(any()));
   });
 
   testWidgets('typing triggers a debounced search after 200ms', (t) async {
     final api = _SearchApiMock();
-    when(() => api.run('dune')).thenAnswer((_) async => {
-          'results': [
-            {
-              'tmdb_id': 1,
-              'media_type': 'movie',
-              'title': 'Dune',
-              'year': 2021,
-              'poster_url': null,
-            }
+    when(() => api.search('dune')).thenAnswer((_) async => const SearchResults(
+          titles: [
+            MediaSummary(
+              tmdbId: 1,
+              mediaType: 'movie',
+              title: 'Dune',
+              year: 2021,
+            ),
           ],
-        });
+        ));
     final spy = _NavSpy();
     await pumpOverlayHost(t, api: api, spy: spy);
 
     await t.enterText(find.byType(TextField), 'dune');
     // Before the debounce fires, no API call yet.
     await t.pump(const Duration(milliseconds: 50));
-    verifyNever(() => api.run(any()));
+    verifyNever(() => api.search(any()));
 
     // Pump past the 200ms debounce → API resolves → suggestion appears.
     await t.pump(const Duration(milliseconds: 250));
@@ -122,23 +130,83 @@ void main() {
     expect(find.text('Dune'), findsOneWidget);
     expect(find.text('Film · 2021'), findsOneWidget);
     expect(find.text('Mostra tutti i risultati →'), findsOneWidget);
-    verify(() => api.run('dune')).called(1);
+    verify(() => api.search('dune')).called(1);
+  });
+
+  testWidgets('shows a person tile above titles when people present (PS-4)',
+      (t) async {
+    final api = _SearchApiMock();
+    when(() => api.search('brad')).thenAnswer((_) async => const SearchResults(
+          titles: [
+            MediaSummary(
+              tmdbId: 9,
+              mediaType: 'movie',
+              title: 'Fight Club',
+              year: 1999,
+            ),
+          ],
+          people: [
+            SearchPersonResult(
+              tmdbId: 287,
+              name: 'Brad Pitt',
+              department: 'Acting',
+              knownFor: ['World War Z'],
+            ),
+          ],
+        ));
+    final spy = _NavSpy();
+    await pumpOverlayHost(t, api: api, spy: spy);
+
+    await t.enterText(find.byType(TextField), 'brad');
+    await t.pump(const Duration(milliseconds: 250));
+    await t.pumpAndSettle();
+    expect(find.text('Brad Pitt'), findsOneWidget);
+    expect(find.text('Interprete'), findsOneWidget);
+    // Title suggestion still shown below.
+    expect(find.text('Fight Club'), findsOneWidget);
+
+    // Tapping the person pops the overlay and navigates to /person.
+    await t.tap(find.text('Brad Pitt'));
+    await t.pumpAndSettle();
+    expect(spy.visited, contains('/person/287'));
+    expect(find.byType(TextField), findsNothing);
+  });
+
+  testWidgets('no person tile when people empty (PS-4)', (t) async {
+    final api = _SearchApiMock();
+    when(() => api.search('dune')).thenAnswer((_) async => const SearchResults(
+          titles: [
+            MediaSummary(
+              tmdbId: 1,
+              mediaType: 'movie',
+              title: 'Dune',
+              year: 2021,
+            ),
+          ],
+        ));
+    final spy = _NavSpy();
+    await pumpOverlayHost(t, api: api, spy: spy);
+
+    await t.enterText(find.byType(TextField), 'dune');
+    await t.pump(const Duration(milliseconds: 250));
+    await t.pumpAndSettle();
+    expect(find.text('Interprete'), findsNothing);
+    expect(find.byIcon(Icons.person_outline), findsNothing);
   });
 
   testWidgets('tapping a suggestion pops the overlay and navigates to /title',
       (t) async {
     final api = _SearchApiMock();
-    when(() => api.run('dune')).thenAnswer((_) async => {
-          'results': [
-            {
-              'tmdb_id': 42,
-              'media_type': 'movie',
-              'title': 'Dune',
-              'year': 2021,
-              'poster_url': null,
-            }
+    when(() => api.search('dune')).thenAnswer((_) async => const SearchResults(
+          titles: [
+            MediaSummary(
+              tmdbId: 42,
+              mediaType: 'movie',
+              title: 'Dune',
+              year: 2021,
+            ),
           ],
-        });
+        ));
     final spy = _NavSpy();
     await pumpOverlayHost(t, api: api, spy: spy);
 
@@ -156,17 +224,16 @@ void main() {
 
   testWidgets('"Mostra tutti" navigates to /search?q=<query>', (t) async {
     final api = _SearchApiMock();
-    when(() => api.run('inter')).thenAnswer((_) async => {
-          'results': [
-            {
-              'tmdb_id': 1,
-              'media_type': 'movie',
-              'title': 'Interstellar',
-              'year': 2014,
-              'poster_url': null,
-            }
+    when(() => api.search('inter')).thenAnswer((_) async => const SearchResults(
+          titles: [
+            MediaSummary(
+              tmdbId: 1,
+              mediaType: 'movie',
+              title: 'Interstellar',
+              year: 2014,
+            ),
           ],
-        });
+        ));
     final spy = _NavSpy();
     await pumpOverlayHost(t, api: api, spy: spy);
 

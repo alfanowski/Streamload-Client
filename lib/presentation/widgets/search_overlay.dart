@@ -36,11 +36,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../domain/models/media_summary.dart';
+import '../../domain/models/search_results.dart';
 import '../../state/api_client_provider.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import 'press_feedback.dart';
+import 'search/person_result_tile.dart';
 
 /// Live search FutureProvider used by [SearchOverlay] (and reusable by
 /// other call sites that want suggestion-style results). Hits the same
@@ -51,17 +53,12 @@ import 'press_feedback.dart';
 /// call. Errors bubble up as AsyncError so the overlay can render a
 /// gentle inline message instead of throwing.
 final searchSuggestionsProvider =
-    FutureProvider.autoDispose.family<List<MediaSummary>, String>(
+    FutureProvider.autoDispose.family<SearchResults, String>(
   (ref, query) async {
     final q = query.trim();
-    if (q.isEmpty) return const <MediaSummary>[];
+    if (q.isEmpty) return const SearchResults();
     final api = await ref.watch(searchApiProvider.future);
-    final raw = await api.run(q);
-    final list = (raw['results'] as List? ?? const [])
-        .cast<Map<String, dynamic>>()
-        .map(MediaSummary.fromJson)
-        .toList(growable: false);
-    return list;
+    return api.search(q);
   },
 );
 
@@ -134,6 +131,11 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
   void _onSelectSuggestion(MediaSummary m) {
     _close();
     context.go('/title/${m.tmdbId}?media_type=${m.mediaType}');
+  }
+
+  void _onSelectPerson(SearchPersonResult p) {
+    _close();
+    context.go('/person/${p.tmdbId}');
   }
 
   void _onShowAll() {
@@ -215,6 +217,7 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
                                 _SuggestionsList(
                                   query: _debouncedQuery,
                                   onSelect: _onSelectSuggestion,
+                                  onSelectPerson: _onSelectPerson,
                                   onShowAll: _onShowAll,
                                 ),
                             ],
@@ -340,28 +343,49 @@ class _SuggestionsList extends ConsumerWidget {
   const _SuggestionsList({
     required this.query,
     required this.onSelect,
+    required this.onSelectPerson,
     required this.onShowAll,
   });
 
   final String query;
   final ValueChanged<MediaSummary> onSelect;
+  final ValueChanged<SearchPersonResult> onSelectPerson;
   final VoidCallback onShowAll;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(searchSuggestionsProvider(query));
     return async.when(
-      data: (items) {
+      data: (results) {
+        // PS-4: when an actor/director matches, surface the single most
+        // relevant person (TMDB orders by relevance → people.first) at the
+        // TOP, then a hairline divider, then the title suggestions. This
+        // satisfies the operator's "l'attore come primo risultato, sotto
+        // i film".
+        final topPerson =
+            results.people.isNotEmpty ? results.people.first : null;
         // Pass 2E (2026-05-17): the original 5-suggestion limit was a
         // hand-tuned guess from sub-plan 8 — operator wants the overlay
         // to feel as rich as Netflix's "did you mean" stack, so we bump
         // it to 8. Eight rows still fits comfortably above the fold on
         // a 13-inch laptop without scrolling the dialog.
-        final top = items.take(8).toList(growable: false);
+        final top = results.titles.take(8).toList(growable: false);
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (topPerson != null) ...[
+              PersonResultTile(
+                person: topPerson,
+                onTap: () => onSelectPerson(topPerson),
+              ),
+              if (top.isNotEmpty)
+                Divider(
+                  height: 16,
+                  thickness: 1,
+                  color: StreamloadColors.v3BorderGlass,
+                ),
+            ],
             for (final m in top)
               _SuggestionRow(summary: m, onTap: () => onSelect(m)),
             _ShowAllRow(onTap: onShowAll),

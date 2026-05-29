@@ -23,11 +23,16 @@ import 'package:streamload_client/presentation/widgets/top_nav_bar.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/auth_provider.dart';
 import 'package:streamload_client/domain/models/user.dart';
+import 'package:streamload_client/domain/models/search_results.dart';
 
 class _SearchApiStub implements SearchApi {
   @override
   Future<Map<String, dynamic>> run(String query, {int page = 1}) async =>
       {'results': []};
+
+  @override
+  Future<SearchResults> search(String query, {int page = 1}) async =>
+      const SearchResults();
 }
 
 class _PreAuthedNotifier extends AuthNotifier {

@@ -18,6 +18,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/data/remote/endpoints/catalog_rows_api.dart';
 import 'package:streamload_client/data/remote/endpoints/search_api.dart';
 import 'package:streamload_client/domain/models/media_summary.dart';
+import 'package:streamload_client/domain/models/search_results.dart';
 import 'package:streamload_client/presentation/pages/search_page.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 
@@ -134,19 +135,18 @@ Future<void> pumpPage(
   await t.pump();
 }
 
-Map<String, dynamic> _result({
+MediaSummary _result({
   required int tmdbId,
   required String type,
   required String title,
   int? year,
 }) =>
-    {
-      'tmdb_id': tmdbId,
-      'media_type': type,
-      'title': title,
-      'year': year,
-      'poster_url': null,
-    };
+    MediaSummary(
+      tmdbId: tmdbId,
+      mediaType: type,
+      title: title,
+      year: year,
+    );
 
 void main() {
   setUpAll(() {
@@ -181,30 +181,30 @@ void main() {
     expect(find.text('SUGGERITE PER TE'), findsOneWidget);
     expect(find.text('Ricerche di tendenza'), findsOneWidget);
     expect(find.text('TrendingPick'), findsOneWidget);
-    verifyNever(() => api.run(any()));
+    verifyNever(() => api.search(any()));
   });
 
   testWidgets('initialQuery pre-fills the input and runs page 1', (t) async {
     final api = _SearchApiMock();
-    when(() => api.run('dune', page: any(named: 'page'))).thenAnswer(
-      (_) async => {
-        'results': [
+    when(() => api.search('dune', page: any(named: 'page'))).thenAnswer(
+      (_) async => SearchResults(
+        titles: [
           _result(tmdbId: 1, type: 'movie', title: 'Dune', year: 2021),
         ],
-      },
+      ),
     );
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=dune');
     await t.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'dune'), findsOneWidget);
     expect(find.text('Dune'), findsOneWidget);
-    verify(() => api.run('dune', page: 1)).called(1);
+    verify(() => api.search('dune', page: 1)).called(1);
   });
 
   testWidgets('submitting input updates the URL via context.go', (t) async {
     final api = _SearchApiMock();
-    when(() => api.run(any(), page: any(named: 'page')))
-        .thenAnswer((_) async => {'results': <Map<String, dynamic>>[]});
+    when(() => api.search(any(), page: any(named: 'page')))
+        .thenAnswer((_) async => const SearchResults());
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy);
     await t.pumpAndSettle();
@@ -217,13 +217,13 @@ void main() {
   testWidgets('grid mixes all media types — chips dropped (Pass 2E)',
       (t) async {
     final api = _SearchApiMock();
-    when(() => api.run('mix', page: any(named: 'page'))).thenAnswer(
-      (_) async => {
-        'results': [
+    when(() => api.search('mix', page: any(named: 'page'))).thenAnswer(
+      (_) async => SearchResults(
+        titles: [
           _result(tmdbId: 1, type: 'movie', title: 'MixMovie', year: 2020),
           _result(tmdbId: 2, type: 'tv', title: 'MixSeries', year: 2021),
         ],
-      },
+      ),
     );
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=mix');
@@ -235,11 +235,57 @@ void main() {
     expect(find.text('Film'), findsNothing);
   });
 
+  testWidgets('shows "Persone" section above the "Titoli" grid when people '
+      'present (PS-4)', (t) async {
+    final api = _SearchApiMock();
+    when(() => api.search('brad', page: any(named: 'page'))).thenAnswer(
+      (_) async => SearchResults(
+        titles: [
+          _result(tmdbId: 9, type: 'movie', title: 'Fight Club', year: 1999),
+        ],
+        people: const [
+          SearchPersonResult(
+            tmdbId: 287,
+            name: 'Brad Pitt',
+            department: 'Acting',
+            knownFor: ['World War Z'],
+          ),
+        ],
+      ),
+    );
+    final spy = _NavSpy();
+    await pumpPage(t, api: api, spy: spy, initial: '/search?q=brad');
+    await t.pumpAndSettle();
+    expect(find.text('Persone'), findsOneWidget);
+    expect(find.text('Brad Pitt'), findsOneWidget);
+    expect(find.text('Titoli'), findsOneWidget);
+    expect(find.text('Fight Club'), findsOneWidget);
+  });
+
+  testWidgets('no "Persone" section when people are empty (PS-4)', (t) async {
+    final api = _SearchApiMock();
+    when(() => api.search('mix', page: any(named: 'page'))).thenAnswer(
+      (_) async => SearchResults(
+        titles: [
+          _result(tmdbId: 1, type: 'movie', title: 'MixMovie', year: 2020),
+        ],
+      ),
+    );
+    final spy = _NavSpy();
+    await pumpPage(t, api: api, spy: spy, initial: '/search?q=mix');
+    await t.pumpAndSettle();
+    expect(find.text('Persone'), findsNothing);
+    // With no people we don't print a "Titoli" header either — the grid
+    // stands alone as before.
+    expect(find.text('Titoli'), findsNothing);
+    expect(find.text('MixMovie'), findsOneWidget);
+  });
+
   testWidgets('no-results state shows the "Nessun risultato" message',
       (t) async {
     final api = _SearchApiMock();
-    when(() => api.run('xyzzy', page: any(named: 'page'))).thenAnswer(
-      (_) async => {'results': <Map<String, dynamic>>[]},
+    when(() => api.search('xyzzy', page: any(named: 'page'))).thenAnswer(
+      (_) async => const SearchResults(),
     );
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=xyzzy');
@@ -249,8 +295,8 @@ void main() {
 
   testWidgets('initial loading state renders the skeleton grid', (t) async {
     final api = _SearchApiMock();
-    final completer = Completer<Map<String, dynamic>>();
-    when(() => api.run('slow', page: any(named: 'page')))
+    final completer = Completer<SearchResults>();
+    when(() => api.search('slow', page: any(named: 'page')))
         .thenAnswer((_) => completer.future);
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=slow');
@@ -265,7 +311,7 @@ void main() {
     expect(find.text('Cerca un titolo, una serie o un anime'), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     // Resolve to clear the pending timer for the test runner.
-    completer.complete({'results': <Map<String, dynamic>>[]});
+    completer.complete(const SearchResults());
     await t.pumpAndSettle();
   });
 }

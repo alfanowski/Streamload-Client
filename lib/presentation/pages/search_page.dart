@@ -30,6 +30,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/remote/endpoints/search_api.dart';
 import '../../domain/models/media_summary.dart';
+import '../../domain/models/search_results.dart';
 import '../../state/api_client_provider.dart';
 import '../../state/home_rows_provider.dart';
 import '../responsive.dart';
@@ -38,6 +39,7 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
+import '../widgets/search/person_result_tile.dart';
 import '../widgets/shimmer.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
@@ -61,6 +63,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   String _activeQuery = '';
 
   final List<MediaSummary> _items = [];
+  // People only come back on page 1 of the multi-search; TMDB doesn't
+  // re-surface them on later pages, so we capture them once and keep them
+  // pinned above the title grid.
+  List<SearchPersonResult> _people = const [];
   bool _loading = false;
   bool _exhausted = false;
   Object? _error;
@@ -102,6 +108,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void _resetResults() {
     setState(() {
       _items.clear();
+      _people = const [];
       _loading = false;
       _exhausted = false;
       _error = null;
@@ -127,14 +134,15 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final nextPage = _pagesLoaded + 1;
     try {
       final SearchApi api = await ref.read(searchApiProvider.future);
-      final raw = await api.run(_activeQuery, page: nextPage);
-      final list = (raw['results'] as List? ?? const [])
-          .cast<Map<String, dynamic>>()
-          .map(MediaSummary.fromJson)
-          .toList(growable: false);
+      final results = await api.search(_activeQuery, page: nextPage);
+      final list = results.titles;
       if (!mounted) return;
       setState(() {
         _items.addAll(list);
+        // People only ride along on page 1 — capture them once.
+        if (nextPage == 1) {
+          _people = results.people;
+        }
         _pagesLoaded = nextPage;
         if (list.length < 20 || _pagesLoaded >= _maxPages) {
           _exhausted = true;
@@ -210,16 +218,32 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 padding: horizontalPad,
                 onRetry: _runFirstPage,
               )
-            else if (_items.isEmpty)
+            else if (_items.isEmpty && _people.isEmpty)
               _NoResultsSliver(
                 padding: horizontalPad,
                 query: _activeQuery,
               )
-            else
-              _ResultsGridSliver(
-                padding: horizontalPad,
-                items: _items,
-              ),
+            else ...[
+              // PS-4: when an actor/director matched, surface a "Persone"
+              // section ABOVE the title grid — the operator's "l'attore
+              // come primo risultato, sotto i film". Up to 3 people.
+              if (_people.isNotEmpty)
+                _PeopleSectionSliver(
+                  padding: horizontalPad,
+                  people: _people,
+                ),
+              if (_items.isNotEmpty) ...[
+                if (_people.isNotEmpty)
+                  _SectionHeaderSliver(
+                    padding: horizontalPad,
+                    label: 'Titoli',
+                  ),
+                _ResultsGridSliver(
+                  padding: horizontalPad,
+                  items: _items,
+                ),
+              ],
+            ],
             // Footer: trailing spinner during incremental fetches.
             if (_loading && _items.isNotEmpty)
               const SliverToBoxAdapter(
@@ -591,6 +615,61 @@ class _SkeletonGrid extends StatelessWidget {
               borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// People section (PS-4) — actor-first results above the title grid
+// ──────────────────────────────────────────────────────────────────────────
+
+class _PeopleSectionSliver extends StatelessWidget {
+  const _PeopleSectionSliver({required this.padding, required this.people});
+  final double padding;
+  final List<SearchPersonResult> people;
+
+  @override
+  Widget build(BuildContext context) {
+    // Cap at 3 — the operator wants the matched actor(s) front and centre,
+    // not a directory. Three covers "same name" disambiguation without
+    // pushing the films too far down.
+    final top = people.take(3).toList(growable: false);
+    return SliverPadding(
+      padding: EdgeInsets.fromLTRB(padding, 4, padding, 8),
+      sliver: SliverToBoxAdapter(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
+              child: Text(
+                'Persone',
+                style: StreamloadTypography.v3SectionHeader(),
+              ),
+            ),
+            for (final p in top) PersonResultTile(person: p),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeaderSliver extends StatelessWidget {
+  const _SectionHeaderSliver({required this.padding, required this.label});
+  final double padding;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: EdgeInsets.fromLTRB(padding + 4, 12, padding + 4, 8),
+      sliver: SliverToBoxAdapter(
+        child: Text(
+          label,
+          style: StreamloadTypography.v3SectionHeader(),
         ),
       ),
     );

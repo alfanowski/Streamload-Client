@@ -19,9 +19,14 @@ import '../../theme/typography.dart';
 import '../press_feedback.dart';
 
 class PersonResultTile extends StatelessWidget {
-  const PersonResultTile({super.key, required this.person});
+  const PersonResultTile({super.key, required this.person, this.onTap});
 
   final SearchPersonResult person;
+
+  /// Optional tap override. Defaults to `context.go('/person/<id>')`.
+  /// The search overlay passes a handler that ALSO pops the overlay
+  /// before navigating.
+  final VoidCallback? onTap;
 
   static const double _avatarRadius = 28;
 
@@ -34,7 +39,7 @@ class PersonResultTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => context.go('/person/${person.tmdbId}'),
+          onTap: onTap ?? () => context.go('/person/${person.tmdbId}'),
           borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 72),

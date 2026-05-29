@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:streamload_client/data/remote/endpoints/search_api.dart';
+import 'package:streamload_client/domain/models/search_results.dart';
 import 'package:streamload_client/presentation/theme/colors.dart';
 import 'package:streamload_client/presentation/widgets/search_overlay.dart';
 import 'package:streamload_client/presentation/widgets/top_nav_bar.dart';
@@ -25,6 +26,10 @@ class _SearchApiStub implements SearchApi {
   @override
   Future<Map<String, dynamic>> run(String query, {int page = 1}) async =>
       {'results': []};
+
+  @override
+  Future<SearchResults> search(String query, {int page = 1}) async =>
+      const SearchResults();
 }
 
 void main() {
