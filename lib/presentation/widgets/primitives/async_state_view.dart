@@ -96,7 +96,7 @@ class StreamloadErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.error_outline,
+            const Icon(Icons.error_outline,
                 color: StreamloadTokens.critical, size: 40),
             const SizedBox(height: StreamloadTokens.space3),
             Text(

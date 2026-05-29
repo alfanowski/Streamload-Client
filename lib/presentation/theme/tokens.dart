@@ -5,7 +5,6 @@
 // screens read ONLY from here. Legacy StreamloadColors/Typography/Spacing/
 // Motion stay until each screen is migrated.
 import 'package:flutter/material.dart';
-import 'package:flutter/physics.dart';
 
 class StreamloadTokens {
   StreamloadTokens._();
@@ -60,6 +59,6 @@ class StreamloadTokens {
   static const Duration heroCrossfade = Duration(milliseconds: 600);
   static const Curve standardCurve = Curves.easeOutCubic;
   static const Curve springCurve = Curves.easeOutBack; // tactile overshoot
-  static final SpringDescription spring =
+  static const SpringDescription spring =
       SpringDescription(mass: 1, stiffness: 320, damping: 24);
 }
