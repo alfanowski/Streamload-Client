@@ -73,32 +73,65 @@ class HeroBackdrop extends StatelessWidget {
       fit: StackFit.expand,
       children: [
         _Backdrop(url: backdropUrl, fallbackUrl: posterUrl),
+        // Left scrim (desktop billboard feel) — darkens the side the
+        // bottom-left title sits on, without crushing the whole image.
+        const _LeftScrim(),
+        // Stronger cinematic bottom fade so the title + CTAs pop.
         const _BottomGradient(),
       ],
     );
   }
 }
 
-class _Backdrop extends StatelessWidget {
+/// Backdrop image with a slow one-shot "Ken Burns" zoom-in for premium
+/// life on mount. One-shot (not repeating) so widget tests that settle
+/// don't hang. A rotating carousel re-mounts each slide → fresh zoom.
+class _Backdrop extends StatefulWidget {
   const _Backdrop({this.url, this.fallbackUrl});
   final String? url;
   final String? fallbackUrl;
 
   @override
+  State<_Backdrop> createState() => _BackdropState();
+}
+
+class _BackdropState extends State<_Backdrop>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..forward();
+    _scale = Tween<double>(begin: 1.0, end: 1.08)
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final primary = (url == null || url!.isEmpty) ? null : url;
-    final fallback =
-        (fallbackUrl == null || fallbackUrl!.isEmpty) ? null : fallbackUrl;
+    final primary =
+        (widget.url == null || widget.url!.isEmpty) ? null : widget.url;
+    final fallback = (widget.fallbackUrl == null || widget.fallbackUrl!.isEmpty)
+        ? null
+        : widget.fallbackUrl;
     final chosen = primary ?? fallback;
     if (chosen == null) {
       return Container(color: StreamloadColors.v3BgBase);
     }
-    return CachedNetworkImage(
+    final image = CachedNetworkImage(
       imageUrl: chosen,
       fit: BoxFit.cover,
       placeholder: (_, __) => Container(color: StreamloadColors.v3BgBase),
-      // If the primary backdrop URL fails, try the poster URL before
-      // giving up to a solid color.
       errorWidget: (_, __, ___) {
         if (fallback != null && chosen != fallback) {
           return CachedNetworkImage(
@@ -112,6 +145,34 @@ class _Backdrop extends StatelessWidget {
         }
         return Container(color: StreamloadColors.v3BgBase);
       },
+    );
+    return ScaleTransition(scale: _scale, child: image);
+  }
+}
+
+/// Subtle left→right scrim: a warm-black wash over the leftmost ~45% that
+/// fades to transparent, so the bottom-left title reads cleanly on bright
+/// backdrops (Netflix / Apple TV+ billboard convention).
+class _LeftScrim extends StatelessWidget {
+  const _LeftScrim();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            stops: const [0.0, 0.45, 1.0],
+            colors: [
+              StreamloadColors.v3BgBase.withValues(alpha: 0.55),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.15),
+              Colors.transparent,
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -133,11 +194,12 @@ class _BottomGradient extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: const [0.0, 0.65, 1.0],
+            stops: const [0.0, 0.4, 0.75, 1.0],
             colors: [
               Colors.transparent,
-              Colors.transparent,
-              StreamloadColors.v3BgBase.withValues(alpha: 0.7),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.15),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.75),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.98),
             ],
           ),
         ),

@@ -196,7 +196,7 @@ class _MetadataBlock extends StatelessWidget {
       Text(
         label,
         style: StreamloadTypography.v3LabelMono(
-          color: StreamloadColors.v3TextSecondary,
+          color: StreamloadColors.accent,
         ),
         textAlign: isPhone ? TextAlign.center : TextAlign.start,
       ),
