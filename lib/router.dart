@@ -13,6 +13,8 @@ import 'presentation/pages/search_page.dart';
 import 'presentation/pages/settings_page.dart';
 import 'presentation/pages/title_page.dart';
 import 'presentation/pages/watch_page.dart';
+import 'presentation/theme/page_transitions.dart';
+import 'presentation/theme/tokens.dart';
 import 'presentation/widgets/app_shell.dart';
 import 'domain/models/playback_request.dart';
 import 'state/auth_provider.dart';
@@ -116,10 +118,9 @@ class _RouterRefreshNotifier extends ChangeNotifier {
   }
 }
 
-/// 2026-05-17 (CM-2): the Pass 2F "depth" combined fade + scale was
-/// reverted to a pure 250 ms ease-out fade. The scale-up felt like a
-/// cheap reveal effect against the editorial pivot — pages should just
-/// settle into place without theatrics.
+/// 2026-05-29 (UI refactor): routes now use [streamloadPageTransition] — a
+/// subtle upward slide that settles with a fade ("physical" motion, spec
+/// §3.4). Name kept as `_fadeRoute` to avoid churning every call site.
 GoRoute _fadeRoute(
     String path, Widget Function(BuildContext, GoRouterState) builder) {
   return GoRoute(
@@ -127,17 +128,10 @@ GoRoute _fadeRoute(
     pageBuilder: (ctx, state) => CustomTransitionPage<void>(
       key: state.pageKey,
       child: builder(ctx, state),
-      transitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: StreamloadTokens.page,
       reverseTransitionDuration: const Duration(milliseconds: 200),
-      transitionsBuilder: (_, animation, __, child) {
-        return FadeTransition(
-          opacity: CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOut,
-          ),
-          child: child,
-        );
-      },
+      transitionsBuilder: (_, animation, __, child) =>
+          streamloadPageTransition(animation, child),
     ),
   );
 }
