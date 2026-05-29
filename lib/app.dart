@@ -1,6 +1,7 @@
 // lib/app.dart
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -46,6 +47,30 @@ class _StreamloadAppState extends ConsumerState<StreamloadApp> {
       themeMode: ThemeMode.dark,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      scrollBehavior: const _StreamloadScrollBehavior(),
     );
   }
+}
+
+/// App-wide scroll behavior: NO scrollbars anywhere (operator wants the
+/// desktop scrollbar gone), and mouse-drag scrolling enabled so rows/pages
+/// can be dragged with the pointer on desktop, not just the wheel.
+class _StreamloadScrollBehavior extends MaterialScrollBehavior {
+  const _StreamloadScrollBehavior();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) =>
+      child;
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
 }
