@@ -61,7 +61,7 @@ class ContentRow extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: StreamloadTokens.space3),
           child: Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               color: StreamloadTokens.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w600,

@@ -62,7 +62,7 @@ class MediaPosterCard extends StatelessWidget {
               item.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
+              style: const TextStyle(
                 color: StreamloadTokens.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
