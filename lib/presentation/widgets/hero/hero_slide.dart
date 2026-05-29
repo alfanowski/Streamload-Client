@@ -219,6 +219,7 @@ class _MetadataBlock extends StatelessWidget {
       const SizedBox(height: 24),
       _Ctas(
         availableWidth: availableWidth - (horizontalPad * 2),
+        isPhone: isPhone,
         onPlay: onPlay,
         onAdd: onAdd,
       ),
@@ -251,16 +252,36 @@ class _MetadataBlock extends StatelessWidget {
 class _Ctas extends StatelessWidget {
   const _Ctas({
     required this.availableWidth,
+    required this.isPhone,
     required this.onPlay,
     required this.onAdd,
   });
 
   final double availableWidth;
+  final bool isPhone;
   final VoidCallback? onPlay;
   final VoidCallback? onAdd;
 
   @override
   Widget build(BuildContext context) {
+    // Phone: full-width stacked CTAs, centered (matches the approved mock).
+    if (isPhone) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          CtaButton(label: 'Guarda', leading: '▶', onTap: onPlay, block: true),
+          const SizedBox(height: 12),
+          CtaButton(
+            label: 'La mia lista',
+            leading: '＋',
+            onTap: onAdd,
+            filled: false,
+            block: true,
+          ),
+        ],
+      );
+    }
     final stackVertical = availableWidth < 380;
     // UI refactor (2026-05-29): the approved "Cinematic Premium" mockup
     // uses a solid cream Play pill + a ghost "La mia lista" pill (Apple

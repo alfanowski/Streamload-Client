@@ -17,6 +17,7 @@ class CtaButton extends StatelessWidget {
     this.leading,
     this.onTap,
     this.filled = true,
+    this.block = false,
   });
 
   final String label;
@@ -26,13 +27,18 @@ class CtaButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool filled;
 
+  /// Full-width with centered content (used for stacked mobile CTAs).
+  final bool block;
+
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
     final fg = filled ? StreamloadTokens.ctaPrimaryFg : StreamloadTokens.textPrimary;
 
     final content = Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: block ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment:
+          block ? MainAxisAlignment.center : MainAxisAlignment.start,
       children: [
         if (leading != null) ...[
           Text(
@@ -50,6 +56,7 @@ class CtaButton extends StatelessWidget {
 
     final pill = Container(
       key: ValueKey(filled ? 'cta-fill' : 'cta-ghost'),
+      width: block ? double.infinity : null,
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
       decoration: BoxDecoration(
         color: filled ? StreamloadTokens.ctaPrimaryBg : Colors.transparent,
