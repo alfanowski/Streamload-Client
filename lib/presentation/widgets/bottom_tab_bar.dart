@@ -1,25 +1,19 @@
 // lib/presentation/widgets/bottom_tab_bar.dart
 //
-// v3 phone bottom tab bar. Renders four tabs (Home · Cerca · La mia lista ·
-// Profilo) over a solid warm-tinted background with a 1px top border.
-// Active tab gets a warm off-white icon + label; inactive uses v3TextMuted.
-// The bar is only used on phone (Responsive.isPhone) — desktop / tablet
-// use the TopNavBar instead.
+// Phone bottom navigation — "Cinematic Premium" refactor (2026-05-29).
+// A FLOATING liquid-glass capsule (Apple iOS 26 style) that hovers over the
+// content near the bottom edge, rather than a flat edge-to-edge bar. Each
+// tab shows an icon + its section name below it (like every Apple app).
 //
-// Settings + logout live behind the Profilo tab on phone (full-page
-// profile screen) — no avatar popover here. That mirrors the spec's
-// "no modals on phone" rule.
-//
-// 2026-05-17 (CM-2): the Pass 2B LiquidGlass + BackdropFilter chrome was
-// dropped. The phone bottom bar is now a flat surface + hairline top
-// border. No blur, no wet-rim. Active tab tint flips from the loud
-// yellow accent back to warm off-white (v3TextPrimary) — editorial.
+// Real shader on Impeller mobile; BackdropFilter fallback in tests / on
+// unsupported platforms via GlassSurface. Active tab: warm off-white icon +
+// label over a subtle highlight pill; inactive: muted.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../theme/colors.dart';
-import '../theme/typography.dart';
+import '../theme/tokens.dart';
+import 'primitives/glass_surface.dart';
 
 class StreamloadBottomTabBar extends ConsumerWidget {
   const StreamloadBottomTabBar({super.key});
@@ -27,35 +21,37 @@ class StreamloadBottomTabBar extends ConsumerWidget {
   static const List<({IconData icon, String label, String path})> _tabs = [
     (icon: Icons.home_outlined, label: 'Home', path: '/home'),
     (icon: Icons.search, label: 'Cerca', path: '/search'),
-    (icon: Icons.bookmark_outline, label: 'La mia lista', path: '/list'),
+    (icon: Icons.bookmark_outline, label: 'Lista', path: '/list'),
     (icon: Icons.person_outline, label: 'Profilo', path: '/profile'),
   ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = GoRouterState.of(context).matchedLocation;
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: StreamloadColors.v3BgBase,
-        border: Border(
-          top: BorderSide(color: StreamloadColors.v3BorderGlass),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              for (final tab in _tabs)
-                _Tab(
-                  icon: tab.icon,
-                  label: tab.label,
-                  path: tab.path,
-                  active: _isActive(current, tab.path),
-                ),
-            ],
+    return SafeArea(
+      top: false,
+      child: Padding(
+        // Floats: horizontal inset + a little lift off the bottom edge.
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: GlassSurface(
+          borderRadius: 30,
+          blur: 18,
+          thickness: 18,
+          tint: StreamloadTokens.bg.withValues(alpha: 0.5),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                for (final tab in _tabs)
+                  _Tab(
+                    icon: tab.icon,
+                    label: tab.label,
+                    path: tab.path,
+                    active: _isActive(current, tab.path),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -84,26 +80,31 @@ class _Tab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // CM-2: drop the Pass 2A yellow tint on the active tab. Active reads
-    // as warm off-white (v3TextPrimary); inactive stays muted. Editorial.
-    final color = active
-        ? StreamloadColors.v3TextPrimary
-        : StreamloadColors.v3TextMuted;
-    return InkWell(
+    final color =
+        active ? StreamloadTokens.textPrimary : StreamloadTokens.textMuted;
+    return GestureDetector(
       onTap: () => context.go(path),
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: StreamloadTokens.hover,
+        curve: StreamloadTokens.standardCurve,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: active
+              ? StreamloadTokens.textPrimary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(StreamloadTokens.radiusPill),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, color: color, size: 22),
-            const SizedBox(height: 2),
+            const SizedBox(height: 3),
             Text(
               label,
-              style: StreamloadTypography.body(
+              style: TextStyle(
                 fontSize: 10,
-                weight: active ? FontWeight.w600 : FontWeight.w400,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                 color: color,
               ),
             ),

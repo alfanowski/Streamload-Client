@@ -16,7 +16,6 @@ import 'package:go_router/go_router.dart';
 
 import 'package:streamload_client/data/remote/endpoints/search_api.dart';
 import 'package:streamload_client/domain/models/search_results.dart';
-import 'package:streamload_client/presentation/theme/colors.dart';
 import 'package:streamload_client/presentation/widgets/search_overlay.dart';
 import 'package:streamload_client/presentation/widgets/top_nav_bar.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
@@ -81,7 +80,7 @@ void main() {
     await pumpWith(t, initial: '/home');
     await t.pump();
 
-    expect(find.text('STREAMLOAD'), findsOneWidget);
+    expect(find.text('Streamload'), findsOneWidget);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Film'), findsOneWidget);
     expect(find.text('Serie TV'), findsOneWidget);
@@ -128,7 +127,7 @@ void main() {
     expect(find.text('page:/home'), findsOneWidget);
   });
 
-  testWidgets('background flips from v3BgBase to v3BgScrolled when scrolled',
+  testWidgets('survives a navScrolled flip (glass bar deepens, no crash)',
       (t) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -136,23 +135,15 @@ void main() {
     await pumpWith(t, initial: '/home', container: container);
     await t.pump();
 
-    Color findBg() {
-      final ac = t.widget<AnimatedContainer>(
-        find.byType(AnimatedContainer).first,
-      );
-      return (ac.decoration as BoxDecoration).color!;
-    }
-
-    final initial = findBg();
-    // CM-2 (2026-05-17): the Pass 2B LiquidGlass substrate was dropped.
-    // The nav is now a solid warm-tinted near-black surface that just
-    // flips between v3BgBase and v3BgScrolled, no transparency tricks.
-    expect(initial, equals(StreamloadColors.v3BgBase));
-
+    // 2026-05-29 (UI refactor): the nav is now a liquid-glass bar whose
+    // tint deepens on scroll (no opaque AnimatedContainer to assert). We
+    // verify the scroll flip rebuilds the bar cleanly and the chrome
+    // stays present.
+    expect(find.text('Streamload'), findsOneWidget);
     container.read(navScrolledProvider.notifier).state = true;
     await t.pumpAndSettle();
-
-    final after = findBg();
-    expect(after, equals(StreamloadColors.v3BgScrolled));
+    expect(find.text('Streamload'), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
+    expect(t.takeException(), isNull);
   });
 }

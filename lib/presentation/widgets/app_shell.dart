@@ -38,6 +38,9 @@ class AppShell extends ConsumerWidget {
     if (isPhone) {
       return Scaffold(
         backgroundColor: StreamloadColors.v3BgBase,
+        // extendBody lets the page draw behind the FLOATING glass tab bar
+        // so content blurs through it (Apple iOS 26 style).
+        extendBody: true,
         body: SafeArea(top: true, bottom: false, child: child),
         bottomNavigationBar: const StreamloadBottomTabBar(),
       );

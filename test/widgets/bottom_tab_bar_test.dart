@@ -50,7 +50,7 @@ void main() {
 
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Cerca'), findsOneWidget);
-    expect(find.text('La mia lista'), findsOneWidget);
+    expect(find.text('Lista'), findsOneWidget);
     expect(find.text('Profilo'), findsOneWidget);
   });
 
@@ -63,7 +63,7 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('page:/search'), findsOneWidget);
 
-    await t.tap(find.text('La mia lista'));
+    await t.tap(find.text('Lista'));
     await t.pumpAndSettle();
     expect(find.text('page:/list'), findsOneWidget);
 

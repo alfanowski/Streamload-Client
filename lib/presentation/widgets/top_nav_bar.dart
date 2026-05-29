@@ -1,44 +1,34 @@
 // lib/presentation/widgets/top_nav_bar.dart
 //
-// v3 Netflix×AppleTV refactor — desktop + tablet top navigation bar.
+// Desktop / tablet top navigation bar — "Cinematic Premium" refactor
+// (2026-05-29). A full-width liquid-glass bar floating over the hero:
 //
-// Floats over page content (the AppShell stacks it above the body) and
-// switches its background from a warm-tinted near-black to a slightly
-// deeper warm-tinted near-black once the active page reports that the
-// user has scrolled past ~80px via navScrolledProvider. Pages own that
-// listener — see HomePage / TitlePage body wiring in Phases D / E.
+//   [ Streamload ]      ( Home · Film · Serie · Anime · Lista )      ⌘K  (o)
+//                         ^ centered segmented glass pill, active = cream
 //
-// Layout (left → right):
-//   logo "STREAMLOAD" · Home · Film · Serie TV · Anime · La mia lista
-//   · [spacer] · 🔍 · avatar
+// The bar uses GlassSurface (real shader on mobile/macOS, BackdropFilter
+// fallback elsewhere / in tests). The glass tint deepens once the page
+// reports a scroll past ~80px (navScrolledProvider) so the chrome separates
+// from the content as the user scrolls.
 //
-// Phone variant is the StreamloadBottomTabBar in bottom_tab_bar.dart — this
-// widget is desktop / tablet only and is not used on phone.
-//
-// 2026-05-17 (CM-2): the Pass 2B LiquidGlass + BackdropFilter chrome was
-// dropped. The nav is now a solid warm surface (v3BgBase at rest,
-// v3BgScrolled after the page is scrolled past 80 px) with a single
-// hairline bottom border. No blur, no wet-rim highlight, no
-// transparency tricks. Editorial — the chrome stays out of the way.
+// Phone uses StreamloadBottomTabBar instead — this widget is desktop/tablet.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../state/nav_scrolled_provider.dart';
 import '../responsive.dart';
-import '../theme/colors.dart';
-import '../theme/motion.dart';
+import '../theme/tokens.dart';
 import '../theme/typography.dart';
 import 'avatar_menu.dart';
+import 'primitives/glass_surface.dart';
 import 'search_overlay.dart';
 
 class TopNavBar extends ConsumerWidget {
   const TopNavBar({super.key});
 
-  /// Logical height of the bar. The AppShell stacks the bar above the body,
-  /// and pages that don't have a hero behind them should leave this much
-  /// padding at the top of their content.
-  static const double height = 56;
+  /// Logical height of the bar (pages pad their non-hero content by this).
+  static const double height = 60;
 
   static const List<({String label, String path})> _tabs = [
     (label: 'Home', path: '/home'),
@@ -51,69 +41,36 @@ class TopNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scrolled = ref.watch(navScrolledProvider);
-    final bg = scrolled
-        ? StreamloadColors.v3BgScrolled
-        : StreamloadColors.v3BgBase;
     final currentLoc = GoRouterState.of(context).matchedLocation;
 
-    return AnimatedContainer(
-      duration: StreamloadMotion.navBarFade,
-      decoration: BoxDecoration(
-        color: bg,
-        border: Border(
-          bottom: BorderSide(
-            color: StreamloadColors.v3BorderGlass,
-            // Slightly thicker hairline once the user scrolls past so the
-            // chrome separates more decisively from the page body.
-            width: scrolled ? 1.0 : 0.5,
-          ),
-        ),
-      ),
+    return GlassSurface(
+      borderRadius: 0,
+      blur: scrolled ? 16 : 10,
+      thickness: 10,
+      tint: StreamloadTokens.bg.withValues(alpha: scrolled ? 0.62 : 0.34),
       child: SafeArea(
         bottom: false,
-        child: LayoutBuilder(builder: (context, constraints) {
-          // Tighten horizontal padding + tab gap on narrow tablet widths
-          // so the 5 tabs + logo + search + avatar still fit.
-          final tight = constraints.maxWidth < 1000;
-          final hPad = tight ? 16.0 : 28.0;
-          final tabGap = tight ? 14.0 : 22.0;
-          final logoGap = tight ? 16.0 : 28.0;
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 12),
+        child: SizedBox(
+          height: height,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             child: Row(
               children: [
-                const _Logo(),
-                SizedBox(width: logoGap),
-                // Tabs in a flexible scrollable region — keeps the search
-                // + avatar pinned to the right edge even at the most
-                // compressed tablet widths, and gracefully scrolls if a
-                // localization pushes labels too wide.
-                Flexible(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < _tabs.length; i++) ...[
-                          _NavTab(
-                            label: _tabs[i].label,
-                            path: _tabs[i].path,
-                            active: _isActive(currentLoc, _tabs[i].path),
-                          ),
-                          if (i < _tabs.length - 1)
-                            SizedBox(width: tabGap),
-                        ],
-                      ],
+                const _Wordmark(),
+                Expanded(
+                  child: Center(
+                    // Scale the pill down rather than overflow on narrow
+                    // tablet widths.
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: _SegmentedTabs(
+                        tabs: _tabs,
+                        currentLoc: currentLoc,
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Desktop / tablet: open the live-suggestions overlay
-                // (G1). Phone is handled by the bottom tab bar, but
-                // we keep the responsive branch here so resizing the
-                // window to a phone width still does the right thing
-                // (navigates to the dedicated /search page instead).
-                _SearchButton(
+                _SearchPill(
                   onTap: () {
                     if (Responsive.isPhone(context)) {
                       context.go('/search');
@@ -122,47 +79,71 @@ class TopNavBar extends ConsumerWidget {
                     }
                   },
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 14),
                 const AvatarMenu(),
               ],
             ),
-          );
-        }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Wordmark extends StatelessWidget {
+  const _Wordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    // Editorial Fraunces italic wordmark — the magazine voice in the chrome.
+    return Text(
+      'Streamload',
+      style: StreamloadTypography.display(fontSize: 20, italic: true)
+          .copyWith(letterSpacing: -0.3, color: StreamloadTokens.textPrimary),
+    );
+  }
+}
+
+/// Centered segmented capsule: a translucent rounded track holding the
+/// section tabs. The active tab is a filled cream pill (Apple-style).
+class _SegmentedTabs extends StatelessWidget {
+  const _SegmentedTabs({required this.tabs, required this.currentLoc});
+
+  final List<({String label, String path})> tabs;
+  final String currentLoc;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: StreamloadTokens.textPrimary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(StreamloadTokens.radiusPill),
+        border: Border.all(color: StreamloadTokens.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final t in tabs)
+            _SegTab(
+              label: t.label,
+              path: t.path,
+              active: _isActive(currentLoc, t.path),
+            ),
+        ],
       ),
     );
   }
 
   static bool _isActive(String currentLoc, String tabPath) {
     if (currentLoc == tabPath) return true;
-    // Treat /home as active for the bare app root just in case.
     if (tabPath == '/home' && currentLoc == '/') return true;
     return false;
   }
 }
 
-class _Logo extends StatelessWidget {
-  const _Logo();
-
-  @override
-  Widget build(BuildContext context) {
-    // CM-2: editorial wordmark — Fraunces non-italic, narrow tracking. The
-    // logo carries the magazine voice into the chrome too.
-    return Text(
-      'STREAMLOAD',
-      style: StreamloadTypography.display(
-        fontSize: 16,
-        italic: false,
-      ).copyWith(letterSpacing: 1.5),
-    );
-  }
-}
-
-class _NavTab extends StatelessWidget {
-  const _NavTab({
-    required this.label,
-    required this.path,
-    required this.active,
-  });
+class _SegTab extends StatelessWidget {
+  const _SegTab({required this.label, required this.path, required this.active});
 
   final String label;
   final String path;
@@ -170,58 +151,64 @@ class _NavTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active
-        ? StreamloadColors.v3TextPrimary
-        : StreamloadColors.v3TextSecondary;
-    // CM-2: the Pass 2A yellow underline + glow on the active tab is
-    // gone. Editorial — the active tab reads as ink-on-paper bold; we
-    // animate a hairline warm-off-white underline (no colour pop, no
-    // shadow). 16 px width at rest is enough to feel like a tab marker
-    // without becoming a label decoration.
-    return InkWell(
+    return GestureDetector(
       onTap: () => context.go(path),
-      borderRadius: BorderRadius.circular(6),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              label,
-              style: StreamloadTypography.body(
-                fontSize: 14,
-                weight: active ? FontWeight.w600 : FontWeight.w400,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            AnimatedContainer(
-              duration: StreamloadMotion.hoverDuration,
-              curve: StreamloadMotion.hoverCurve,
-              height: 1,
-              width: active ? 18 : 0,
-              color: StreamloadColors.v3TextPrimary,
-            ),
-          ],
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: StreamloadTokens.hover,
+        curve: StreamloadTokens.standardCurve,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: active ? StreamloadTokens.ctaPrimaryBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(StreamloadTokens.radiusPill),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+            color: active
+                ? StreamloadTokens.ctaPrimaryFg
+                : StreamloadTokens.textSecondary,
+          ),
         ),
       ),
     );
   }
 }
 
-class _SearchButton extends StatelessWidget {
-  const _SearchButton({required this.onTap});
+class _SearchPill extends StatelessWidget {
+  const _SearchPill({required this.onTap});
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: onTap,
-      icon: const Icon(Icons.search, size: 20),
-      color: StreamloadColors.v3TextPrimary,
-      splashRadius: 18,
-      tooltip: 'Cerca',
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: StreamloadTokens.textPrimary.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(StreamloadTokens.radiusPill),
+          border: Border.all(color: StreamloadTokens.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search, size: 17, color: StreamloadTokens.textSecondary),
+            const SizedBox(width: 8),
+            Text(
+              '⌘K',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: StreamloadTokens.textMuted,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
