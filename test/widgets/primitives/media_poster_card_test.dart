@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:streamload_client/presentation/view_models/media_card_vm.dart';
+import 'package:streamload_client/presentation/widgets/press_feedback.dart';
 import 'package:streamload_client/presentation/widgets/primitives/media_poster_card.dart';
 
 const _vm = MediaCardVm(
@@ -71,5 +72,58 @@ void main() {
     await tester.pump();
     await tester.tap(find.byType(MediaPosterCard));
     expect(taps, 1);
+  });
+
+  testWidgets('wraps content in PressFeedback for tactile press',
+      (tester) async {
+    await tester.pumpWidget(_host(const MediaPosterCard(item: _vm, width: 140)));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byType(MediaPosterCard),
+        matching: find.byType(PressFeedback),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('enables a hover region on desktop width', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1280, 900);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_host(const MediaPosterCard(item: _vm, width: 140)));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byType(MediaPosterCard),
+        matching: find.byType(MouseRegion),
+      ),
+      findsWidgets,
+    );
+  });
+
+  testWidgets('no hover region on phone width', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(380, 800);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_host(const MediaPosterCard(item: _vm, width: 140)));
+    await tester.pump();
+    expect(
+      find.descendant(
+        of: find.byType(MediaPosterCard),
+        matching: find.byType(MouseRegion),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('fills available width when width is null (no overflow)',
+      (tester) async {
+    await tester.pumpWidget(_host(
+      const SizedBox(width: 200, child: MediaPosterCard(item: _vm)),
+    ));
+    await tester.pump();
+    expect(find.text('Dune'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
