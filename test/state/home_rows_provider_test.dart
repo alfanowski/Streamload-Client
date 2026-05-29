@@ -171,7 +171,7 @@ void main() {
         7,
         (i) => _summary(id: 100 + i, title: 'T$i', backdrop: 'bd$i'),
       );
-      final fakeRows = _FakeRowsApi(trendingWeek: trending);
+      final fakeRows = _FakeRowsApi(trendingDay: trending);
 
       // Fake CatalogApi via mocked Dio — videos() shape per tmdbId.
       final dio = _DioMock();
@@ -218,7 +218,7 @@ void main() {
 
     test('falls back to null videoId when no videos exist', () async {
       final trending = [_summary(id: 200, title: 'Only')];
-      final fakeRows = _FakeRowsApi(trendingWeek: trending);
+      final fakeRows = _FakeRowsApi(trendingDay: trending);
 
       final dio = _DioMock();
       when(() => dio.get<dynamic>(
@@ -254,7 +254,7 @@ void main() {
     test('swallows videos errors and yields null videoId for that slide',
         () async {
       final trending = [_summary(id: 300, title: 'Err')];
-      final fakeRows = _FakeRowsApi(trendingWeek: trending);
+      final fakeRows = _FakeRowsApi(trendingDay: trending);
 
       final dio = _DioMock();
       when(() => dio.get<dynamic>(

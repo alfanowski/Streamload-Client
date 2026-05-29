@@ -54,6 +54,7 @@ class HeroSlide extends StatelessWidget {
     this.languageCode = 'IT',
     this.onPlay,
     this.onAdd,
+    this.onOpen,
   });
 
   /// Display title (Italian where TMDB has it).
@@ -98,32 +99,43 @@ class HeroSlide extends StatelessWidget {
   /// Secondary CTA (＋ La mia lista) tap handler.
   final VoidCallback? onAdd;
 
+  /// Tapping anywhere on the hero (outside the CTAs) opens the title page,
+  /// the way Netflix's billboard does.
+  final VoidCallback? onOpen;
+
   @override
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            HeroBackdrop(
-              backdropUrl: backdropUrl,
-              posterUrl: posterUrl,
-            ),
-            Positioned.fill(
-              child: _MetadataBlock(
-                title: title,
-                metaLine: _metaLine(),
-                label: label,
-                isPhone: isPhone,
-                onPlay: onPlay,
-                onAdd: onAdd,
-                availableWidth: constraints.maxWidth,
-              ),
-            ),
-          ],
-        );
-      },
+    return GestureDetector(
+      onTap: onOpen,
+      behavior: HitTestBehavior.opaque,
+      child: MouseRegion(
+        cursor: onOpen != null ? SystemMouseCursors.click : MouseCursor.defer,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                HeroBackdrop(
+                  backdropUrl: backdropUrl,
+                  posterUrl: posterUrl,
+                ),
+                Positioned.fill(
+                  child: _MetadataBlock(
+                    title: title,
+                    metaLine: _metaLine(),
+                    label: label,
+                    isPhone: isPhone,
+                    onPlay: onPlay,
+                    onAdd: onAdd,
+                    availableWidth: constraints.maxWidth,
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 

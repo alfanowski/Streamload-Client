@@ -41,6 +41,7 @@ class HeroSlideData {
     this.languageCode = 'IT',
     this.onPlay,
     this.onAdd,
+    this.onOpen,
   });
 
   final String title;
@@ -67,6 +68,9 @@ class HeroSlideData {
   final String languageCode;
   final VoidCallback? onPlay;
   final VoidCallback? onAdd;
+
+  /// Tap on the hero (outside the CTAs) → open the title page (Netflix-style).
+  final VoidCallback? onOpen;
 }
 
 class HeroCarousel extends StatefulWidget {
@@ -177,6 +181,7 @@ class _HeroCarouselState extends State<HeroCarousel> {
           label: 'IN EVIDENZA · ${i + 1} DI ${widget.slides.length}',
           onPlay: s.onPlay,
           onAdd: s.onAdd,
+          onOpen: s.onOpen,
         );
       },
     );

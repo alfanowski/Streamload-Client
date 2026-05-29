@@ -49,6 +49,7 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/hero/hero_carousel.dart';
 import '../widgets/rows/poster_row.dart';
+import '../widgets/top_nav_bar.dart';
 
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key, this.filter});
@@ -91,6 +92,12 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     final filter = widget.filter;
     final heroHeight = _heroHeightFor(context);
+    // Start the content BELOW the floating glass top bar so the first
+    // elements aren't hidden — yet as the user scrolls, everything passes
+    // UNDER the translucent bar (visible + blurred). Phone has no top bar.
+    final topInset = Responsive.isPhone(context)
+        ? 0.0
+        : TopNavBar.height + MediaQuery.of(context).padding.top;
 
     return DecoratedBox(
       decoration: const BoxDecoration(
@@ -105,10 +112,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       ),
       child: ListView(
         controller: _scrollController,
-        // Push the hero down on desktop / tablet so it doesn't render
-        // behind the notched MacOS title bar / phone top inset. On phone
-        // the AppShell already adds SafeArea(top: true).
-        padding: EdgeInsets.zero,
+        padding: EdgeInsets.only(top: topInset),
         children: [
           // Hero carousel — autoDispose so reopening Home gets fresh
           // trending titles. On loading / error, we render a backdrop
@@ -540,6 +544,12 @@ class _HeroSection extends ConsumerWidget {
                   videoId: s.videoId,
                   languageCode: s.languageCode,
                   onPlay: s.tmdbId == null
+                      ? null
+                      : () => context.go(
+                            '/title/${s.tmdbId}?media_type=${s.mediaType}',
+                          ),
+                  // Tap anywhere on the hero → open the title page (Netflix).
+                  onOpen: s.tmdbId == null
                       ? null
                       : () => context.go(
                             '/title/${s.tmdbId}?media_type=${s.mediaType}',

@@ -83,52 +83,23 @@ class HeroBackdrop extends StatelessWidget {
   }
 }
 
-/// Backdrop image with a slow one-shot "Ken Burns" zoom-in for premium
-/// life on mount. One-shot (not repeating) so widget tests that settle
-/// don't hang. A rotating carousel re-mounts each slide → fresh zoom.
-class _Backdrop extends StatefulWidget {
+/// Static backdrop image (no Ken Burns / motion — operator wants the hero
+/// to stay still). Falls back to the poster, then a solid warm bg.
+class _Backdrop extends StatelessWidget {
   const _Backdrop({this.url, this.fallbackUrl});
   final String? url;
   final String? fallbackUrl;
 
   @override
-  State<_Backdrop> createState() => _BackdropState();
-}
-
-class _BackdropState extends State<_Backdrop>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 12),
-    )..forward();
-    _scale = Tween<double>(begin: 1.0, end: 1.08)
-        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final primary =
-        (widget.url == null || widget.url!.isEmpty) ? null : widget.url;
-    final fallback = (widget.fallbackUrl == null || widget.fallbackUrl!.isEmpty)
-        ? null
-        : widget.fallbackUrl;
+    final primary = (url == null || url!.isEmpty) ? null : url;
+    final fallback =
+        (fallbackUrl == null || fallbackUrl!.isEmpty) ? null : fallbackUrl;
     final chosen = primary ?? fallback;
     if (chosen == null) {
       return Container(color: StreamloadColors.v3BgBase);
     }
-    final image = CachedNetworkImage(
+    return CachedNetworkImage(
       imageUrl: chosen,
       fit: BoxFit.cover,
       placeholder: (_, __) => Container(color: StreamloadColors.v3BgBase),
@@ -146,7 +117,6 @@ class _BackdropState extends State<_Backdrop>
         return Container(color: StreamloadColors.v3BgBase);
       },
     );
-    return ScaleTransition(scale: _scale, child: image);
   }
 }
 
