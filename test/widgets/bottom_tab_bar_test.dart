@@ -49,9 +49,9 @@ void main() {
     expect(find.byIcon(Icons.person_outline), findsOneWidget);
 
     expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Cerca'), findsOneWidget);
     expect(find.text('Lista'), findsOneWidget);
     expect(find.text('Profilo'), findsOneWidget);
+    // Cerca is now a separate icon-only circle (Apple Music style), no label.
   });
 
   testWidgets('tapping a tab routes to its path', (t) async {
@@ -59,7 +59,7 @@ void main() {
     await t.pump();
     expect(find.text('page:/home'), findsOneWidget);
 
-    await t.tap(find.text('Cerca'));
+    await t.tap(find.byIcon(Icons.search));
     await t.pumpAndSettle();
     expect(find.text('page:/search'), findsOneWidget);
 
