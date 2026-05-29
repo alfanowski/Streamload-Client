@@ -1,18 +1,21 @@
 // lib/presentation/widgets/primitives/glass_surface.dart
 //
-// Apple-style "liquid glass" surface, used for the app chrome (desktop top
-// bar + mobile floating tab bar). Wraps liquid_glass_renderer's LiquidGlass
-// with its own layer.
+// Apple-style "liquid glass" surface for the app chrome (top bar + mobile
+// tab bar). Three render paths, chosen at runtime:
 //
-// Performance + safety: the real shader runs only on Impeller-backed mobile
-// / macOS. On web / other desktops and inside `flutter test` it falls back
-// to the package's lightweight FakeGlass (BackdropFilter) via `fake: true`,
-// so the build never breaks and tests don't try to load fragment shaders.
+//   • iOS (iPhone/iPad, iOS 26+) → the OFFICIAL Apple Liquid Glass via
+//     native_liquid_glass's LiquidGlassContainer (native UIKit view).
+//   • macOS / Android desktop+mobile → the liquid_glass_renderer SHADER
+//     (Impeller) recreation — consistent cross-platform look.
+//   • web / other / `flutter test` → the shader's lightweight FakeGlass
+//     (BackdropFilter), so the build never breaks and tests don't load
+//     fragment shaders.
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart' as shader;
+import 'package:native_liquid_glass/native_liquid_glass.dart' as native;
 
 import '../../theme/tokens.dart';
 
@@ -24,6 +27,7 @@ class GlassSurface extends StatelessWidget {
     this.blur = 8,
     this.thickness = 14,
     this.tint,
+    this.capsule = false,
   });
 
   final Widget child;
@@ -32,8 +36,20 @@ class GlassSurface extends StatelessWidget {
   final double thickness;
   final Color? tint;
 
-  /// Real shader only on Impeller mobile/macOS; FakeGlass everywhere else
-  /// (web, other desktops) and under `flutter test`.
+  /// Fully-rounded pill shape (used by the floating mobile tab bar).
+  final bool capsule;
+
+  /// True iPhone/iPad → use the official native Apple glass.
+  static bool get _isIos {
+    if (kIsWeb) return false;
+    try {
+      return Platform.isIOS;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Shader fallback uses FakeGlass on web / other platforms / under test.
   static bool useFake() {
     if (kIsWeb) return true;
     try {
@@ -46,14 +62,32 @@ class GlassSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final settings = LiquidGlassSettings(
+    final glassTint = tint ?? StreamloadTokens.bg.withValues(alpha: 0.42);
+
+    // ── Official Apple Liquid Glass on iOS ────────────────────────────────
+    if (_isIos) {
+      return native.LiquidGlassContainer(
+        config: native.LiquidGlassConfig(
+          effect: native.LiquidGlassEffect.regular,
+          shape: capsule
+              ? native.LiquidGlassEffectShape.capsule
+              : native.LiquidGlassEffectShape.rect,
+          cornerRadius: capsule ? null : borderRadius,
+          tint: glassTint,
+        ),
+        child: child,
+      );
+    }
+
+    // ── Shader recreation (macOS / Android) / FakeGlass (web / test) ──────
+    final settings = shader.LiquidGlassSettings(
       blur: blur,
       thickness: thickness,
-      glassColor: tint ?? StreamloadTokens.bg.withValues(alpha: 0.42),
+      glassColor: glassTint,
       lightIntensity: 0.6,
     );
-    return LiquidGlass.withOwnLayer(
-      shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
+    return shader.LiquidGlass.withOwnLayer(
+      shape: shader.LiquidRoundedSuperellipse(borderRadius: borderRadius),
       settings: settings,
       fake: useFake(),
       glassContainsChild: false,

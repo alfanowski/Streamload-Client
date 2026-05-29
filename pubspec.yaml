@@ -68,6 +68,7 @@ dependencies:
   # through other plugins, now used explicitly.
   package_info_plus: ^8.0.0
   liquid_glass_renderer: 0.2.0-dev.4
+  native_liquid_glass: ^0.2.7
 
 dev_dependencies:
   flutter_test:

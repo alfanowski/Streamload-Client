@@ -35,6 +35,7 @@ class StreamloadBottomTabBar extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
         child: GlassSurface(
           borderRadius: 30,
+          capsule: true,
           blur: 18,
           thickness: 18,
           tint: StreamloadTokens.bg.withValues(alpha: 0.5),

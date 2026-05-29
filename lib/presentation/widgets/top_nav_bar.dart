@@ -1,17 +1,11 @@
 // lib/presentation/widgets/top_nav_bar.dart
 //
-// Desktop / tablet top navigation bar — "Cinematic Premium" refactor
-// (2026-05-29). A full-width liquid-glass bar floating over the hero:
-//
-//   [ Streamload ]      ( Home · Film · Serie · Anime · Lista )      ⌘K  (o)
-//                         ^ centered segmented glass pill, active = cream
-//
-// The bar uses GlassSurface (real shader on mobile/macOS, BackdropFilter
-// fallback elsewhere / in tests). The glass tint deepens once the page
-// reports a scroll past ~80px (navScrolledProvider) so the chrome separates
-// from the content as the user scrolls.
-//
-// Phone uses StreamloadBottomTabBar instead — this widget is desktop/tablet.
+// Desktop / tablet top navigation bar — "Cinematic Premium" refactor v2
+// (2026-05-30). Flat editorial disposition (NOT a segmented pill, which the
+// operator found ugly): wordmark left · section tabs in a row · search pill
+// + avatar right. The bar sits on a liquid-glass surface (shader on
+// Impeller macOS, fallback in tests). The active tab gets a smoothly
+// animated amber underline + a colour cross-fade on section change.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -27,7 +21,6 @@ import 'search_overlay.dart';
 class TopNavBar extends ConsumerWidget {
   const TopNavBar({super.key});
 
-  /// Logical height of the bar (pages pad their non-hero content by this).
   static const double height = 60;
 
   static const List<({String label, String path})> _tabs = [
@@ -45,31 +38,38 @@ class TopNavBar extends ConsumerWidget {
 
     return GlassSurface(
       borderRadius: 0,
-      blur: scrolled ? 16 : 10,
+      blur: scrolled ? 18 : 10,
       thickness: 10,
-      tint: StreamloadTokens.bg.withValues(alpha: scrolled ? 0.62 : 0.34),
+      tint: StreamloadTokens.bg.withValues(alpha: scrolled ? 0.66 : 0.30),
       child: SafeArea(
         bottom: false,
         child: SizedBox(
           height: height,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 28),
             child: Row(
               children: [
                 const _Wordmark(),
-                Expanded(
-                  child: Center(
-                    // Scale the pill down rather than overflow on narrow
-                    // tablet widths.
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: _SegmentedTabs(
-                        tabs: _tabs,
-                        currentLoc: currentLoc,
-                      ),
+                const SizedBox(width: 36),
+                // Tabs in a flexible scroll region so they never overflow on
+                // narrow tablet widths; search + avatar stay pinned right.
+                Flexible(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final t in _tabs)
+                          _NavTab(
+                            label: t.label,
+                            path: t.path,
+                            active: _isActive(currentLoc, t.path),
+                          ),
+                      ],
                     ),
                   ),
                 ),
+                const SizedBox(width: 12),
                 _SearchPill(
                   onTap: () {
                     if (Responsive.isPhone(context)) {
@@ -88,52 +88,6 @@ class TopNavBar extends ConsumerWidget {
       ),
     );
   }
-}
-
-class _Wordmark extends StatelessWidget {
-  const _Wordmark();
-
-  @override
-  Widget build(BuildContext context) {
-    // Editorial Fraunces italic wordmark — the magazine voice in the chrome.
-    return Text(
-      'Streamload',
-      style: StreamloadTypography.display(fontSize: 20, italic: true)
-          .copyWith(letterSpacing: -0.3, color: StreamloadTokens.textPrimary),
-    );
-  }
-}
-
-/// Centered segmented capsule: a translucent rounded track holding the
-/// section tabs. The active tab is a filled cream pill (Apple-style).
-class _SegmentedTabs extends StatelessWidget {
-  const _SegmentedTabs({required this.tabs, required this.currentLoc});
-
-  final List<({String label, String path})> tabs;
-  final String currentLoc;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: StreamloadTokens.textPrimary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(StreamloadTokens.radiusPill),
-        border: Border.all(color: StreamloadTokens.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final t in tabs)
-            _SegTab(
-              label: t.label,
-              path: t.path,
-              active: _isActive(currentLoc, t.path),
-            ),
-        ],
-      ),
-    );
-  }
 
   static bool _isActive(String currentLoc, String tabPath) {
     if (currentLoc == tabPath) return true;
@@ -142,8 +96,21 @@ class _SegmentedTabs extends StatelessWidget {
   }
 }
 
-class _SegTab extends StatelessWidget {
-  const _SegTab({required this.label, required this.path, required this.active});
+class _Wordmark extends StatelessWidget {
+  const _Wordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      'Streamload',
+      style: StreamloadTypography.display(fontSize: 20, italic: true)
+          .copyWith(letterSpacing: -0.3, color: StreamloadTokens.textPrimary),
+    );
+  }
+}
+
+class _NavTab extends StatelessWidget {
+  const _NavTab({required this.label, required this.path, required this.active});
 
   final String label;
   final String path;
@@ -154,23 +121,38 @@ class _SegTab extends StatelessWidget {
     return GestureDetector(
       onTap: () => context.go(path),
       behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: StreamloadTokens.hover,
-        curve: StreamloadTokens.standardCurve,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? StreamloadTokens.ctaPrimaryBg : Colors.transparent,
-          borderRadius: BorderRadius.circular(StreamloadTokens.radiusPill),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-            color: active
-                ? StreamloadTokens.ctaPrimaryFg
-                : StreamloadTokens.textSecondary,
-          ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedDefaultTextStyle(
+              duration: StreamloadTokens.hover,
+              curve: StreamloadTokens.standardCurve,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                color: active
+                    ? StreamloadTokens.textPrimary
+                    : StreamloadTokens.textSecondary,
+              ),
+              child: Text(label),
+            ),
+            const SizedBox(height: 6),
+            // Smoothly animated amber underline: grows in under the active
+            // tab and shrinks out of the previous one — a soft slide-handoff.
+            AnimatedContainer(
+              duration: StreamloadTokens.page,
+              curve: StreamloadTokens.standardCurve,
+              height: 2,
+              width: active ? 22 : 0,
+              decoration: BoxDecoration(
+                color: StreamloadTokens.accent,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
         ),
       ),
     );
