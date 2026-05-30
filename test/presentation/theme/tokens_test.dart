@@ -4,14 +4,14 @@ import 'package:streamload_client/presentation/theme/tokens.dart';
 
 void main() {
   group('StreamloadTokens', () {
-    test('primary CTA is cream-white, accent is the discreet amber', () {
-      expect(StreamloadTokens.ctaPrimaryBg, const Color(0xFFF5F2EC));
-      expect(StreamloadTokens.ctaPrimaryFg, const Color(0xFF0F0E0D));
+    test('primary CTA is neutral off-white, accent is the discreet amber', () {
+      expect(StreamloadTokens.ctaPrimaryBg, const Color(0xFFF4F4F6));
+      expect(StreamloadTokens.ctaPrimaryFg, const Color(0xFF0E0E10));
       expect(StreamloadTokens.accent, const Color(0xFFD4A574));
     });
 
-    test('background is warm near-black', () {
-      expect(StreamloadTokens.bg, const Color(0xFF0F0E0D));
+    test('background is neutral near-black', () {
+      expect(StreamloadTokens.bg, const Color(0xFF0E0E10));
     });
 
     test('canonical breakpoints: phone 600, desktop 1024', () {

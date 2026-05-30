@@ -10,26 +10,26 @@ class StreamloadTokens {
   StreamloadTokens._();
 
   // ── Color ────────────────────────────────────────────────────────────────
-  static const Color bg = Color(0xFF0F0E0D); // warm near-black
-  static const Color bgScrolled = Color(0xFF0A0A09);
-  static const Color surface = Color(0xFF161412);
-  static const Color surfaceHi = Color(0xFF211D1A);
+  static const Color bg = Color(0xFF0E0E10); // neutral near-black
+  static const Color bgScrolled = Color(0xFF0A0A0C);
+  static const Color surface = Color(0xFF161719);
+  static const Color surfaceHi = Color(0xFF201F23);
 
-  static const Color textPrimary = Color(0xFFF5F2EC); // warm cream
+  static const Color textPrimary = Color(0xFFF4F4F6); // neutral off-white
   static final Color textSecondary =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.65);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.65);
   static final Color textMuted =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.42);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.42);
 
-  static final Color border = const Color(0xFFF5F2EC).withValues(alpha: 0.08);
+  static final Color border = const Color(0xFFF4F4F6).withValues(alpha: 0.08);
   static final Color borderStrong =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.14);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.14);
 
   static const Color accent = Color(0xFFD4A574); // discreet signature amber
   static const Color accentHover = Color(0xFFE8C9A0);
 
-  static const Color ctaPrimaryBg = Color(0xFFF5F2EC); // cream-white Play
-  static const Color ctaPrimaryFg = Color(0xFF0F0E0D);
+  static const Color ctaPrimaryBg = Color(0xFFF4F4F6); // cream-white Play
+  static const Color ctaPrimaryFg = Color(0xFF0E0E10);
 
   static const Color critical = Color(0xFFF26B5E);
 

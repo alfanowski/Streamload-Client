@@ -48,7 +48,7 @@ class StreamloadColors {
   static const Color surface3 = Color(0xFF25252B);
 
   // Text — warm off-white with explicit alpha for tiers
-  static const Color textPrimary = Color(0xFFF5F2EC);
+  static const Color textPrimary = Color(0xFFF4F4F6);
   static const Color textSecondary = Color(0xA8F5F2EC); // 66% alpha
   static const Color textTertiary = Color(0x6BF5F2EC); // 42% alpha
   static const Color textMuted = Color(0x47F5F2EC); // 28% alpha
@@ -73,33 +73,33 @@ class StreamloadColors {
   // Backgrounds — warm near-black instead of Netflix #141414. The 0F0E0D
   // tone is a hair warmer than the v2 `bg` so the page reads "magazine
   // newsprint at night" rather than "OLED black".
-  static const Color v3BgBase = Color(0xFF0F0E0D);
-  static const Color v3BgGradientStart = Color(0xFF0F0E0D);
+  static const Color v3BgBase = Color(0xFF0E0E10);
+  static const Color v3BgGradientStart = Color(0xFF0E0E10);
   // Bottom of the page vignettes to pure black — keeps long lists from
   // feeling like they fade into the same warm bg they started on.
   static const Color v3BgGradientEnd = Color(0xFF000000);
   // Scrolled top-nav substrate — slightly darker than the bg so the nav
   // reads as a separate plane once the user scrolls past 80 px.
-  static const Color v3BgScrolled = Color(0xFF0A0A09);
+  static const Color v3BgScrolled = Color(0xFF0A0A0C);
 
   // "Glass" surfaces — kept as solid warm-off-white tints. The widgets
   // that used to wrap these in BackdropFilter (LiquidGlass) are being
   // ripped out in CM-2, but the tokens stay because skeleton placeholders
   // / chip backgrounds / popovers still need a quiet warm fill.
   static Color v3SurfaceGlass =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.07);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.07);
   static Color v3SurfaceGlassHi =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.10);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.10);
   static Color v3SurfaceGlassMax =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.14);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.14);
   // Borders settle at 8% warm off-white — matches the v2 `border` token.
   // The Pass 2B `v3BorderGlassStrong` 20% was dropped in CM-1: it read as
   // an "iOS card edge" against the new warm bg. Anyone reaching for the
   // strong border still gets a hairline, just at the normal 14% tier.
   static Color v3BorderGlass =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.08);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.08);
   static Color v3BorderGlassStrong =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.14);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.14);
 
   // Popover surface — Pass 1 made this near-solid for menu legibility and
   // CM-1 keeps that decision. Slightly nudged to warm-tinted dark so it
@@ -108,11 +108,11 @@ class StreamloadColors {
 
   // Text — switch to warm off-white (v2's textPrimary family) instead of
   // pure white. Reads as ink on paper rather than projected light.
-  static const Color v3TextPrimary = Color(0xFFF5F2EC);
+  static const Color v3TextPrimary = Color(0xFFF4F4F6);
   static Color v3TextSecondary =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.65);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.65);
   static Color v3TextMuted =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.42);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.42);
 
   // Brand accent — Streamload yellow. Kept defined because PrimaryPill
   // (onboarding submit) still uses it as an unmistakable "tap me" affordance
@@ -131,13 +131,13 @@ class StreamloadColors {
   // v3TextPrimary directly (typographic underline, no pill) so this fill
   // mostly survives for PrimaryPill in onboarding now.
   static const Color v3CtaPrimaryBg = Color(0xFFD4A574);
-  static const Color v3CtaPrimaryFg = Color(0xFF0F0E0D);
+  static const Color v3CtaPrimaryFg = Color(0xFF0E0E10);
   static Color v3CtaSecondaryBg =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.10);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.10);
   static Color v3CtaUnavailableBg =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.04);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.04);
   static Color v3CtaUnavailableFg =
-      const Color(0xFFF5F2EC).withValues(alpha: 0.42);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.42);
 
   // Status (muted, not Netflix-red)
   static const Color v3Success = Color(0xFF9AFF9A);

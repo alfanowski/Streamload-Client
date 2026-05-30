@@ -189,7 +189,7 @@ class _ResumeOverlay extends StatelessWidget {
                     FractionallySizedBox(
                       widthFactor: progress.clamp(0.0, 1.0),
                       alignment: Alignment.centerLeft,
-                      child: const ColoredBox(color: StreamloadColors.accent),
+                      child: const ColoredBox(color: Colors.white),
                     ),
                   ],
                 ),
