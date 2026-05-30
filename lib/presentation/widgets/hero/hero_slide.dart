@@ -241,6 +241,8 @@ class HeroText extends StatelessWidget {
 
   String _metaLine() {
     final parts = <String>[];
+    // Type first (Film / Serie TV), then year, length, locale, rating.
+    parts.add(mediaType == 'tv' ? 'Serie TV' : 'Film');
     if (year != null) parts.add('$year');
     if (mediaType == 'tv' && episodeCount != null) {
       parts.add('$episodeCount ep');
@@ -273,20 +275,30 @@ class HeroText extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     );
 
-    // Logo height budget per breakpoint — roughly matches the text title's
-    // optical size so the layout doesn't jump between logo/text titles.
+    // Logo height budget per breakpoint. Kept deliberately MODEST: TMDB logos
+    // vary wildly in aspect ratio, and a tall box makes compact logos look
+    // huge while very wide ones get width-limited and shrink. A smaller height
+    // means most logos are height-bound (so they render at the SAME height →
+    // consistent), and the few ultra-wide ones still fit. Width is capped to
+    // the text block so nothing spans edge-to-edge.
     final logoMaxHeight = isPhone
-        ? 76.0
+        ? 48.0
         : isTablet
-            ? 96.0
-            : 120.0;
+            ? 60.0
+            : 76.0;
+    final logoMaxWidth = isPhone
+        ? 260.0
+        : isTablet
+            ? 360.0
+            : 460.0;
 
     final Widget titleVisual =
         (titleLogoUrl != null && titleLogoUrl!.isNotEmpty)
             ? LayoutBuilder(
                 builder: (context, c) {
+                  final avail = c.maxWidth.isFinite ? c.maxWidth : logoMaxWidth;
                   final boxWidth =
-                      c.maxWidth.isFinite ? c.maxWidth : double.infinity;
+                      avail < logoMaxWidth ? avail : logoMaxWidth;
                   return SizedBox(
                     width: boxWidth,
                     height: logoMaxHeight,

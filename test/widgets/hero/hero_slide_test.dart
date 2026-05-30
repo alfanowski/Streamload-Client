@@ -43,7 +43,7 @@ void main() {
       backdropUrl: null,
     )));
     expect(find.text('Inception'), findsOneWidget);
-    expect(find.text('2010 · 148 min · IT · ⭐ 8.4'), findsOneWidget);
+    expect(find.text('Film · 2010 · 148 min · IT · ⭐ 8.4'), findsOneWidget);
     // The "IN EVIDENZA" eyebrow was removed — the title stands on its own.
     expect(find.textContaining('IN EVIDENZA'), findsNothing);
     // No trailer, no mute toggle — heroes are static now.
@@ -59,7 +59,7 @@ void main() {
       episodeCount: 18,
       rating: 8.7,
     )));
-    expect(find.text('2022 · 18 ep · IT · ⭐ 8.7'), findsOneWidget);
+    expect(find.text('Serie TV · 2022 · 18 ep · IT · ⭐ 8.7'), findsOneWidget);
   });
 
   testWidgets('videoId is ignored — no trailer / no mute toggle', (t) async {
