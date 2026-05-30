@@ -83,10 +83,6 @@ class HeroBackdrop extends StatelessWidget {
         const _LeftScrim(),
         // Stronger cinematic bottom fade so the title + CTAs pop.
         _BottomGradient(fadeColor: fadeColor),
-        // Slight top scrim behind the status bar / Dynamic Island so the
-        // clock, battery and wordmark stay legible over bright artwork
-        // (Apple TV+ does the same).
-        const _TopGradient(),
       ],
     );
   }
@@ -147,33 +143,6 @@ class _LeftScrim extends StatelessWidget {
             colors: [
               StreamloadColors.v3BgBase.withValues(alpha: 0.4),
               StreamloadColors.v3BgBase.withValues(alpha: 0.1),
-              Colors.transparent,
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Slight top-down scrim so the OS status bar (clock / wifi / battery) and the
-/// "Streamload" wordmark read cleanly over bright artwork. Subtle on purpose —
-/// just enough contrast behind the notch, fully transparent by ~18% down.
-class _TopGradient extends StatelessWidget {
-  const _TopGradient();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            stops: const [0.0, 0.09, 0.18],
-            colors: [
-              Colors.black.withValues(alpha: 0.45),
-              Colors.black.withValues(alpha: 0.18),
               Colors.transparent,
             ],
           ),

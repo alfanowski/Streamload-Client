@@ -160,18 +160,20 @@ class _HomePageState extends ConsumerState<HomePage> {
                 automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
                   stretchModes: const [StretchMode.zoomBackground],
-                  // Hero gently dissolves to black AS you scroll — starting
-                  // immediately, fully gone by ~half a hero's worth of scroll
-                  // (Apple TV+). The black page behind it means it just melts
-                  // away rather than sliding off.
+                  // Hero gently dims AS you scroll, in step with it sliding
+                  // off — starts immediately but only reaches 0 once it's
+                  // essentially scrolled away, so it never leaves a big black
+                  // hole on screen. The black page behind means it melts out.
                   background: AnimatedBuilder(
                     animation: _scrollController,
                     builder: (context, child) {
                       final off = _scrollController.hasClients
                           ? _scrollController.offset
                           : 0.0;
+                      // Tie the fade to the FULL hero height (not half) so the
+                      // visible part is only ever dimmed, never blacked out.
                       final opacity =
-                          (1 - off / (heroHeight * 0.55)).clamp(0.0, 1.0);
+                          (1 - off / (heroHeight * 0.95)).clamp(0.0, 1.0);
                       return Opacity(opacity: opacity, child: child);
                     },
                     child: _HeroSection(height: heroHeight),

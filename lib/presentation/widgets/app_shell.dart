@@ -51,7 +51,27 @@ class AppShell extends ConsumerWidget {
         // page draws edge-to-edge — its hero can sit ABOVE the Dynamic
         // Island — and content blurs under the floating glass tab bar.
         extendBody: true,
-        body: child,
+        body: Stack(
+          children: [
+            Positioned.fill(child: child),
+            // Persistent darkening behind the Dynamic Island / status bar and
+            // behind the floating glass tab bar — present on EVERY phone
+            // screen so the clock/battery and the tab labels always stay
+            // legible over whatever scrolls underneath.
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(child: _TopSystemScrim()),
+            ),
+            const Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: IgnorePointer(child: _BottomSystemScrim()),
+            ),
+          ],
+        ),
         bottomNavigationBar: const StreamloadBottomTabBar(),
       );
     }
@@ -88,6 +108,64 @@ class AppShell extends ConsumerWidget {
                 right: 0,
                 child: TopNavBar(),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Persistent dark scrim behind the status bar / Dynamic Island, on every
+/// phone screen. Darkest right under the notch, gone a touch below it — just
+/// enough that the OS clock/battery stay readable over bright content.
+class _TopSystemScrim extends StatelessWidget {
+  const _TopSystemScrim();
+
+  @override
+  Widget build(BuildContext context) {
+    final topPad = MediaQuery.of(context).padding.top;
+    return SizedBox(
+      height: topPad + 30,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.55, 1.0],
+            colors: [
+              Colors.black.withValues(alpha: 0.55),
+              Colors.black.withValues(alpha: 0.28),
+              Colors.transparent,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Persistent dark scrim behind the floating glass tab bar, on every phone
+/// screen. Transparent up top, darkening toward the bottom so the tab labels
+/// and icons keep their contrast over whatever scrolls underneath.
+class _BottomSystemScrim extends StatelessWidget {
+  const _BottomSystemScrim();
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+    return SizedBox(
+      height: bottomPad + 116,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.45, 1.0],
+            colors: [
+              Colors.transparent,
+              Colors.black.withValues(alpha: 0.30),
+              Colors.black.withValues(alpha: 0.62),
             ],
           ),
         ),
