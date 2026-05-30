@@ -43,6 +43,7 @@ class HeroSlideData {
     this.posterUrl,
     this.videoId,
     this.languageCode = 'IT',
+    this.inList = false,
     this.onPlay,
     this.onAdd,
     this.onOpen,
@@ -70,6 +71,11 @@ class HeroSlideData {
   /// (operator dropped that feature on May 16). HeroSlide ignores it.
   final String? videoId;
   final String languageCode;
+
+  /// Whether this title is already in "La mia lista" — drives the secondary
+  /// CTA's state (＋ "La mia lista" ↔ ✓ "Nella lista").
+  final bool inList;
+
   final VoidCallback? onPlay;
   final VoidCallback? onAdd;
 
@@ -191,7 +197,11 @@ class _HeroCarouselState extends State<HeroCarousel> {
                 languageCode: s.languageCode,
               ),
             ),
-            ctas: HeroCtas(onPlay: s.onPlay, onAdd: s.onAdd),
+            ctas: HeroCtas(
+              onPlay: s.onPlay,
+              onAdd: s.onAdd,
+              inList: s.inList,
+            ),
           ),
         ),
       ],

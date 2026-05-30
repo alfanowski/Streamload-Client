@@ -633,6 +633,10 @@ class _HeroSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(heroSlidesProvider);
+    // Watch favorites so the secondary CTA flips ＋ ↔ ✓ live as the user
+    // adds/removes the title (onAdd toggles this same provider).
+    final favs =
+        ref.watch(favoritesProvider).value ?? const <TitleKey>{};
     return async.when(
       data: (slides) {
         if (slides.isEmpty) {
@@ -658,6 +662,11 @@ class _HeroSection extends ConsumerWidget {
                   posterUrl: s.posterUrl,
                   videoId: s.videoId,
                   languageCode: s.languageCode,
+                  inList: s.tmdbId != null &&
+                      favs.contains(TitleKey(
+                        tmdbId: s.tmdbId!,
+                        mediaType: s.mediaType,
+                      )),
                   onPlay: s.tmdbId == null
                       ? null
                       : () => context.go(

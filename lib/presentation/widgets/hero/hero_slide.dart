@@ -53,6 +53,7 @@ class HeroSlide extends StatelessWidget {
     this.videoId,
     this.label = 'IN EVIDENZA',
     this.languageCode = 'IT',
+    this.inList = false,
     this.onPlay,
     this.onAdd,
     this.onOpen,
@@ -100,6 +101,9 @@ class HeroSlide extends StatelessWidget {
   /// Secondary CTA (＋ La mia lista) tap handler.
   final VoidCallback? onAdd;
 
+  /// Whether this title is already in "La mia lista" (toggles the CTA state).
+  final bool inList;
+
   /// Tapping anywhere on the hero (outside the CTAs) opens the title page,
   /// the way Netflix's billboard does.
   final VoidCallback? onOpen;
@@ -127,7 +131,7 @@ class HeroSlide extends StatelessWidget {
                   label: label,
                   languageCode: languageCode,
                 ),
-                ctas: HeroCtas(onPlay: onPlay, onAdd: onAdd),
+                ctas: HeroCtas(onPlay: onPlay, onAdd: onAdd, inList: inList),
               ),
             ),
           ],
@@ -291,14 +295,20 @@ class HeroText extends StatelessWidget {
 /// translucent glass); desktop/tablet keeps the typographic pills. Kept
 /// stable across hero transitions so nothing animates or flickers.
 class HeroCtas extends StatelessWidget {
-  const HeroCtas({super.key, this.onPlay, this.onAdd});
+  const HeroCtas({super.key, this.onPlay, this.onAdd, this.inList = false});
 
   final VoidCallback? onPlay;
   final VoidCallback? onAdd;
 
+  /// Whether the title is already in "La mia lista" — flips the secondary CTA
+  /// between ＋ "La mia lista" and ✓ "Nella lista".
+  final bool inList;
+
   @override
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
+    final listLabel = inList ? 'Nella lista' : 'La mia lista';
+    final listIcon = inList ? Icons.check_rounded : Icons.add_rounded;
 
     if (isPhone) {
       // Same row, equal halves, clustered near the CENTRE. Each capped so the
@@ -321,8 +331,9 @@ class HeroCtas extends StatelessWidget {
               SizedBox(
                 width: w,
                 child: HeroCtaButton.glass(
-                  label: 'La mia lista',
-                  icon: Icons.add_rounded,
+                  label: listLabel,
+                  icon: listIcon,
+                  active: inList,
                   onTap: onAdd,
                 ),
               ),
@@ -339,7 +350,12 @@ class HeroCtas extends StatelessWidget {
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         CtaButton(label: 'Guarda', leading: '▶', onTap: onPlay, filled: true),
-        CtaButton(label: 'La mia lista', leading: '＋', onTap: onAdd, filled: false),
+        CtaButton(
+          label: listLabel,
+          leading: inList ? '✓' : '＋',
+          onTap: onAdd,
+          filled: false,
+        ),
       ],
     );
   }

@@ -25,6 +25,7 @@ class HeroCtaButton extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.glass,
+    this.active = false,
     this.onTap,
   });
 
@@ -37,16 +38,20 @@ class HeroCtaButton extends StatelessWidget {
   }) : this._(label: label, icon: icon, glass: false, onTap: onTap);
 
   /// Translucent liquid-glass pill — the secondary "La mia lista" action.
+  /// [active] = the title is already in the list → the icon/label pick up the
+  /// signature amber so the "added" state reads at a glance.
   const HeroCtaButton.glass({
     Key? key,
     required String label,
     required IconData icon,
+    bool active = false,
     VoidCallback? onTap,
-  }) : this._(label: label, icon: icon, glass: true, onTap: onTap);
+  }) : this._(label: label, icon: icon, glass: true, active: active, onTap: onTap);
 
   final String label;
   final IconData icon;
   final bool glass;
+  final bool active;
   final VoidCallback? onTap;
 
   static const double _height = 48;
@@ -56,12 +61,15 @@ class HeroCtaButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final enabled = onTap != null;
     final fg = glass ? Colors.white : StreamloadTokens.ctaPrimaryFg;
+    // In the "added" state the glass icon picks up the signature amber so the
+    // toggle reads instantly; the label stays white for legibility.
+    final iconColor = (glass && active) ? StreamloadTokens.accent : fg;
 
     final content = Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: _iconSize, color: fg),
+        Icon(icon, size: _iconSize, color: iconColor),
         const SizedBox(width: 8),
         Flexible(
           child: Text(
@@ -118,9 +126,14 @@ class HeroCtaButton extends StatelessWidget {
     return Container(
       height: _height,
       // Rim drawn on top of the clip so it stays crisp (never half-clipped).
+      // Picks up a faint amber when the title is in the list.
       foregroundDecoration: BoxDecoration(
         borderRadius: radius,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+        border: Border.all(
+          color: active
+              ? StreamloadTokens.accent.withValues(alpha: 0.55)
+              : Colors.white.withValues(alpha: 0.22),
+        ),
       ),
       child: ClipRRect(
         borderRadius: radius,

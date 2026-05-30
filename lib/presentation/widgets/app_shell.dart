@@ -126,16 +126,18 @@ class _TopSystemScrim extends StatelessWidget {
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
     return SizedBox(
-      height: topPad + 30,
+      height: topPad + 38,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: const [0.0, 0.55, 1.0],
+            stops: const [0.0, 0.6, 1.0],
             colors: [
-              Colors.black.withValues(alpha: 0.55),
-              Colors.black.withValues(alpha: 0.28),
+              // Roughly twice as dark as before so the Dynamic Island area
+              // reads strongly on every screen, not just over the hero.
+              Colors.black.withValues(alpha: 0.92),
+              Colors.black.withValues(alpha: 0.58),
               Colors.transparent,
             ],
           ),
