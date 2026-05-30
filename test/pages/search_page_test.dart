@@ -172,7 +172,8 @@ void main() {
       ],
     );
     await t.pumpAndSettle();
-    // The input now lives in the bottom bar (Apple Music style), not here.
+    // Glass-pill input is the headline affordance.
+    expect(find.byType(TextField), findsOneWidget);
     // No filter chips after Pass 2E.
     expect(find.text('Tutto'), findsNothing);
     expect(find.text('Film'), findsNothing);
@@ -183,7 +184,7 @@ void main() {
     verifyNever(() => api.search(any()));
   });
 
-  testWidgets('initialQuery (?q=) seeds the query and runs page 1', (t) async {
+  testWidgets('initialQuery pre-fills the input and runs page 1', (t) async {
     final api = _SearchApiMock();
     when(() => api.search('dune', page: any(named: 'page'))).thenAnswer(
       (_) async => SearchResults(
@@ -195,8 +196,22 @@ void main() {
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=dune');
     await t.pumpAndSettle();
+    expect(find.widgetWithText(TextField, 'dune'), findsOneWidget);
     expect(find.byType(PosterCard), findsOneWidget);
     verify(() => api.search('dune', page: 1)).called(1);
+  });
+
+  testWidgets('submitting input updates the URL via context.go', (t) async {
+    final api = _SearchApiMock();
+    when(() => api.search(any(), page: any(named: 'page')))
+        .thenAnswer((_) async => const SearchResults());
+    final spy = _NavSpy();
+    await pumpPage(t, api: api, spy: spy);
+    await t.pumpAndSettle();
+    await t.enterText(find.byType(TextField), 'matrix');
+    await t.testTextInput.receiveAction(TextInputAction.search);
+    await t.pumpAndSettle();
+    expect(spy.visited, contains('/search?q=matrix'));
   });
 
   testWidgets('grid mixes all media types — chips dropped (Pass 2E)',
