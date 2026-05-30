@@ -574,7 +574,9 @@ class _HomePageState extends ConsumerState<HomePage> {
     // of 720 px. The metadata block already aligns bottom-left so the
     // extra headroom reads as cinematic, not as a void.
     if (Responsive.isPhone(context)) {
-      return MediaQuery.sizeOf(context).height * 0.65;
+      // A shorter hero crops the backdrop less (BoxFit.cover zooms to fill),
+      // so the artwork reads more like the full poster. 0.65 → 0.58.
+      return MediaQuery.sizeOf(context).height * 0.58;
     }
     final viewportH = MediaQuery.sizeOf(context).height;
     if (Responsive.isTablet(context)) {
