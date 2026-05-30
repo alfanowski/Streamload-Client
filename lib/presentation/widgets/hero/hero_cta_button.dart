@@ -1,18 +1,17 @@
 // lib/presentation/widgets/hero/hero_cta_button.dart
 //
-// HeroCtaButton — the hero's two primary actions, rebuilt from scratch.
+// HeroCtaButton — the hero's two actions, both rendered as real translucent
+// liquid glass (BackdropFilter blur of the art behind + a faint top sheen +
+// a hairline rim, white label):
 //
-//   .primary  → solid cream-white pill, near-black label, soft lift shadow.
-//               The unmistakable "Watch" affordance (Apple TV+ / Netflix).
-//   .glass    → real translucent glass: a BackdropFilter blur of the art
-//               behind it + a faint top sheen + a hairline rim, white label.
+//   .primary  → "Guarda": the same glass, a touch BRIGHTER, so it reads as
+//               the primary action without going back to a flat opaque pill.
+//   .glass    → "La mia lista": the neutral glass. [active] swaps ＋→✓ and
+//               "Nella lista" with a slightly fuller frost (no tint colour).
 //
 // Built in pure Flutter (no platform views) so the two buttons are pixel-
 // identical in size, perfectly symmetric, genuinely translucent, and never
 // flicker — the things the native glass button kept getting wrong.
-//
-// Both variants share one geometry (fixed height, pill radius, icon + label
-// centred) so a row of one .primary + one .glass always lines up.
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -24,34 +23,38 @@ class HeroCtaButton extends StatelessWidget {
   const HeroCtaButton._({
     required this.label,
     required this.icon,
-    required this.glass,
+    required this.prominent,
     this.active = false,
     this.onTap,
   });
 
-  /// Solid cream-white pill — the primary "Guarda" action.
+  /// Primary "Guarda" — a slightly brighter frost so it leads the eye.
   const HeroCtaButton.primary({
     Key? key,
     required String label,
     required IconData icon,
     VoidCallback? onTap,
-  }) : this._(label: label, icon: icon, glass: false, onTap: onTap);
+  }) : this._(label: label, icon: icon, prominent: true, onTap: onTap);
 
-  /// Translucent liquid-glass pill — the secondary "La mia lista" action.
-  /// [active] = the title is already in the list → the icon/label pick up the
-  /// signature amber so the "added" state reads at a glance.
+  /// Secondary "La mia lista". [active] = the title is already in the list,
+  /// so it shows ✓ "Nella lista" with a slightly fuller frost.
   const HeroCtaButton.glass({
     Key? key,
     required String label,
     required IconData icon,
     bool active = false,
     VoidCallback? onTap,
-  }) : this._(label: label, icon: icon, glass: true, active: active, onTap: onTap);
+  }) : this._(label: label, icon: icon, prominent: false, active: active, onTap: onTap);
 
   final String label;
   final IconData icon;
-  final bool glass;
+
+  /// The primary action ("Guarda") — a touch brighter than the neutral glass.
+  final bool prominent;
+
+  /// In-list state ("Nella lista", ✓).
   final bool active;
+
   final VoidCallback? onTap;
 
   static const double _height = 48;
@@ -60,24 +63,20 @@ class HeroCtaButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
-    final fg = glass ? Colors.white : StreamloadTokens.ctaPrimaryFg;
-    // In the "added" state the glass icon picks up the signature amber so the
-    // toggle reads instantly; the label stays white for legibility.
-    final iconColor = (glass && active) ? StreamloadTokens.accent : fg;
 
     final content = Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: _iconSize, color: iconColor),
+        Icon(icon, size: _iconSize, color: Colors.white),
         const SizedBox(width: 8),
         Flexible(
           child: Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: fg,
+            style: const TextStyle(
+              color: Colors.white,
               fontSize: 14.5,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.1,
@@ -87,53 +86,45 @@ class HeroCtaButton extends StatelessWidget {
       ],
     );
 
-    final body = glass ? _glassBody(content) : _primaryBody(content);
-
     return Opacity(
       opacity: enabled ? 1.0 : 0.45,
       child: PressFeedback(
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
-          child: body,
+          child: _glassBody(content),
         ),
       ),
-    );
-  }
-
-  Widget _primaryBody(Widget content) {
-    return Container(
-      height: _height,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      decoration: BoxDecoration(
-        color: StreamloadTokens.ctaPrimaryBg,
-        borderRadius: BorderRadius.circular(StreamloadTokens.radiusPill),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.28),
-            blurRadius: 22,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: content,
     );
   }
 
   Widget _glassBody(Widget content) {
     final radius = BorderRadius.circular(StreamloadTokens.radiusPill);
+
+    // One glass family, three weights. Secondary is the baseline the operator
+    // already loves; primary is a hair brighter to lead; active is a touch
+    // fuller so "added" reads — all white, no tint colour.
+    final double fillTop, fillBottom, rimAlpha;
+    if (prominent) {
+      fillTop = 0.26;
+      fillBottom = 0.11;
+      rimAlpha = 0.36;
+    } else if (active) {
+      fillTop = 0.22;
+      fillBottom = 0.10;
+      rimAlpha = 0.32;
+    } else {
+      fillTop = 0.18;
+      fillBottom = 0.06;
+      rimAlpha = 0.22;
+    }
+
     return Container(
       height: _height,
       // Rim drawn on top of the clip so it stays crisp (never half-clipped).
-      // Picks up a faint amber when the title is in the list.
       foregroundDecoration: BoxDecoration(
         borderRadius: radius,
-        border: Border.all(
-          color: active
-              ? StreamloadTokens.accent.withValues(alpha: 0.55)
-              : Colors.white.withValues(alpha: 0.22),
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: rimAlpha)),
       ),
       child: ClipRRect(
         borderRadius: radius,
@@ -149,8 +140,8 @@ class HeroCtaButton extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.white.withValues(alpha: 0.18),
-                  Colors.white.withValues(alpha: 0.06),
+                  Colors.white.withValues(alpha: fillTop),
+                  Colors.white.withValues(alpha: fillBottom),
                 ],
               ),
             ),
