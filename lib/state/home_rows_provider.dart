@@ -178,7 +178,7 @@ final newReleasesAllProvider =
   ]);
   final combined = <MediaSummary>[...results[0], ...results[1]];
   // Backend already sorts each half by date desc; we interleave and cap.
-  return combined.take(20).toList(growable: false);
+  return combined.take(40).toList(growable: false);
 });
 
 /// Top rated movies ∪ TV.
@@ -190,7 +190,7 @@ final topRatedAllProvider =
     api.topRated(mediaType: 'tv'),
   ]);
   final combined = <MediaSummary>[...results[0], ...results[1]];
-  return combined.take(20).toList(growable: false);
+  return combined.take(40).toList(growable: false);
 });
 
 // ──────────────────────────────────────────────────────────────────────────

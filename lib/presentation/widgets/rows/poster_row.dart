@@ -92,10 +92,9 @@ class PosterRow extends StatelessWidget {
           height: _rowHeight(cardWidth),
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            // Phone gets snap-style physics so cards center after a fling.
-            physics: Responsive.isPhone(context)
-                ? const PageScrollPhysics()
-                : const BouncingScrollPhysics(),
+            // Fluid, free-scroll everywhere (no snap/step) — the old phone
+            // PageScrollPhysics made it advance card-by-card.
+            physics: const BouncingScrollPhysics(),
             padding: pagePad,
             itemCount: showPlaceholders ? placeholderCount : items.length,
             separatorBuilder: (_, __) =>
@@ -108,6 +107,7 @@ class PosterRow extends StatelessWidget {
               return PosterCard(
                 summary: m,
                 width: cardWidth,
+                showLabel: false,
                 progressFraction: progressByTmdbId?[m.tmdbId],
                 subtitleOverride: subtitleByTmdbId?[m.tmdbId],
                 onTap: () {
@@ -127,9 +127,9 @@ class PosterRow extends StatelessWidget {
     );
   }
 
-  // 2:3 aspect ratio poster + ~48px reserved for title + subtitle
-  // (CM-7 bumped the title gap below the poster from 8 → 12 px).
-  double _rowHeight(double cardWidth) => cardWidth * 3 / 2 + 48;
+  // Covers-only rows: just the 2:3 poster + a little headroom so the desktop
+  // hover-scale doesn't clip.
+  double _rowHeight(double cardWidth) => cardWidth * 3 / 2 + 10;
 }
 
 class _Header extends StatelessWidget {
@@ -187,29 +187,14 @@ class _Placeholder extends StatelessWidget {
     return Shimmer(
       child: SizedBox(
         width: width,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            AspectRatio(
-              aspectRatio: 2 / 3,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: StreamloadColors.v3SurfaceGlass,
-                  borderRadius:
-                      BorderRadius.circular(StreamloadSpacing.cardRadius),
-                ),
-              ),
+        child: AspectRatio(
+          aspectRatio: 2 / 3,
+          child: Container(
+            decoration: BoxDecoration(
+              color: StreamloadColors.v3SurfaceGlass,
+              borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
             ),
-            const SizedBox(height: 12),
-            Container(
-              width: width * 0.7,
-              height: 12,
-              decoration: BoxDecoration(
-                color: StreamloadColors.v3SurfaceGlass,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

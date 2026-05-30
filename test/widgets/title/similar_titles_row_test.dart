@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:streamload_client/domain/models/media_summary.dart';
+import 'package:streamload_client/presentation/widgets/poster_card.dart';
 import 'package:streamload_client/presentation/widgets/title/similar_titles_row.dart';
 import 'package:streamload_client/state/home_rows_provider.dart';
 
@@ -49,8 +50,8 @@ void main() {
     ));
     await t.pumpAndSettle();
     expect(find.text('Titoli simili'), findsOneWidget);
-    expect(find.text('A'), findsOneWidget);
-    expect(find.text('B'), findsOneWidget);
+    // Rows are covers-only — assert the cards render by type.
+    expect(find.byType(PosterCard), findsNWidgets(2));
   });
 
   testWidgets('falls back to similar when recommendations is empty',
@@ -67,7 +68,7 @@ void main() {
     ));
     await t.pumpAndSettle();
     expect(find.text('Titoli simili'), findsOneWidget);
-    expect(find.text('X'), findsOneWidget);
+    expect(find.byType(PosterCard), findsOneWidget);
   });
 
   testWidgets('renders nothing when both providers are empty', (t) async {

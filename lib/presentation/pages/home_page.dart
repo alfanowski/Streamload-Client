@@ -181,12 +181,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 24)),
-              SliverList(
-                delegate: SliverChildListDelegate([
-                  ..._buildRows(context, filter),
-                  const SizedBox(height: 100),
-                ]),
-              ),
+              _buildRowSlivers(context, filter),
             ],
           ),
           // Fading wordmark, kept below the Dynamic Island via SafeArea.
@@ -210,6 +205,21 @@ class _HomePageState extends ConsumerState<HomePage> {
     );
   }
 
+  /// The Home rows as a LAZY sliver — children build only as they scroll into
+  /// view, so a long category list doesn't fire every row's provider on open.
+  Widget _buildRowSlivers(BuildContext context, String? filter) {
+    final children = <Widget>[
+      ..._buildRows(context, filter),
+      const SizedBox(height: 100),
+    ];
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, i) => children[i],
+        childCount: children.length,
+      ),
+    );
+  }
+
   List<Widget> _buildRows(BuildContext context, String? filter) {
     // P2 (2026-05-17): /film and /serie were showing only 3-4 rows — the
     // operator wanted a full Netflix-style catalog. Each filter now
@@ -227,24 +237,36 @@ class _HomePageState extends ConsumerState<HomePage> {
   // ──────────────────────────────────────────────────────────────────
 
   List<Widget> _buildDefaultRows() {
-    // CM-8 (2026-05-17): trimmed to 6 rows — Tendenze oggi + Continua +
-    // Nuove uscite + La mia lista + Visti di recente + Top di sempre.
-    // The previous genre rows (Crime & Thriller / Commedie italiane /
-    // Anime / Documentari) moved off Home: the filter catalogs
-    // (/film, /serie, /anime) carry them. Editorial /home is a curated
-    // landing page, not a catalog browser.
+    // 2026-05-30: the operator wanted a fuller Home — more categories, more
+    // titles. Personal rows up top (Continua / La mia lista), then trending,
+    // new releases, and a broad spread of genre rows (film + serie), closing
+    // on Top di sempre. Rows build lazily (SliverChildBuilderDelegate) so the
+    // long list doesn't fire every provider on open.
     final rows = <Widget>[];
     _addRow(rows,
         _RowConsumer(title: 'Tendenze oggi', provider: trendingDayProvider));
     _addRow(rows, const _ContinueWatchingRow());
+    _addRow(rows, const _MyListRow());
+    _addRow(rows,
+        _RowConsumer(title: 'Nuove uscite', provider: newReleasesAllProvider));
     _addRow(
       rows,
       _RowConsumer(
-        title: 'Nuove uscite',
-        provider: newReleasesAllProvider,
-      ),
+          title: 'Film del momento', provider: trendingDayMoviesProvider),
     );
-    _addRow(rows, const _MyListRow());
+    _addRow(
+      rows,
+      _RowConsumer(
+          title: 'Serie TV del momento', provider: trendingDayTvProvider),
+    );
+    _addGenreRow(rows, 'Azione', [28], 'movie');
+    _addGenreRow(rows, 'Commedie', [35], 'movie');
+    _addGenreRow(rows, 'Sci-Fi & Fantasy', [878, 14], 'movie');
+    _addGenreRow(rows, 'Serie TV drama', [18], 'tv');
+    _addGenreRow(rows, 'Crime & Thriller', [80, 53], 'movie');
+    _addGenreRow(rows, 'Horror', [27], 'movie');
+    _addGenreRow(rows, 'Animazione', [16], 'movie');
+    _addGenreRow(rows, 'Documentari', [99], 'movie');
     _addRow(rows, const _RecentlyWatchedRow());
     _addRow(rows,
         _RowConsumer(title: 'Top di sempre', provider: topRatedAllProvider));
@@ -557,6 +579,24 @@ class _HomePageState extends ConsumerState<HomePage> {
   void _addRow(List<Widget> rows, Widget row) {
     rows.add(row);
     rows.add(SizedBox(height: _rowGapFor(context)));
+  }
+
+  /// Shorthand for a genre-filtered row (TMDB genre IDs + media type).
+  void _addGenreRow(
+    List<Widget> rows,
+    String title,
+    List<int> genreIds,
+    String mediaType,
+  ) {
+    _addRow(
+      rows,
+      _RowConsumer(
+        title: title,
+        provider: byGenreProvider(
+          GenreRowKey(genreIds: genreIds, mediaType: mediaType),
+        ),
+      ),
+    );
   }
 
   double _rowGapFor(BuildContext context) {

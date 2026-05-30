@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:streamload_client/domain/models/media_summary.dart';
 import 'package:streamload_client/domain/models/person.dart';
 import 'package:streamload_client/presentation/pages/person_page.dart';
+import 'package:streamload_client/presentation/widgets/poster_card.dart';
 import 'package:streamload_client/state/person_provider.dart';
 
 enum _State { data, loading, error }
@@ -98,8 +99,9 @@ void main() {
     expect(find.text('INTERPRETE'), findsOneWidget);
     expect(find.text('Actor and producer from Oklahoma.'), findsOneWidget);
     expect(find.text('Filmografia'), findsOneWidget);
-    expect(find.text('Once Upon a Time'), findsOneWidget);
-    expect(find.text('Fight Club'), findsOneWidget);
+    // Rows are covers-only now (no title under the poster) — assert the two
+    // filmography cards render by type.
+    expect(find.byType(PosterCard), findsNWidgets(2));
   });
 
   testWidgets('hides biography block when biography is empty', (tester) async {
@@ -118,8 +120,8 @@ void main() {
     expect(find.text('Anonymous'), findsOneWidget);
     // No empty body text node should slip in.
     expect(find.text(''), findsNothing);
-    // Filmography still renders.
-    expect(find.text('A Film'), findsOneWidget);
+    // Filmography still renders (covers-only — assert by card type).
+    expect(find.byType(PosterCard), findsOneWidget);
   });
 
   testWidgets('shows empty-state copy when no filmography', (tester) async {

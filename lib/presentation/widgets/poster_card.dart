@@ -31,121 +31,157 @@ class PosterCard extends StatelessWidget {
     this.width = StreamloadSpacing.posterCardWidthDesktop,
     this.progressFraction,
     this.subtitleOverride,
+    this.showLabel = true,
   });
 
   final MediaSummary summary;
   final VoidCallback onTap;
   final double width;
 
-  /// 0..1 — when non-null, a white progress bar overlays the bottom 3px of
-  /// the poster. Used for "Continua a guardare": same 2:3 layout as the
-  /// other rows, just with a resume hint over the image.
+  /// 0..1 — when non-null the card shows a "Continua a guardare" overlay on
+  /// the poster: a bottom scrim, the season/episode label and a clear
+  /// progress bar. No text is added below the poster.
   final double? progressFraction;
 
-  /// When non-null, replaces the default year line beneath the title.
-  /// Used by "Continua a guardare" to show `S1 · E3 · 28 min rimanenti`
-  /// instead of the bare release year.
+  /// Season/episode (or remaining-time) line shown INSIDE the resume overlay,
+  /// e.g. `S2 · E5`. Only used when [progressFraction] is set.
   final String? subtitleOverride;
+
+  /// Whether to show the title (+ year) beneath the poster. Rows on Home set
+  /// this false for a clean covers-only look; grids / search keep it true.
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
     final hoverable = !Responsive.isMobile(context);
+
+    final poster = AspectRatio(
+      aspectRatio: 2 / 3,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            summary.posterUrl != null
+                ? CachedNetworkImage(
+                    imageUrl: summary.posterUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) =>
+                        Container(color: StreamloadColors.surface2),
+                    errorWidget: (_, __, ___) => const _PlaceholderPoster(),
+                  )
+                : const _PlaceholderPoster(),
+            if (progressFraction != null)
+              _ResumeOverlay(
+                progress: progressFraction!,
+                label: subtitleOverride,
+              ),
+          ],
+        ),
+      ),
+    );
+
+    final Widget content = showLabel
+        ? Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              poster,
+              const SizedBox(height: 12),
+              Flexible(
+                child: Text(
+                  summary.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: StreamloadTypography.display(fontSize: 14, italic: true),
+                ),
+              ),
+              if (summary.year != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    '${summary.year}',
+                    style: StreamloadTypography.v3MetaMono()
+                        .copyWith(fontSize: 10),
+                  ),
+                ),
+            ],
+          )
+        : poster;
+
     return PressFeedback(
       child: _HoverScale(
         enabled: hoverable,
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
-          child: SizedBox(
-            width: width,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AspectRatio(
-                  aspectRatio: 2 / 3,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(
-                              StreamloadSpacing.cardRadius),
-                          child: summary.posterUrl != null
-                              ? CachedNetworkImage(
-                                  imageUrl: summary.posterUrl!,
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, __) => Container(
-                                      color: StreamloadColors.surface2),
-                                  errorWidget: (_, __, ___) =>
-                                      const _PlaceholderPoster(),
-                                )
-                              : const _PlaceholderPoster(),
-                        ),
-                      ),
-                      if (progressFraction != null)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          child: ClipRRect(
-                            borderRadius: const BorderRadius.vertical(
-                              bottom:
-                                  Radius.circular(StreamloadSpacing.cardRadius),
-                            ),
-                            child: Container(
-                              height: 3,
-                              color: Colors.black.withValues(alpha: 0.5),
-                              child: FractionallySizedBox(
-                                widthFactor:
-                                    progressFraction!.clamp(0.0, 1.0),
-                                alignment: Alignment.centerLeft,
-                                child: Container(
-                                    color: StreamloadColors.v3TextPrimary),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                // CM-7: more breathing room between poster and title block.
-                const SizedBox(height: 12),
-                Flexible(
-                  child: Text(
-                    summary.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    // CM-7: small serif italic — Letterboxd feel.
-                    style: StreamloadTypography.display(
-                      fontSize: 14,
-                      italic: true,
-                    ),
-                  ),
-                ),
-                if (subtitleOverride != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      subtitleOverride!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: StreamloadTypography.v3MetaMono().copyWith(
-                        fontSize: 10,
-                      ),
-                    ),
-                  )
-                else if (summary.year != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '${summary.year}',
-                      style: StreamloadTypography.v3MetaMono().copyWith(
-                        fontSize: 10,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          child: SizedBox(width: width, child: content),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Continua a guardare" overlay: a bottom scrim + the season/episode line +
+/// a clear amber progress bar. Sits on the poster so cards stay image-first.
+class _ResumeOverlay extends StatelessWidget {
+  const _ResumeOverlay({required this.progress, this.label});
+
+  final double progress;
+  final String? label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black.withValues(alpha: 0.82),
+            ],
           ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (label != null && label!.isNotEmpty) ...[
+              Text(
+                label!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: SizedBox(
+                height: 4,
+                child: Stack(
+                  children: [
+                    ColoredBox(color: Colors.white.withValues(alpha: 0.28)),
+                    FractionallySizedBox(
+                      widthFactor: progress.clamp(0.0, 1.0),
+                      alignment: Alignment.centerLeft,
+                      child: const ColoredBox(color: StreamloadColors.accent),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

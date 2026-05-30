@@ -13,6 +13,7 @@ import 'package:streamload_client/domain/models/media_summary.dart';
 import 'package:streamload_client/domain/models/person.dart';
 import 'package:streamload_client/presentation/pages/person_page.dart';
 import 'package:streamload_client/presentation/widgets/cast/cast_card.dart';
+import 'package:streamload_client/presentation/widgets/poster_card.dart';
 import 'package:streamload_client/state/person_provider.dart';
 
 void main() {
@@ -91,13 +92,15 @@ void main() {
     await tester.pumpAndSettle();
 
     // Step 2: we're on the PersonPage — Brad Pitt + Filmografia visible.
+    // Rows are covers-only now (no title text under the poster), so assert
+    // the filmography card is present by type rather than by title text.
     expect(find.text('Brad Pitt'), findsOneWidget);
     expect(find.text('Filmografia'), findsOneWidget);
-    expect(find.text('Once Upon a Time'), findsOneWidget);
+    expect(find.byType(PosterCard), findsWidgets);
 
     // Step 3: tap the filmography card — fires PosterRow's default
     // onItemTap which navigates to /title/<id>?media_type=<mt>.
-    await tester.tap(find.text('Once Upon a Time'));
+    await tester.tap(find.byType(PosterCard).first);
     await tester.pumpAndSettle();
 
     expect(landedTitlePath, '/title/9999?media_type=movie');
