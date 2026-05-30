@@ -99,17 +99,11 @@ class _HeroCarouselState extends State<HeroCarousel> {
   // backdrop + title dissolve together while the CTAs stay put.
   int _current = 0;
 
-  // +1 when moving forward, -1 when moving back. Drives which direction the
-  // crossfade slides a hair (a few px) so the dissolve feels directional
-  // without becoming a full slide.
-  int _dir = 1;
-
   int get _len => widget.slides.length;
 
   void _advance(int delta) {
     if (_len < 2) return;
     setState(() {
-      _dir = delta >= 0 ? 1 : -1;
       _current = (_current + delta) % _len;
       if (_current < 0) _current += _len;
     });
@@ -117,33 +111,63 @@ class _HeroCarouselState extends State<HeroCarousel> {
 
   HeroSlideData get _slide => widget.slides[_current.clamp(0, _len - 1)];
 
-  // A clean discrete crossfade: the outgoing child fades out as the incoming
-  // one fades in (plus a tiny directional drift). Always completes — no
-  // finger-following, so it can never get stuck half-way.
-  //
-  // [expand] picks the layout: the backdrop fills the hero (StackFit.expand,
-  // it lives in a Positioned.fill), while the title block self-sizes inside
-  // the metadata Column (default loose, centred) so it never demands an
-  // infinite height.
-  Widget _crossfade(Widget child, {bool expand = false}) {
+  // Backdrop transition — a slow, luxurious cross-dissolve with a subtle
+  // push-in (incoming starts at 1.06× and settles to 1.0) for depth, the way
+  // Apple TV+ dissolves its billboard art. Both layers overlap the whole time
+  // (no horizontal drift, no background flash). Lives in a Positioned.fill so
+  // StackFit.expand is safe.
+  Widget _backdropTransition(Widget child) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 480),
-      switchInCurve: Curves.easeOutCubic,
-      switchOutCurve: Curves.easeInCubic,
-      layoutBuilder: expand
-          ? (current, previous) => Stack(
-                fit: StackFit.expand,
-                children: [...previous, if (current != null) current],
-              )
-          : AnimatedSwitcher.defaultLayoutBuilder,
+      duration: const Duration(milliseconds: 700),
+      switchInCurve: Curves.easeInOut,
+      switchOutCurve: Curves.easeInOut,
+      layoutBuilder: (current, previous) => Stack(
+        fit: StackFit.expand,
+        children: [...previous, if (current != null) current],
+      ),
       transitionBuilder: (c, anim) {
-        final slide = Tween<Offset>(
-          begin: Offset(0.04 * _dir, 0),
-          end: Offset.zero,
-        ).animate(anim);
+        final scale = Tween<double>(begin: 1.06, end: 1.0).animate(
+          CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+        );
         return FadeTransition(
           opacity: anim,
-          child: SlideTransition(position: slide, child: c),
+          child: ScaleTransition(scale: scale, child: c),
+        );
+      },
+      child: KeyedSubtree(key: ValueKey<int>(_current), child: child),
+    );
+  }
+
+  // Title transition — a clean SEQUENTIAL fade: the outgoing title fades out
+  // over the first ~40% of the timeline, then the incoming one fades in over
+  // the last ~60% with a gentle upward rise. Because they never sit at ~50%
+  // together, there's no ghost / double-title. Bottom-anchored so the block
+  // never jumps from its resting position. Self-sizes inside the metadata
+  // Column (no StackFit.expand → no infinite-height demand).
+  Widget _titleTransition(Widget child) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 560),
+      layoutBuilder: (current, previous) => Stack(
+        alignment: Alignment.bottomCenter,
+        children: [...previous, if (current != null) current],
+      ),
+      transitionBuilder: (c, anim) {
+        // Same interval forward AND reverse → the outgoing title fades out in
+        // the first 45% of the timeline, the incoming one fades in over the
+        // last 55%, crossing at zero. No two visible titles at once.
+        const window = Interval(0.45, 1.0, curve: Curves.easeOut);
+        final fade = CurvedAnimation(
+          parent: anim,
+          curve: window,
+          reverseCurve: window,
+        );
+        final rise = Tween<Offset>(
+          begin: const Offset(0, 0.14),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: anim, curve: window));
+        return FadeTransition(
+          opacity: fade,
+          child: SlideTransition(position: rise, child: c),
         );
       },
       child: KeyedSubtree(key: ValueKey<int>(_current), child: child),
@@ -166,14 +190,13 @@ class _HeroCarouselState extends State<HeroCarousel> {
       fit: StackFit.expand,
       children: [
         Positioned.fill(
-          child: _crossfade(
+          child: _backdropTransition(
             HeroBackdrop(backdropUrl: s.backdropUrl, posterUrl: s.posterUrl),
-            expand: true,
           ),
         ),
         Positioned.fill(
           child: HeroMetadata(
-            text: _crossfade(
+            text: _titleTransition(
               HeroText(
                 title: s.title,
                 mediaType: s.mediaType,
