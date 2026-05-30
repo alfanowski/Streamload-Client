@@ -22,7 +22,6 @@
 // the input mirrors it on mount, and submitting writes back via
 // context.go so results stay shareable and survive back nav.
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -40,6 +39,7 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
+import '../widgets/primitives/glass_surface.dart';
 import '../widgets/rows/poster_row.dart';
 import '../widgets/shimmer.dart';
 
@@ -394,34 +394,22 @@ class _GlassSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(26);
-    return ClipRRect(
-      borderRadius: radius,
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-        child: Container(
-          height: 50,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          foregroundDecoration: BoxDecoration(
-            borderRadius: radius,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
-          ),
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Colors.white.withValues(alpha: 0.16),
-                Colors.white.withValues(alpha: 0.05),
-              ],
-            ),
-          ),
+    // The official native Apple Liquid Glass capsule (same primitive as the
+    // bottom tab bar) — Apple-Music-style search field on iOS, shader/fake
+    // glass elsewhere.
+    return GlassSurface(
+      capsule: true,
+      borderRadius: 26,
+      blur: 10,
+      child: SizedBox(
+        height: 52,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Row(
             children: [
               Icon(
                 Icons.search,
-                color: Colors.white.withValues(alpha: 0.85),
+                color: Colors.white.withValues(alpha: 0.75),
                 size: 22,
               ),
               const SizedBox(width: 10),
@@ -440,7 +428,7 @@ class _GlassSearchBar extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                   ),
                   decoration: InputDecoration(
-                    hintText: 'Cerca film, serie, attori…',
+                    hintText: 'Film, serie TV, attori e altro…',
                     hintStyle: TextStyle(
                       color: Colors.white.withValues(alpha: 0.55),
                       fontSize: 17,
@@ -453,20 +441,26 @@ class _GlassSearchBar extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              // Mic (decorative, Apple-Music look) when empty; clear ✕ when
+              // there's text.
               ValueListenableBuilder<TextEditingValue>(
                 valueListenable: controller,
                 builder: (context, value, _) {
-                  if (value.text.isEmpty) return const SizedBox.shrink();
+                  if (value.text.isEmpty) {
+                    return Icon(
+                      Icons.mic_none_rounded,
+                      color: Colors.white.withValues(alpha: 0.6),
+                      size: 22,
+                    );
+                  }
                   return GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: onClear,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: Colors.white.withValues(alpha: 0.8),
-                        size: 20,
-                      ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.white.withValues(alpha: 0.85),
+                      size: 21,
                     ),
                   );
                 },
