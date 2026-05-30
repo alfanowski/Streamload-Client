@@ -29,17 +29,14 @@
 // crossfade handles slide-to-slide transitions; the metadata doesn't
 // need to "land" on top of that. CM-4 also swapped the LiquidGlass pill
 // for a typographic TextCta cluster.
-import 'dart:io' show Platform;
-
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:native_liquid_glass/native_liquid_glass.dart';
 
 import '../../responsive.dart';
 import '../../theme/colors.dart';
 import '../../theme/typography.dart';
 import '../primitives/cta_button.dart';
 import 'hero_backdrop.dart';
+import 'hero_cta_button.dart';
 
 class HeroSlide extends StatelessWidget {
   const HeroSlide({
@@ -162,7 +159,7 @@ class HeroMetadata extends StatelessWidget {
     final isTablet = Responsive.isTablet(context);
     final horizontalPad = isPhone ? 16.0 : 64.0;
     final baseBottomInset = isPhone
-        ? 32.0
+        ? 96.0
         : isTablet
             ? 64.0
             : 96.0;
@@ -173,7 +170,12 @@ class HeroMetadata extends StatelessWidget {
         final maxBlockWidth = isPhone
             ? availableWidth - (horizontalPad * 2)
             : (availableWidth * 0.5).clamp(360.0, 760.0);
-        final bottomInset = baseBottomInset.clamp(0.0, c.maxHeight * 0.15);
+        // Phone: lift the whole block well clear of the fade/first row (it sat
+        // too low at 32px). Scale gently with hero height but keep a healthy
+        // floor. Desktop/tablet keep their original ≤15%-of-height clamp.
+        final bottomInset = isPhone
+            ? (c.maxHeight * 0.18).clamp(88.0, 180.0)
+            : baseBottomInset.clamp(0.0, c.maxHeight * 0.15);
 
         return Padding(
           padding:
@@ -282,79 +284,52 @@ class HeroText extends StatelessWidget {
 }
 
 /// Hero CTAs — Guarda (left) + La mia lista (right) on ONE row, equal width,
-/// symmetric. Native Apple liquid-glass buttons on iOS; cream/ghost pills as
-/// the cross-platform fallback. Kept stable across hero transitions.
+/// symmetric. Phone uses the bespoke [HeroCtaButton] pair (solid cream +
+/// translucent glass); desktop/tablet keeps the typographic pills. Kept
+/// stable across hero transitions so nothing animates or flickers.
 class HeroCtas extends StatelessWidget {
   const HeroCtas({super.key, this.onPlay, this.onAdd});
 
   final VoidCallback? onPlay;
   final VoidCallback? onAdd;
 
-  static bool get _useNativeGlass {
-    if (kIsWeb) return false;
-    try {
-      return Platform.isIOS;
-    } catch (_) {
-      return false;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
 
     if (isPhone) {
-      final Widget guarda = _useNativeGlass
-          ? LiquidGlassButton(
-              label: 'Guarda',
-              icon: const NativeLiquidGlassIcon.sfSymbol('play.fill'),
-              onPressed: onPlay ?? () {},
-              style: LiquidGlassButtonStyle.glass,
-              tint: Colors.white.withValues(alpha: 0.22),
-              labelColor: Colors.white,
-              iconColor: Colors.white,
-            )
-          : CtaButton(label: 'Guarda', leading: '▶', onTap: onPlay, block: true);
-
-      final Widget lista = _useNativeGlass
-          ? LiquidGlassButton(
-              label: 'La mia lista',
-              icon: const NativeLiquidGlassIcon.sfSymbol('plus'),
-              onPressed: onAdd ?? () {},
-              style: LiquidGlassButtonStyle.glass,
-              tint: Colors.black.withValues(alpha: 0.22),
-              labelColor: Colors.white,
-              iconColor: Colors.white,
-            )
-          : CtaButton(
-              label: 'La mia lista',
-              leading: '＋',
-              onTap: onAdd,
-              filled: false,
-              block: true,
-            );
-
-      // Same row, equal halves, symmetric. Native glass buttons size to
-      // their content and ignore Expanded, so we force an explicit equal
-      // width (half the row, minus the gap).
+      // Same row, equal halves, clustered near the CENTRE. Each capped so the
+      // pair stays compact instead of stretching to the screen edges.
       return LayoutBuilder(
         builder: (context, c) {
-          // Compact, equal-width buttons clustered near the CENTRE (not
-          // stretched to the edges): cap each at ~150 px.
-          final w = ((c.maxWidth - 14) / 2).clamp(0.0, 150.0);
+          final w = ((c.maxWidth - 12) / 2).clamp(0.0, 168.0);
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              SizedBox(width: w, child: guarda),
-              const SizedBox(width: 14),
-              SizedBox(width: w, child: lista),
+              SizedBox(
+                width: w,
+                child: HeroCtaButton.primary(
+                  label: 'Guarda',
+                  icon: Icons.play_arrow_rounded,
+                  onTap: onPlay,
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: w,
+                child: HeroCtaButton.glass(
+                  label: 'La mia lista',
+                  icon: Icons.add_rounded,
+                  onTap: onAdd,
+                ),
+              ),
             ],
           );
         },
       );
     }
 
-    // Desktop / tablet (never iOS): side-by-side pills, intrinsic widths.
+    // Desktop / tablet: side-by-side typographic pills, intrinsic widths.
     return Wrap(
       spacing: 24,
       runSpacing: 12,
