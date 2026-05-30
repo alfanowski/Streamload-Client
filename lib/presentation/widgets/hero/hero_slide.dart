@@ -339,12 +339,14 @@ class HeroCtas extends StatelessWidget {
       // width (half the row, minus the gap).
       return LayoutBuilder(
         builder: (context, c) {
-          final w = ((c.maxWidth - 12) / 2).clamp(0.0, double.infinity);
+          // Compact, equal-width buttons clustered near the CENTRE (not
+          // stretched to the edges): cap each at ~150 px.
+          final w = ((c.maxWidth - 14) / 2).clamp(0.0, 150.0);
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SizedBox(width: w, child: guarda),
-              const SizedBox(width: 12),
+              const SizedBox(width: 14),
               SizedBox(width: w, child: lista),
             ],
           );

@@ -1,19 +1,22 @@
 // lib/presentation/widgets/hero/hero_carousel.dart
 //
-// HeroCarousel — rotates a list of HeroSlide entries every
-// StreamloadMotion.heroRotateInterval (30s) using a PageView.
+// HeroCarousel — shows a list of HeroSlide entries one at a time, advancing
+// MANUALLY (no auto-rotate) with a clean discrete CROSSFADE between slides.
+//
+// The crossfade lives on its own layer (backdrop + title dissolve together)
+// while a SINGLE stable CTA row sits on top — so the native glass buttons
+// never animate / flicker, and the title always matches its backdrop. The
+// transition is a discrete AnimatedSwitcher (always completes), never a
+// finger-following drag, so it can't get stuck half-way.
 //
 // Interactions:
-//   - desktop : hover anywhere on the carousel pauses auto-advance;
-//               hover also reveals ◀ ▶ glass arrows on the edges
-//   - mobile  : a single tap toggles pause; swipe to advance manually
-//               (PageView already handles drag gestures); no arrows
-//   - indicator dots bottom-right reflect current page; active dot is
-//     wider (24×3) and brighter, others (18×3) at 30% white
+//   - desktop : hover reveals ◀ ▶ glass arrows on the edges; click to advance
+//   - mobile  : a horizontal swipe (fling) commits exactly one step; a tap
+//               opens the title. Swiping on a CTA never changes slide.
+//   - indicator dots reflect the current slide; active dot is wider/brighter
 //
 // Data is supplied as a list of HeroSlideData records so the carousel
 // stays a pure visual primitive — Phase D wires real providers to it.
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 
@@ -90,187 +93,61 @@ class HeroCarousel extends StatefulWidget {
   State<HeroCarousel> createState() => _HeroCarouselState();
 }
 
-class _HeroCarouselState extends State<HeroCarousel>
-    with SingleTickerProviderStateMixin {
-  Timer? _autoTimer;
+class _HeroCarouselState extends State<HeroCarousel> {
+  // Index of the slide currently shown. Advancing wraps both ways
+  // (circular). The transition between slides is a clean crossfade — the
+  // backdrop + title dissolve together while the CTAs stay put.
   int _current = 0;
-  bool _paused = false;
 
-  // Interactive crossfade. _v ∈ [-1, 1]: < 0 reveals the NEXT slide, > 0 the
-  // PREVIOUS; |_v| is the crossfade progress toward that neighbour. It's a
-  // ValueNotifier so dragging rebuilds ONLY the backdrop layer (cheap) —
-  // never the native platform-view buttons, which would stutter/freeze if
-  // rebuilt every frame.
-  final ValueNotifier<double> _v = ValueNotifier<double>(0);
-  double _snapFrom = 0;
-  double _snapTo = 0;
-  late final AnimationController _snap = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 320),
-  );
+  // +1 when moving forward, -1 when moving back. Drives which direction the
+  // crossfade slides a hair (a few px) so the dissolve feels directional
+  // without becoming a full slide.
+  int _dir = 1;
 
   int get _len => widget.slides.length;
-  int get _nextIndex => (_current + 1) % _len;
-  int get _prevIndex => (_current - 1 + _len) % _len;
 
-  @override
-  void initState() {
-    super.initState();
-    _snap
-      ..addListener(_onSnapTick)
-      ..addStatusListener(_onSnapStatus);
-    _startTimer();
-  }
-
-  @override
-  void didUpdateWidget(covariant HeroCarousel oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.slides.length != widget.slides.length) {
-      _restartTimer();
-    }
-  }
-
-  void _onSnapTick() {
-    // Updates the notifier only → rebuilds the backdrop layer, not the
-    // native buttons.
-    final t = Curves.easeInOut.transform(_snap.value);
-    _v.value = _snapFrom + (_snapTo - _snapFrom) * t;
-  }
-
-  void _onSnapStatus(AnimationStatus st) {
-    if (st != AnimationStatus.completed) return;
-    if (_snapTo != 0) {
-      // Commit: rebuild the metadata for the new current slide (one setState
-      // per transition, not per frame).
-      setState(() {
-        _current = _snapTo < 0 ? _nextIndex : _prevIndex;
-      });
-    }
-    _v.value = 0;
-    _snap.reset();
-  }
-
-  void _settle(double to) {
+  void _advance(int delta) {
     if (_len < 2) return;
-    _snapFrom = _v.value;
-    _snapTo = to;
-    _snap.forward(from: 0);
-  }
-
-  void _startTimer() {
-    if (widget.slides.length < 2) return;
-    // No auto-advance — the hero only changes on a manual swipe / arrows.
-    // A light tick just recovers any stuck partial state (a lost drag), it
-    // never scrolls on its own.
-    _autoTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (!mounted || _dragging || _snap.isAnimating) return;
-      if (_v.value.abs() > 0.01) _settle(0);
+    setState(() {
+      _dir = delta >= 0 ? 1 : -1;
+      _current = (_current + delta) % _len;
+      if (_current < 0) _current += _len;
     });
   }
 
-  void _restartTimer() {
-    _autoTimer?.cancel();
-    _startTimer();
-  }
+  HeroSlideData get _slide => widget.slides[_current.clamp(0, _len - 1)];
 
-  // The neighbour the current drag is locked onto: -1 = next, +1 = prev,
-  // 0 = not yet locked. Locks to ONE shift per drag so you can never drag
-  // past the adjacent slide (and can't flip mid-drag) — the source of bugs.
-  int _dragLockedSign = 0;
-  bool _dragging = false;
-
-  void _onDragStart(DragStartDetails _) {
-    _snap.stop();
-    _dragging = true;
-    _dragLockedSign = 0;
-    // Any interaction restarts the auto-rotate countdown.
-    _restartTimer();
-  }
-
-  /// Wrap a slide callback so tapping a CTA also restarts the auto-rotate
-  /// countdown (no auto-advance right after the user touches the hero).
-  VoidCallback? _withReset(VoidCallback? cb) {
-    if (cb == null) return null;
-    return () {
-      _restartTimer();
-      cb();
-    };
-  }
-
-  void _onDragUpdate(DragUpdateDetails d) {
-    if (_len < 2) return;
-    final w = context.size?.width ?? 1;
-    var nv = _v.value + d.delta.dx / w;
-    // Lock the direction on first real movement.
-    if (_dragLockedSign == 0 && nv.abs() > 0.02) {
-      _dragLockedSign = nv < 0 ? -1 : 1;
-    }
-    // Constrain to the locked neighbour only: never cross 0 to the other
-    // side, never go past ±1 (one shift per drag).
-    if (_dragLockedSign < 0) {
-      nv = nv.clamp(-1.0, 0.0);
-    } else if (_dragLockedSign > 0) {
-      nv = nv.clamp(0.0, 1.0);
-    } else {
-      nv = nv.clamp(-1.0, 1.0);
-    }
-    // No setState — only the notifier changes → backdrop-only rebuild.
-    _v.value = nv;
-  }
-
-  void _onDragEnd(DragEndDetails d) {
-    _dragging = false;
-    final vel = d.primaryVelocity ?? 0;
-    final v = _v.value;
-    if (v <= -0.25 || vel < -400) {
-      _settle(-1);
-    } else if (v >= 0.25 || vel > 400) {
-      _settle(1);
-    } else {
-      _settle(0);
-    }
-  }
-
-  // If the drag is cancelled mid-way, always snap back — never leave the
-  // hero stuck showing half of one slide and half of another.
-  void _onDragCancel() {
-    _dragging = false;
-    _settle(0);
-  }
-
-  void _pause() {
-    if (!_paused) setState(() => _paused = true);
-  }
-
-  void _resume() {
-    if (_paused) setState(() => _paused = false);
-  }
-
-  Widget _backdrop(int i) {
-    final s = widget.slides[i];
-    return HeroBackdrop(backdropUrl: s.backdropUrl, posterUrl: s.posterUrl);
-  }
-
-  Widget _heroText(int i) {
-    final s = widget.slides[i];
-    return HeroText(
-      title: s.title,
-      mediaType: s.mediaType,
-      year: s.year,
-      runtimeMinutes: s.runtimeMinutes,
-      episodeCount: s.episodeCount,
-      rating: s.rating,
-      label: 'IN EVIDENZA',
-      languageCode: s.languageCode,
+  // A clean discrete crossfade: the outgoing child fades out as the incoming
+  // one fades in (plus a tiny directional drift). Always completes — no
+  // finger-following, so it can never get stuck half-way.
+  //
+  // [expand] picks the layout: the backdrop fills the hero (StackFit.expand,
+  // it lives in a Positioned.fill), while the title block self-sizes inside
+  // the metadata Column (default loose, centred) so it never demands an
+  // infinite height.
+  Widget _crossfade(Widget child, {bool expand = false}) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 480),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      layoutBuilder: expand
+          ? (current, previous) => Stack(
+                fit: StackFit.expand,
+                children: [...previous, if (current != null) current],
+              )
+          : AnimatedSwitcher.defaultLayoutBuilder,
+      transitionBuilder: (c, anim) {
+        final slide = Tween<Offset>(
+          begin: Offset(0.04 * _dir, 0),
+          end: Offset.zero,
+        ).animate(anim);
+        return FadeTransition(
+          opacity: anim,
+          child: SlideTransition(position: slide, child: c),
+        );
+      },
+      child: KeyedSubtree(key: ValueKey<int>(_current), child: child),
     );
-  }
-
-  @override
-  void dispose() {
-    _autoTimer?.cancel();
-    _snap.dispose();
-    _v.dispose();
-    super.dispose();
   }
 
   @override
@@ -279,46 +156,60 @@ class _HeroCarouselState extends State<HeroCarousel>
       return SizedBox(height: widget.height);
     }
     final isMobile = Responsive.isMobile(context);
-    final count = widget.slides.length;
-    final cur = widget.slides[_current];
+    final count = _len;
+    final s = _slide;
 
-    // Backdrop crossfade — the ONLY thing that rebuilds during a drag (driven
-    // by the _v notifier). Native buttons live on a separate stable layer.
-    final Widget backdrops = ValueListenableBuilder<double>(
-      valueListenable: _v,
-      builder: (context, v, _) {
-        final mag = v.abs().clamp(0.0, 1.0);
-        final neighbour = v == 0 ? null : (v < 0 ? _nextIndex : _prevIndex);
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            Opacity(opacity: 1 - mag, child: _backdrop(_current)),
-            if (neighbour != null)
-              Opacity(opacity: mag, child: _backdrop(neighbour)),
-          ],
-        );
-      },
+    // The backdrop crossfades on its own layer; a SINGLE stable CTA row sits
+    // on top (so the native glass buttons never animate / flicker), with the
+    // title text crossfading right above them.
+    Widget content = Stack(
+      fit: StackFit.expand,
+      children: [
+        Positioned.fill(
+          child: _crossfade(
+            HeroBackdrop(backdropUrl: s.backdropUrl, posterUrl: s.posterUrl),
+            expand: true,
+          ),
+        ),
+        Positioned.fill(
+          child: HeroMetadata(
+            text: _crossfade(
+              HeroText(
+                title: s.title,
+                mediaType: s.mediaType,
+                year: s.year,
+                runtimeMinutes: s.runtimeMinutes,
+                episodeCount: s.episodeCount,
+                rating: s.rating,
+                label: 'IN EVIDENZA',
+                languageCode: s.languageCode,
+              ),
+            ),
+            ctas: HeroCtas(onPlay: s.onPlay, onAdd: s.onAdd),
+          ),
+        ),
+      ],
     );
 
-    // The drag / tap gesture sits ONLY on the backdrop layer. The CTA buttons
-    // are a sibling ON TOP — so touching / stretching a button never starts a
-    // slide-change drag.
-    Widget interactive;
+    // Mobile: a swipe (fling) commits exactly one step. We use drag *end*
+    // velocity — not finger position — so the dissolve is a clean discrete
+    // animation, never a stuck half-state. Touches that land on the native
+    // CTAs are captured by them, so dragging a button never changes slide.
     if (isMobile) {
-      interactive = GestureDetector(
+      content = GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: _withReset(cur.onOpen),
-        onHorizontalDragStart: count < 2 ? null : _onDragStart,
-        onHorizontalDragUpdate: count < 2 ? null : _onDragUpdate,
-        onHorizontalDragEnd: count < 2 ? null : _onDragEnd,
-        onHorizontalDragCancel: count < 2 ? null : _onDragCancel,
-        child: backdrops,
-      );
-    } else {
-      interactive = MouseRegion(
-        onEnter: (_) => _pause(),
-        onExit: (_) => _resume(),
-        child: GestureDetector(onTap: _withReset(cur.onOpen), child: backdrops),
+        onTap: s.onOpen,
+        onHorizontalDragEnd: count < 2
+            ? null
+            : (d) {
+                final v = d.primaryVelocity ?? 0;
+                if (v < -250) {
+                  _advance(1);
+                } else if (v > 250) {
+                  _advance(-1);
+                }
+              },
+        child: content,
       );
     }
 
@@ -326,44 +217,7 @@ class _HeroCarouselState extends State<HeroCarousel>
       height: widget.height,
       child: Stack(
         children: [
-          Positioned.fill(child: interactive),
-          // Metadata layer: the TEXT crossfades with the backdrop (so the
-          // title always matches), while the native CTA buttons stay STABLE
-          // (never animated → no glitch/flicker). The buttons capture their
-          // own touches; the empty areas let the drag/tap below through.
-          Positioned.fill(
-            child: HeroMetadata(
-              text: ValueListenableBuilder<double>(
-                valueListenable: _v,
-                builder: (context, v, _) {
-                  final mag = v.abs().clamp(0.0, 1.0);
-                  final n = v == 0 ? null : (v < 0 ? _nextIndex : _prevIndex);
-                  final align = Responsive.isPhone(context)
-                      ? Alignment.bottomCenter
-                      : Alignment.bottomLeft;
-                  // SEQUENTIAL fade (not a simultaneous crossfade): the old
-                  // title fades fully out over the first half, the new one
-                  // fades in over the second half — so two titles are NEVER
-                  // legibly overlaid.
-                  final curOp = (1 - 2 * mag).clamp(0.0, 1.0);
-                  final nOp = (2 * mag - 1).clamp(0.0, 1.0);
-                  return Stack(
-                    alignment: align,
-                    children: [
-                      if (curOp > 0)
-                        Opacity(opacity: curOp, child: _heroText(_current)),
-                      if (n != null && nOp > 0)
-                        Opacity(opacity: nOp, child: _heroText(n)),
-                    ],
-                  );
-                },
-              ),
-              ctas: HeroCtas(
-                onPlay: _withReset(cur.onPlay),
-                onAdd: _withReset(cur.onAdd),
-              ),
-            ),
-          ),
+          Positioned.fill(child: content),
           if (count > 1)
             Positioned(
               left: 0,
@@ -381,14 +235,8 @@ class _HeroCarouselState extends State<HeroCarousel>
           if (!isMobile && count > 1)
             Positioned.fill(
               child: _HoverArrows(
-                onPrev: () {
-                  _restartTimer();
-                  _settle(1);
-                },
-                onNext: () {
-                  _restartTimer();
-                  _settle(-1);
-                },
+                onPrev: () => _advance(-1),
+                onNext: () => _advance(1),
               ),
             ),
         ],
