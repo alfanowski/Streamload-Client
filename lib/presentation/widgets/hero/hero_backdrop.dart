@@ -164,12 +164,14 @@ class _BottomGradient extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: const [0.0, 0.4, 0.75, 1.0],
+            stops: const [0.0, 0.35, 0.72, 1.0],
             colors: [
               Colors.transparent,
-              StreamloadColors.v3BgBase.withValues(alpha: 0.15),
-              StreamloadColors.v3BgBase.withValues(alpha: 0.75),
-              StreamloadColors.v3BgBase.withValues(alpha: 0.98),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.2),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.85),
+              // Bottom edge becomes the page background EXACTLY, so the hero
+              // dissolves seamlessly into the content below it.
+              StreamloadColors.v3BgBase,
             ],
           ),
         ),

@@ -21,6 +21,7 @@ import '../../responsive.dart';
 import '../../theme/colors.dart';
 import '../../theme/motion.dart';
 import '../../theme/spacing.dart';
+import 'hero_backdrop.dart';
 import 'hero_slide.dart';
 
 /// Plain data carrier for a single slide. Mirrors HeroSlide's constructor
@@ -89,15 +90,34 @@ class HeroCarousel extends StatefulWidget {
   State<HeroCarousel> createState() => _HeroCarouselState();
 }
 
-class _HeroCarouselState extends State<HeroCarousel> {
-  final PageController _controller = PageController();
+class _HeroCarouselState extends State<HeroCarousel>
+    with SingleTickerProviderStateMixin {
   Timer? _autoTimer;
   int _current = 0;
   bool _paused = false;
 
+  // Interactive crossfade. _v ∈ [-1, 1]: < 0 reveals the NEXT slide, > 0 the
+  // PREVIOUS; |_v| is the crossfade progress toward that neighbour. While
+  // dragging, _v tracks the finger; on release it snaps to ±1 (commit) or 0
+  // (cancel) via [_snap].
+  double _v = 0;
+  double _snapFrom = 0;
+  double _snapTo = 0;
+  late final AnimationController _snap = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 320),
+  );
+
+  int get _len => widget.slides.length;
+  int get _nextIndex => (_current + 1) % _len;
+  int get _prevIndex => (_current - 1 + _len) % _len;
+
   @override
   void initState() {
     super.initState();
+    _snap
+      ..addListener(_onSnapTick)
+      ..addStatusListener(_onSnapStatus);
     _startTimer();
   }
 
@@ -109,11 +129,34 @@ class _HeroCarouselState extends State<HeroCarousel> {
     }
   }
 
+  void _onSnapTick() {
+    final t = Curves.easeInOut.transform(_snap.value);
+    setState(() => _v = _snapFrom + (_snapTo - _snapFrom) * t);
+  }
+
+  void _onSnapStatus(AnimationStatus st) {
+    if (st != AnimationStatus.completed) return;
+    if (_snapTo != 0) {
+      _current = _snapTo < 0 ? _nextIndex : _prevIndex;
+    }
+    _v = 0;
+    _snap.reset();
+    _paused = false;
+    if (mounted) setState(() {});
+  }
+
+  void _settle(double to) {
+    if (_len < 2) return;
+    _snapFrom = _v;
+    _snapTo = to;
+    _snap.forward(from: 0);
+  }
+
   void _startTimer() {
     if (widget.slides.length < 2) return;
     _autoTimer = Timer.periodic(StreamloadMotion.heroRotateInterval, (_) {
-      if (_paused || !mounted) return;
-      _advance(1);
+      if (_paused || !mounted || _snap.isAnimating) return;
+      _settle(-1); // crossfade to the next slide
     });
   }
 
@@ -122,15 +165,38 @@ class _HeroCarouselState extends State<HeroCarousel> {
     _startTimer();
   }
 
-  void _advance(int delta) {
-    if (widget.slides.isEmpty) return;
-    final next = (_current + delta) % widget.slides.length;
-    final wrapped = next < 0 ? widget.slides.length - 1 : next;
-    _controller.animateToPage(
-      wrapped,
-      duration: StreamloadMotion.heroCrossfade,
-      curve: StreamloadMotion.heroCrossfadeCurve,
-    );
+  void _onDragStart(DragStartDetails _) {
+    _snap.stop();
+    _paused = true;
+    // Any interaction restarts the auto-rotate countdown.
+    _restartTimer();
+  }
+
+  /// Wrap a slide callback so tapping a CTA also restarts the auto-rotate
+  /// countdown (no auto-advance right after the user touches the hero).
+  VoidCallback? _withReset(VoidCallback? cb) {
+    if (cb == null) return null;
+    return () {
+      _restartTimer();
+      cb();
+    };
+  }
+
+  void _onDragUpdate(DragUpdateDetails d) {
+    if (_len < 2) return;
+    final w = context.size?.width ?? 1;
+    setState(() => _v = (_v + d.delta.dx / w).clamp(-1.0, 1.0));
+  }
+
+  void _onDragEnd(DragEndDetails d) {
+    final vel = d.primaryVelocity ?? 0;
+    if (_v <= -0.25 || vel < -400) {
+      _settle(-1);
+    } else if (_v >= 0.25 || vel > 400) {
+      _settle(1);
+    } else {
+      _settle(0);
+    }
   }
 
   void _pause() {
@@ -141,14 +207,15 @@ class _HeroCarouselState extends State<HeroCarousel> {
     if (_paused) setState(() => _paused = false);
   }
 
-  void _toggleMobilePause() {
-    setState(() => _paused = !_paused);
+  Widget _backdrop(int i) {
+    final s = widget.slides[i];
+    return HeroBackdrop(backdropUrl: s.backdropUrl, posterUrl: s.posterUrl);
   }
 
   @override
   void dispose() {
     _autoTimer?.cancel();
-    _controller.dispose();
+    _snap.dispose();
     super.dispose();
   }
 
@@ -158,47 +225,60 @@ class _HeroCarouselState extends State<HeroCarousel> {
       return SizedBox(height: widget.height);
     }
     final isMobile = Responsive.isMobile(context);
+    final count = widget.slides.length;
+    final mag = _v.abs().clamp(0.0, 1.0);
+    final neighbour = _v == 0 ? null : (_v < 0 ? _nextIndex : _prevIndex);
+    final cur = widget.slides[_current];
 
-    final pageView = PageView.builder(
-      controller: _controller,
-      itemCount: widget.slides.length,
-      onPageChanged: (i) => setState(() => _current = i),
-      itemBuilder: (context, i) {
-        final s = widget.slides[i];
-        return HeroSlide(
-          title: s.title,
-          mediaType: s.mediaType,
-          year: s.year,
-          runtimeMinutes: s.runtimeMinutes,
-          episodeCount: s.episodeCount,
-          rating: s.rating,
-          synopsis: s.synopsis,
-          backdropUrl: s.backdropUrl,
-          posterUrl: s.posterUrl,
-          videoId: s.videoId,
-          languageCode: s.languageCode,
-          // Eyebrow label shows position in the carousel ("IN EVIDENZA · 2 DI 5").
-          label: 'IN EVIDENZA · ${i + 1} DI ${widget.slides.length}',
-          onPlay: s.onPlay,
-          onAdd: s.onAdd,
-          onOpen: s.onOpen,
-        );
-      },
+    final Widget content = Stack(
+      fit: StackFit.expand,
+      children: [
+        // Backdrops crossfade interactively (images only → no flicker).
+        Opacity(opacity: 1 - mag, child: _backdrop(_current)),
+        if (neighbour != null)
+          Opacity(opacity: mag, child: _backdrop(neighbour)),
+        // A SINGLE metadata/CTA set (current slide). It fades OUT during a
+        // transition and back IN once settled — so the native glass buttons
+        // never overlap (the cause of the white flash), Apple-TV style.
+        Positioned.fill(
+          child: IgnorePointer(
+            ignoring: mag > 0.02,
+            child: AnimatedOpacity(
+              opacity: mag < 0.02 ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 260),
+              child: HeroMetadata(
+                title: cur.title,
+                mediaType: cur.mediaType,
+                year: cur.year,
+                runtimeMinutes: cur.runtimeMinutes,
+                episodeCount: cur.episodeCount,
+                rating: cur.rating,
+                label: 'IN EVIDENZA',
+                languageCode: cur.languageCode,
+                onPlay: _withReset(cur.onPlay),
+                onAdd: _withReset(cur.onAdd),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
 
-    Widget body = pageView;
-
+    Widget body;
     if (isMobile) {
       body = GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onTap: _toggleMobilePause,
-        child: body,
+        onTap: _withReset(cur.onOpen),
+        onHorizontalDragStart: count < 2 ? null : _onDragStart,
+        onHorizontalDragUpdate: count < 2 ? null : _onDragUpdate,
+        onHorizontalDragEnd: count < 2 ? null : _onDragEnd,
+        child: content,
       );
     } else {
       body = MouseRegion(
         onEnter: (_) => _pause(),
         onExit: (_) => _resume(),
-        child: body,
+        child: GestureDetector(onTap: cur.onOpen, child: content),
       );
     }
 
@@ -207,23 +287,31 @@ class _HeroCarouselState extends State<HeroCarousel> {
       child: Stack(
         children: [
           Positioned.fill(child: body),
-          // Indicator dots (always visible).
-          Positioned(
-            right: isMobile ? 16 : 48,
-            bottom: 18,
-            child: _Indicator(
-              count: widget.slides.length,
-              active: _current,
+          if (count > 1)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: isMobile ? 16 : 22,
+              child: Align(
+                alignment:
+                    isMobile ? Alignment.bottomCenter : Alignment.bottomRight,
+                child: Padding(
+                  padding: EdgeInsets.only(right: isMobile ? 0 : 48),
+                  child: _Indicator(count: count, active: _current),
+                ),
+              ),
             ),
-          ),
-          // Arrow buttons — desktop / tablet only. We use IgnorePointer
-          // on the wrapper when there's a single slide so they don't
-          // intercept taps on the hero CTAs.
-          if (!isMobile && widget.slides.length > 1)
+          if (!isMobile && count > 1)
             Positioned.fill(
               child: _HoverArrows(
-                onPrev: () => _advance(-1),
-                onNext: () => _advance(1),
+                onPrev: () {
+                  _restartTimer();
+                  _settle(1);
+                },
+                onNext: () {
+                  _restartTimer();
+                  _settle(-1);
+                },
               ),
             ),
         ],
@@ -232,6 +320,8 @@ class _HeroCarouselState extends State<HeroCarousel> {
   }
 }
 
+/// Clean, minimal page indicator: a light-grey pill for the active slide,
+/// quiet darker-grey dots for the rest. No accent colour.
 class _Indicator extends StatelessWidget {
   const _Indicator({required this.count, required this.active});
   final int count;
@@ -244,16 +334,15 @@ class _Indicator extends StatelessWidget {
       children: [
         for (int i = 0; i < count; i++)
           AnimatedContainer(
-            duration: StreamloadMotion.hoverDuration,
-            curve: StreamloadMotion.hoverCurve,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOutCubic,
             margin: const EdgeInsets.symmetric(horizontal: 3),
-            width: i == active ? 24 : 18,
-            height: 3,
+            width: i == active ? 20 : 6,
+            height: 6,
             decoration: BoxDecoration(
-              color: i == active
-                  ? StreamloadColors.v3TextPrimary
-                  : const Color(0xFFFFFFFF).withValues(alpha: 0.30),
-              borderRadius: BorderRadius.circular(2),
+              color: const Color(0xFFFFFFFF)
+                  .withValues(alpha: i == active ? 0.85 : 0.3),
+              borderRadius: BorderRadius.circular(3),
             ),
           ),
       ],

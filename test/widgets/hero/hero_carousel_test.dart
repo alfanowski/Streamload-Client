@@ -36,32 +36,38 @@ void main() {
     await t.pumpWidget(host(HeroCarousel(
       slides: [slide('A'), slide('B'), slide('C')],
     )));
-    expect(find.byType(HeroSlide), findsOneWidget); // PageView is lazy
+    // The carousel renders the backdrop + a single metadata block (the
+    // CTAs/title), crossfading backdrops between slides.
+    expect(find.byType(HeroMetadata), findsOneWidget);
     expect(find.text('A'), findsOneWidget);
     // 3 indicator dots = 3 AnimatedContainer entries with height 3.
     final dots = t.widgetList<AnimatedContainer>(find.byType(AnimatedContainer));
     expect(dots, hasLength(greaterThanOrEqualTo(3)));
   });
 
-  testWidgets('eyebrow label encodes position out of total', (t) async {
+  testWidgets('eyebrow reads a clean IN EVIDENZA (no counter)', (t) async {
     await t.pumpWidget(host(HeroCarousel(
       slides: [slide('Slide1'), slide('Slide2')],
     )));
-    expect(find.text('IN EVIDENZA · 1 DI 2'), findsOneWidget);
+    expect(find.text('IN EVIDENZA'), findsOneWidget);
   });
 
-  testWidgets('PageView swipe updates the eyebrow label', (t) async {
-    await t.pumpWidget(host(HeroCarousel(
-      slides: [slide('S1'), slide('S2'), slide('S3')],
-    )));
-    expect(find.text('IN EVIDENZA · 1 DI 3'), findsOneWidget);
+  testWidgets('mobile swipe crossfades to the next slide', (t) async {
+    await t.pumpWidget(host(
+      HeroCarousel(
+        slides: [slide('S1'), slide('S2'), slide('S3')],
+        height: 400,
+      ),
+      size: const Size(390, 844),
+    ));
+    expect(find.text('S1'), findsOneWidget);
 
-    // Programmatic page advance (mirrors what ◀ ▶ + auto-timer do).
-    await t.fling(find.byType(PageView), const Offset(-600, 0), 1500);
+    // Swipe left → advance one slide (crossfade, not a PageView slide).
+    await t.fling(find.byType(HeroCarousel), const Offset(-300, 0), 1000);
     await t.pumpAndSettle();
 
-    expect(find.text('IN EVIDENZA · 2 DI 3'), findsOneWidget);
-    expect(find.text('IN EVIDENZA · 1 DI 3'), findsNothing);
+    expect(find.text('S2'), findsOneWidget);
+    expect(find.text('S1'), findsNothing);
   });
 
   testWidgets('phone variant wraps with GestureDetector for tap-to-pause',

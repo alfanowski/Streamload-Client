@@ -29,7 +29,11 @@
 // crossfade handles slide-to-slide transitions; the metadata doesn't
 // need to "land" on top of that. CM-4 also swapped the LiquidGlass pill
 // for a typographic TextCta cluster.
+import 'dart:io' show Platform;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:native_liquid_glass/native_liquid_glass.dart';
 
 import '../../responsive.dart';
 import '../../theme/colors.dart';
@@ -105,41 +109,67 @@ class HeroSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPhone = Responsive.isPhone(context);
     return GestureDetector(
       onTap: onOpen,
       behavior: HitTestBehavior.opaque,
       child: MouseRegion(
         cursor: onOpen != null ? SystemMouseCursors.click : MouseCursor.defer,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                HeroBackdrop(
-                  backdropUrl: backdropUrl,
-                  posterUrl: posterUrl,
-                ),
-                Positioned.fill(
-                  child: _MetadataBlock(
-                    title: title,
-                    metaLine: _metaLine(),
-                    label: label,
-                    isPhone: isPhone,
-                    onPlay: onPlay,
-                    onAdd: onAdd,
-                    availableWidth: constraints.maxWidth,
-                  ),
-                ),
-              ],
-            );
-          },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            HeroBackdrop(backdropUrl: backdropUrl, posterUrl: posterUrl),
+            Positioned.fill(
+              child: HeroMetadata(
+                title: title,
+                mediaType: mediaType,
+                year: year,
+                runtimeMinutes: runtimeMinutes,
+                episodeCount: episodeCount,
+                rating: rating,
+                label: label,
+                languageCode: languageCode,
+                onPlay: onPlay,
+                onAdd: onAdd,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
 
-  /// Build the "2025 · 8 ep · IT · ⭐ 7.8" mono meta line.
+/// The hero's text + CTA block (eyebrow, title, meta line, Guarda / La mia
+/// lista). Public so HeroCarousel can render it on its OWN layer, separate
+/// from the backdrop — that lets the backdrop crossfade between slides while
+/// a SINGLE set of (native) CTAs fades out and back in, with no flicker from
+/// crossfading two platform-view button sets at once.
+class HeroMetadata extends StatelessWidget {
+  const HeroMetadata({
+    super.key,
+    required this.title,
+    required this.mediaType,
+    this.year,
+    this.runtimeMinutes,
+    this.episodeCount,
+    this.rating,
+    this.label = 'IN EVIDENZA',
+    this.languageCode = 'IT',
+    this.onPlay,
+    this.onAdd,
+  });
+
+  final String title;
+  final String mediaType;
+  final int? year;
+  final int? runtimeMinutes;
+  final int? episodeCount;
+  final double? rating;
+  final String label;
+  final String languageCode;
+  final VoidCallback? onPlay;
+  final VoidCallback? onAdd;
+
   String _metaLine() {
     final parts = <String>[];
     if (year != null) parts.add('$year');
@@ -154,32 +184,10 @@ class HeroSlide extends StatelessWidget {
     }
     return parts.join(' · ');
   }
-}
-
-class _MetadataBlock extends StatelessWidget {
-  const _MetadataBlock({
-    required this.title,
-    required this.metaLine,
-    required this.label,
-    required this.isPhone,
-    required this.onPlay,
-    required this.onAdd,
-    required this.availableWidth,
-  });
-
-  final String title;
-  final String metaLine;
-  final String label;
-  final bool isPhone;
-  final VoidCallback? onPlay;
-  final VoidCallback? onAdd;
-  final double availableWidth;
 
   @override
   Widget build(BuildContext context) {
-    // CM-5: title size 56 / 44 / 36 by breakpoint. Tablet branch was
-    // implicit before (just "not phone"); we now make it explicit so the
-    // hero typography down-scales gracefully on iPad.
+    final isPhone = Responsive.isPhone(context);
     final isTablet = Responsive.isTablet(context);
     final horizontalPad = isPhone ? 16.0 : 64.0;
     final align =
@@ -189,61 +197,24 @@ class _MetadataBlock extends StatelessWidget {
         : isTablet
             ? 44.0
             : 56.0;
-    // CM-5 bottom inset: title should sit HIGH in the hero (96 desktop /
-    // 64 tablet / 32 phone). Editorial framing — the title looks placed
-    // on the image, not stuck to the bottom edge. Clamped against the
-    // hero height below so a short hero never overflows (spec: no overflow).
     final baseBottomInset = isPhone
         ? 32.0
         : isTablet
             ? 64.0
             : 96.0;
-    // Width budget for the text column — keep narrow on desktop so the
-    // synopsis stays readable instead of stretching across the whole hero.
-    final maxBlockWidth = isPhone
-        ? availableWidth - (horizontalPad * 2)
-        : (availableWidth * 0.5).clamp(360.0, 760.0);
-
-    final children = <Widget>[
-      Text(
-        label,
-        style: StreamloadTypography.v3LabelMono(
-          color: StreamloadColors.accent,
-        ),
-        textAlign: isPhone ? TextAlign.center : TextAlign.start,
-      ),
-      const SizedBox(height: 12),
-      Text(
-        title,
-        style: StreamloadTypography.v3DisplayHero().copyWith(fontSize: titleSize),
-        textAlign: isPhone ? TextAlign.center : TextAlign.start,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      const SizedBox(height: 12),
-      Text(
-        metaLine,
-        style: StreamloadTypography.v3MetaMono().copyWith(fontSize: 12),
-        textAlign: isPhone ? TextAlign.center : TextAlign.start,
-      ),
-      // CM-5 dropped the synopsis from the hero — the full TRAMA lives
-      // in the title page body. Keeps the hero terse.
-      const SizedBox(height: 24),
-      _Ctas(
-        availableWidth: availableWidth - (horizontalPad * 2),
-        isPhone: isPhone,
-        onPlay: onPlay,
-        onAdd: onAdd,
-      ),
-    ];
+    final metaLine = _metaLine();
 
     return LayoutBuilder(
       builder: (context, c) {
-        // Never let the inset push the metadata block past the hero edge:
-        // on a short hero the inset shrinks (cap at 15% of hero height).
+        final availableWidth = c.maxWidth;
+        final maxBlockWidth = isPhone
+            ? availableWidth - (horizontalPad * 2)
+            : (availableWidth * 0.5).clamp(360.0, 760.0);
         final bottomInset = baseBottomInset.clamp(0.0, c.maxHeight * 0.15);
+
         return Padding(
-          padding: EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, bottomInset),
+          padding:
+              EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, bottomInset),
           child: Align(
             alignment: isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
             child: ConstrainedBox(
@@ -251,7 +222,38 @@ class _MetadataBlock extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: align,
-                children: children,
+                children: [
+                  Text(
+                    label,
+                    style: StreamloadTypography.v3LabelMono(
+                      color: StreamloadColors.accent,
+                    ),
+                    textAlign: isPhone ? TextAlign.center : TextAlign.start,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    title,
+                    style: StreamloadTypography.v3DisplayHero()
+                        .copyWith(fontSize: titleSize),
+                    textAlign: isPhone ? TextAlign.center : TextAlign.start,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    metaLine,
+                    style:
+                        StreamloadTypography.v3MetaMono().copyWith(fontSize: 12),
+                    textAlign: isPhone ? TextAlign.center : TextAlign.start,
+                  ),
+                  const SizedBox(height: 24),
+                  _Ctas(
+                    availableWidth: availableWidth - (horizontalPad * 2),
+                    isPhone: isPhone,
+                    onPlay: onPlay,
+                    onAdd: onAdd,
+                  ),
+                ],
               ),
             ),
           ),
@@ -274,10 +276,54 @@ class _Ctas extends StatelessWidget {
   final VoidCallback? onPlay;
   final VoidCallback? onAdd;
 
+  static bool get _useNativeGlass {
+    if (kIsWeb) return false;
+    try {
+      return Platform.isIOS;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Phone: full-width stacked CTAs, centered (matches the approved mock).
+    // Phone: full-width stacked CTAs.
     if (isPhone) {
+      // iOS → OFFICIAL native Apple Liquid Glass buttons.
+      if (_useNativeGlass) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              child: LiquidGlassButton(
+                label: 'Guarda',
+                icon: const NativeLiquidGlassIcon.sfSymbol('play.fill'),
+                onPressed: onPlay ?? () {},
+                style: LiquidGlassButtonStyle.glass,
+                tint: Colors.white,
+                labelColor: Colors.black,
+                iconColor: Colors.black,
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: LiquidGlassButton(
+                label: 'La mia lista',
+                icon: const NativeLiquidGlassIcon.sfSymbol('plus'),
+                onPressed: onAdd ?? () {},
+                style: LiquidGlassButtonStyle.glass,
+                tint: Colors.black,
+                labelColor: Colors.white,
+                iconColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      }
+      // Fallback (macOS / Android / tests): cream + ghost pills.
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
