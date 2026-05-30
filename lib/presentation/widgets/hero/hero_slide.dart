@@ -334,13 +334,21 @@ class HeroCtas extends StatelessWidget {
               block: true,
             );
 
-      // Same row, equal halves, symmetric.
-      return Row(
-        children: [
-          Expanded(child: guarda),
-          const SizedBox(width: 12),
-          Expanded(child: lista),
-        ],
+      // Same row, equal halves, symmetric. Native glass buttons size to
+      // their content and ignore Expanded, so we force an explicit equal
+      // width (half the row, minus the gap).
+      return LayoutBuilder(
+        builder: (context, c) {
+          final w = ((c.maxWidth - 12) / 2).clamp(0.0, double.infinity);
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(width: w, child: guarda),
+              const SizedBox(width: 12),
+              SizedBox(width: w, child: lista),
+            ],
+          );
+        },
       );
     }
 

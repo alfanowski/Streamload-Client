@@ -148,7 +148,6 @@ class _HeroCarouselState extends State<HeroCarousel>
     }
     _v.value = 0;
     _snap.reset();
-    _paused = false;
   }
 
   void _settle(double to) {
@@ -161,7 +160,14 @@ class _HeroCarouselState extends State<HeroCarousel>
   void _startTimer() {
     if (widget.slides.length < 2) return;
     _autoTimer = Timer.periodic(StreamloadMotion.heroRotateInterval, (_) {
-      if (_paused || !mounted || _snap.isAnimating) return;
+      if (!mounted || _dragging || _snap.isAnimating) return;
+      // Safety: if a drag was lost without settling, recover to a clean state
+      // instead of staying stuck mid-transition.
+      if (_v.value.abs() > 0.01) {
+        _settle(0);
+        return;
+      }
+      if (_paused) return;
       _settle(-1); // crossfade to the next slide
     });
   }
@@ -175,10 +181,11 @@ class _HeroCarouselState extends State<HeroCarousel>
   // 0 = not yet locked. Locks to ONE shift per drag so you can never drag
   // past the adjacent slide (and can't flip mid-drag) — the source of bugs.
   int _dragLockedSign = 0;
+  bool _dragging = false;
 
   void _onDragStart(DragStartDetails _) {
     _snap.stop();
-    _paused = true;
+    _dragging = true;
     _dragLockedSign = 0;
     // Any interaction restarts the auto-rotate countdown.
     _restartTimer();
@@ -216,6 +223,7 @@ class _HeroCarouselState extends State<HeroCarousel>
   }
 
   void _onDragEnd(DragEndDetails d) {
+    _dragging = false;
     final vel = d.primaryVelocity ?? 0;
     final v = _v.value;
     if (v <= -0.25 || vel < -400) {
@@ -229,7 +237,10 @@ class _HeroCarouselState extends State<HeroCarousel>
 
   // If the drag is cancelled mid-way, always snap back — never leave the
   // hero stuck showing half of one slide and half of another.
-  void _onDragCancel() => _settle(0);
+  void _onDragCancel() {
+    _dragging = false;
+    _settle(0);
+  }
 
   void _pause() {
     if (!_paused) setState(() => _paused = true);
@@ -334,12 +345,19 @@ class _HeroCarouselState extends State<HeroCarousel>
                   final align = Responsive.isPhone(context)
                       ? Alignment.bottomCenter
                       : Alignment.bottomLeft;
+                  // SEQUENTIAL fade (not a simultaneous crossfade): the old
+                  // title fades fully out over the first half, the new one
+                  // fades in over the second half — so two titles are NEVER
+                  // legibly overlaid.
+                  final curOp = (1 - 2 * mag).clamp(0.0, 1.0);
+                  final nOp = (2 * mag - 1).clamp(0.0, 1.0);
                   return Stack(
                     alignment: align,
                     children: [
-                      Opacity(opacity: 1 - mag, child: _heroText(_current)),
-                      if (n != null)
-                        Opacity(opacity: mag, child: _heroText(n)),
+                      if (curOp > 0)
+                        Opacity(opacity: curOp, child: _heroText(_current)),
+                      if (n != null && nOp > 0)
+                        Opacity(opacity: nOp, child: _heroText(n)),
                     ],
                   );
                 },
