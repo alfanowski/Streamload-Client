@@ -219,10 +219,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final isPhone = Responsive.isPhone(context);
     final horizontalPad = isPhone ? 12.0 : 24.0;
     final safeTop = MediaQuery.of(context).padding.top;
-    // The floating glass bar clears the Dynamic Island on phone (SafeArea)
-    // and sits below the desktop TopNavBar; content scrolls UNDER it.
-    final extraTop = isPhone ? 0.0 : 64.0;
-    final barHeight = extraTop + (isPhone ? safeTop : 0.0) + 68.0;
+    // Phone: room for the "Streamload" wordmark line above the (in-scroll,
+    // NOT pinned) search bar. Desktop: just clear the floating TopNavBar.
+    final topSpace = isPhone ? safeTop + 44.0 : 72.0;
+    final maxWidth = isPhone ? double.infinity : 820.0;
 
     return Material(
       type: MaterialType.transparency,
@@ -234,9 +234,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               child: CustomScrollView(
                 controller: _scrollController,
                 slivers: [
-                  // Spacer so the first results clear the floating glass bar.
-                  SliverToBoxAdapter(child: SizedBox(height: barHeight + 8)),
-                  // Body branches: empty → "Ricerche di tendenza" row;
+                  SliverToBoxAdapter(child: SizedBox(height: topSpace)),
+                  // Search bar scrolls away with the content (not pinned).
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding:
+                          EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, 8),
+                      child: _MaxWidth(
+                        maxWidth: maxWidth,
+                        child: _GlassSearchBar(
+                          controller: _controller,
+                          onChanged: _onQueryChanged,
+                          onSubmitted: _onSubmit,
+                          onClear: _onClear,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Body branches: empty → "Suggeriti" grid;
             // otherwise loading/error/no-results/grid.
             if (_activeQuery.isEmpty)
               _TopSearchesSection(padding: horizontalPad)
@@ -291,25 +306,61 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ],
               ),
             ),
-            // Floating glass search bar — clears the Dynamic Island on phone,
-            // sits below the desktop nav, and content blurs under it.
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: _GlassSearchBar(
-                controller: _controller,
-                onChanged: _onQueryChanged,
-                onSubmitted: _onSubmit,
-                onClear: _onClear,
-                extraTop: extraTop,
-                horizontalPad: horizontalPad,
-                maxWidth: isPhone ? double.infinity : 820,
+            // "Streamload" wordmark top-left (phone), fading on scroll — same
+            // as Home. Sits above the content; the bar scrolls under it.
+            if (isPhone)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: _SearchWordmark(controller: _scrollController),
+                    ),
+                  ),
+                ),
               ),
-            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// "Streamload" wordmark — same look + fade-on-scroll as Home's.
+class _SearchWordmark extends StatelessWidget {
+  const _SearchWordmark({required this.controller});
+  final ScrollController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final offset = controller.hasClients ? controller.offset : 0.0;
+        final opacity = (1 - (offset / 90)).clamp(0.0, 1.0);
+        return IgnorePointer(
+          ignoring: opacity < 0.05,
+          child: Opacity(
+            opacity: opacity,
+            child: Text(
+              'Streamload',
+              style: StreamloadTypography.display(fontSize: 22, italic: true)
+                  .copyWith(
+                letterSpacing: -0.3,
+                color: StreamloadColors.v3TextPrimary,
+                shadows: const [
+                  Shadow(color: Colors.black54, blurRadius: 12),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -326,112 +377,93 @@ class _GlassSearchBar extends StatelessWidget {
     required this.onChanged,
     required this.onSubmitted,
     required this.onClear,
-    required this.extraTop,
-    required this.horizontalPad,
-    required this.maxWidth,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
   final VoidCallback onClear;
-  final double extraTop;
-  final double horizontalPad;
-  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(26);
-    return Padding(
-      padding: EdgeInsets.only(top: extraTop),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(horizontalPad, 8, horizontalPad, 10),
-          child: _MaxWidth(
-            maxWidth: maxWidth,
-            child: ClipRRect(
-              borderRadius: radius,
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                child: Container(
-                  height: 50,
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  foregroundDecoration: BoxDecoration(
-                    borderRadius: radius,
-                    border:
-                        Border.all(color: Colors.white.withValues(alpha: 0.20)),
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+        child: Container(
+          height: 50,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          foregroundDecoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(color: Colors.white.withValues(alpha: 0.20)),
+          ),
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.white.withValues(alpha: 0.16),
+                Colors.white.withValues(alpha: 0.05),
+              ],
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.search,
+                color: Colors.white.withValues(alpha: 0.85),
+                size: 22,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  cursorColor: Colors.white,
+                  cursorWidth: 1.5,
+                  textInputAction: TextInputAction.search,
+                  onChanged: onChanged,
+                  onSubmitted: onSubmitted,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
                   ),
-                  decoration: BoxDecoration(
-                    borderRadius: radius,
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withValues(alpha: 0.16),
-                        Colors.white.withValues(alpha: 0.05),
-                      ],
+                  decoration: InputDecoration(
+                    hintText: 'Cerca film, serie, attori…',
+                    hintStyle: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w400,
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.search,
-                        color: Colors.white.withValues(alpha: 0.85),
-                        size: 22,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: TextField(
-                          controller: controller,
-                          autofocus: true,
-                          cursorColor: Colors.white,
-                          cursorWidth: 1.5,
-                          textInputAction: TextInputAction.search,
-                          onChanged: onChanged,
-                          onSubmitted: onSubmitted,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          decoration: InputDecoration(
-                            hintText: 'Cerca film, serie, attori…',
-                            hintStyle: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontSize: 17,
-                              fontWeight: FontWeight.w400,
-                            ),
-                            border: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            isCollapsed: true,
-                          ),
-                        ),
-                      ),
-                      ValueListenableBuilder<TextEditingValue>(
-                        valueListenable: controller,
-                        builder: (context, value, _) {
-                          if (value.text.isEmpty) return const SizedBox.shrink();
-                          return GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: onClear,
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 8),
-                              child: Icon(
-                                Icons.close_rounded,
-                                color: Colors.white.withValues(alpha: 0.8),
-                                size: 20,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    isCollapsed: true,
                   ),
                 ),
               ),
-            ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller,
+                builder: (context, value, _) {
+                  if (value.text.isEmpty) return const SizedBox.shrink();
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onClear,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: Colors.white.withValues(alpha: 0.8),
+                        size: 20,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),
@@ -477,23 +509,12 @@ class _TopSearchesSection extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Mono eyebrow label keeps with the v3 "metadata as data"
-            // typography. Operator wanted a real Netflix-style suggestion
-            // row above the empty grid instead of a centered text prompt.
+            // A single clean "Suggeriti" header, same editorial style as the
+            // Home row headers.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
-                'SUGGERITE PER TE',
-                style: StreamloadTypography.v3LabelMono(
-                  color: StreamloadColors.v3TextSecondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 6),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'Ricerche di tendenza',
+                'Suggeriti',
                 style: StreamloadTypography.v3SectionHeader(),
               ),
             ),

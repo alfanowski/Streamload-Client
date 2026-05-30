@@ -177,10 +177,8 @@ void main() {
     // No filter chips after Pass 2E.
     expect(find.text('Tutto'), findsNothing);
     expect(find.text('Film'), findsNothing);
-    // The "Suggerite per te" eyebrow + "Ricerche di tendenza" header are
-    // rendered alongside the trending poster grid.
-    expect(find.text('SUGGERITE PER TE'), findsOneWidget);
-    expect(find.text('Ricerche di tendenza'), findsOneWidget);
+    // The "Suggeriti" header is rendered alongside the trending poster grid.
+    expect(find.text('Suggeriti'), findsOneWidget);
     // Covers-only grid: assert the trending card by type.
     expect(find.byType(PosterCard), findsOneWidget);
     verifyNever(() => api.search(any()));
