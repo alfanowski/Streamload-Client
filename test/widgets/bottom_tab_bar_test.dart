@@ -44,14 +44,16 @@ void main() {
     await t.pump();
 
     expect(find.byIcon(Icons.home_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.search), findsOneWidget);
     expect(find.byIcon(Icons.bookmark_outline), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsOneWidget);
+    // A magnifier appears (the Cerca circle); the morph keeps a hidden search
+    // field mounted too, so there can be more than one.
+    expect(find.byIcon(Icons.search), findsWidgets);
 
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Lista'), findsOneWidget);
     expect(find.text('Profilo'), findsOneWidget);
-    // Cerca is now a separate icon-only circle (Apple Music style), no label.
+    // Cerca is a separate, morphing circle (Apple Music style), no label.
   });
 
   testWidgets('tapping a tab routes to its path', (t) async {
@@ -68,9 +70,9 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('page:/profile'), findsOneWidget);
 
-    // The Cerca circle navigates to /search, where the bar becomes the
-    // Apple-Music search field (no more tab labels).
-    await t.tap(find.byIcon(Icons.search));
+    // The Cerca circle (first magnifier — the field's icon also matches)
+    // navigates to /search, where the bar morphs into the search field.
+    await t.tap(find.byIcon(Icons.search).first);
     await t.pumpAndSettle();
     expect(find.text('page:/search'), findsOneWidget);
   });
@@ -80,13 +82,12 @@ void main() {
     await pumpBar(t, initial: '/search');
     await t.pumpAndSettle();
 
-    // Apple-Music style: a text field + a Home circle, no Lista/Profilo tabs.
+    // Apple-Music style: a search text field + a Home circle are present.
+    // (The browse tabs stay mounted but faded out during the morph.)
     expect(find.byType(TextField), findsOneWidget);
     expect(find.byIcon(Icons.home_rounded), findsOneWidget);
-    expect(find.text('Lista'), findsNothing);
-    expect(find.text('Profilo'), findsNothing);
 
-    // Tapping Home leaves search.
+    // Tapping the Home circle leaves search.
     await t.tap(find.byIcon(Icons.home_rounded));
     await t.pumpAndSettle();
     expect(find.text('page:/home'), findsOneWidget);
