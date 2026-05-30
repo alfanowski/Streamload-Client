@@ -34,20 +34,19 @@ void main() {
     await t.pumpWidget(host(HeroCarousel(
       slides: [slide('A'), slide('B'), slide('C')],
     )));
-    // The current slide's title + eyebrow render (single, stable CTA row).
+    // The current slide's title renders (single, stable CTA row).
     expect(find.text('A'), findsWidgets);
     // 3 indicator dots = 3 AnimatedContainer entries with height 3.
     final dots = t.widgetList<AnimatedContainer>(find.byType(AnimatedContainer));
     expect(dots, hasLength(greaterThanOrEqualTo(3)));
   });
 
-  testWidgets('eyebrow reads a clean IN EVIDENZA (no counter)', (t) async {
+  testWidgets('no "IN EVIDENZA" eyebrow — the title stands alone', (t) async {
     await t.pumpWidget(host(HeroCarousel(
       slides: [slide('Slide1'), slide('Slide2')],
     )));
-    // The crossfade keeps the outgoing slide briefly mounted, so the eyebrow
-    // can appear more than once mid-transition — just assert it renders.
-    expect(find.text('IN EVIDENZA'), findsWidgets);
+    expect(find.textContaining('IN EVIDENZA'), findsNothing);
+    expect(find.text('Slide1'), findsWidgets);
   });
 
   testWidgets('mobile swipe advances to the next slide', (t) async {

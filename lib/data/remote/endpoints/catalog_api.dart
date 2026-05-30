@@ -56,4 +56,21 @@ class CatalogApi {
         .map(TmdbVideo.fromJson)
         .toList(growable: false);
   }
+
+  /// GET /api/catalog/{tmdb_id}/logo?media_type={movie|tv}
+  ///
+  /// Returns the title's official logo (typographic wordmark) URL, or null
+  /// when TMDB has none — the hero falls back to app-typeset text. Never
+  /// throws on missing art.
+  Future<String?> logo(
+    int tmdbId, {
+    required String mediaType,
+  }) async {
+    final json = await _client.getJson(
+      '/api/catalog/$tmdbId/logo',
+      query: {'media_type': mediaType},
+    );
+    final url = json['logo_url'];
+    return url is String && url.isNotEmpty ? url : null;
+  }
 }

@@ -41,6 +41,7 @@ class HeroSlideData {
     this.synopsis,
     this.backdropUrl,
     this.posterUrl,
+    this.titleLogoUrl,
     this.videoId,
     this.languageCode = 'IT',
     this.inList = false,
@@ -66,6 +67,10 @@ class HeroSlideData {
   /// Fallback shown when [backdropUrl] is null — TMDB poster gets cropped
   /// to the hero's 16:9-ish frame so we never render a black slab.
   final String? posterUrl;
+
+  /// Official title logo (transparent PNG wordmark) from TMDB. When present
+  /// the hero shows this instead of typeset text; null → text fallback.
+  final String? titleLogoUrl;
 
   /// Kept for source compatibility — heroes no longer autoplay trailers
   /// (operator dropped that feature on May 16). HeroSlide ignores it.
@@ -188,12 +193,12 @@ class _HeroCarouselState extends State<HeroCarousel> {
             text: _titleTransition(
               HeroText(
                 title: s.title,
+                titleLogoUrl: s.titleLogoUrl,
                 mediaType: s.mediaType,
                 year: s.year,
                 runtimeMinutes: s.runtimeMinutes,
                 episodeCount: s.episodeCount,
                 rating: s.rating,
-                label: 'IN EVIDENZA',
                 languageCode: s.languageCode,
               ),
             ),

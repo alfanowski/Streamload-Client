@@ -29,10 +29,10 @@
 // crossfade handles slide-to-slide transitions; the metadata doesn't
 // need to "land" on top of that. CM-4 also swapped the LiquidGlass pill
 // for a typographic TextCta cluster.
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../responsive.dart';
-import '../../theme/colors.dart';
 import '../../theme/typography.dart';
 import '../primitives/cta_button.dart';
 import 'hero_backdrop.dart';
@@ -50,8 +50,8 @@ class HeroSlide extends StatelessWidget {
     this.synopsis,
     this.backdropUrl,
     this.posterUrl,
+    this.titleLogoUrl,
     this.videoId,
-    this.label = 'IN EVIDENZA',
     this.languageCode = 'IT',
     this.inList = false,
     this.onPlay,
@@ -84,13 +84,13 @@ class HeroSlide extends StatelessWidget {
   /// hero frame so the operator never sees a black slab.
   final String? posterUrl;
 
+  /// Official TMDB title logo (transparent PNG). When present the hero shows
+  /// it instead of the typeset [title]; null → text fallback.
+  final String? titleLogoUrl;
+
   /// Kept for source compatibility — the YouTube trailer reveal was
   /// dropped in the P1 hotfix. Ignored by HeroBackdrop now.
   final String? videoId;
-
-  /// Eyebrow label above the title. Defaults to "IN EVIDENZA". Carousel
-  /// can override with "IN EVIDENZA · 2 DI 5" style.
-  final String label;
 
   /// Locale chip shown in the meta line. Defaults to "IT".
   final String languageCode;
@@ -123,12 +123,12 @@ class HeroSlide extends StatelessWidget {
               child: HeroMetadata(
                 text: HeroText(
                   title: title,
+                  titleLogoUrl: titleLogoUrl,
                   mediaType: mediaType,
                   year: year,
                   runtimeMinutes: runtimeMinutes,
                   episodeCount: episodeCount,
                   rating: rating,
-                  label: label,
                   languageCode: languageCode,
                 ),
                 ctas: HeroCtas(onPlay: onPlay, onAdd: onAdd, inList: inList),
@@ -209,28 +209,34 @@ class HeroMetadata extends StatelessWidget {
   }
 }
 
-/// Eyebrow + title + meta line. Self-sizing; the carousel crossfades two of
+/// Title + meta line. The title is the official TMDB logo (transparent PNG
+/// wordmark) when [titleLogoUrl] is set — like Jellyfin — falling back to the
+/// app's display font otherwise. Self-sizing; the carousel crossfades two of
 /// these (current + neighbour) so the TITLE always matches the backdrop.
 class HeroText extends StatelessWidget {
   const HeroText({
     super.key,
     required this.title,
+    this.titleLogoUrl,
     required this.mediaType,
     this.year,
     this.runtimeMinutes,
     this.episodeCount,
     this.rating,
-    this.label = 'IN EVIDENZA',
     this.languageCode = 'IT',
   });
 
   final String title;
+
+  /// Official TMDB title logo. When non-null the hero renders this image
+  /// instead of [title] as text; on load error it falls back to the text.
+  final String? titleLogoUrl;
+
   final String mediaType;
   final int? year;
   final int? runtimeMinutes;
   final int? episodeCount;
   final double? rating;
-  final String label;
   final String languageCode;
 
   String _metaLine() {
@@ -258,27 +264,59 @@ class HeroText extends StatelessWidget {
             ? 44.0
             : 56.0;
     final ta = isPhone ? TextAlign.center : TextAlign.start;
+
+    final titleText = Text(
+      title,
+      style: StreamloadTypography.v3DisplayHero().copyWith(fontSize: titleSize),
+      textAlign: ta,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+    );
+
+    // Logo height budget per breakpoint — roughly matches the text title's
+    // optical size so the layout doesn't jump between logo/text titles.
+    final logoMaxHeight = isPhone
+        ? 76.0
+        : isTablet
+            ? 96.0
+            : 120.0;
+
+    final Widget titleVisual =
+        (titleLogoUrl != null && titleLogoUrl!.isNotEmpty)
+            ? LayoutBuilder(
+                builder: (context, c) {
+                  final boxWidth =
+                      c.maxWidth.isFinite ? c.maxWidth : double.infinity;
+                  return SizedBox(
+                    width: boxWidth,
+                    height: logoMaxHeight,
+                    child: CachedNetworkImage(
+                      imageUrl: titleLogoUrl!,
+                      fit: BoxFit.contain,
+                      alignment: isPhone
+                          ? Alignment.bottomCenter
+                          : Alignment.bottomLeft,
+                      // Show nothing while loading (the backdrop is enough),
+                      // and drop to the text title if the logo can't load.
+                      placeholder: (_, __) => const SizedBox.shrink(),
+                      errorWidget: (_, __, ___) => Align(
+                        alignment: isPhone
+                            ? Alignment.bottomCenter
+                            : Alignment.bottomLeft,
+                        child: titleText,
+                      ),
+                    ),
+                  );
+                },
+              )
+            : titleText;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment:
           isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: StreamloadTypography.v3LabelMono(
-            color: StreamloadColors.accent,
-          ),
-          textAlign: ta,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          title,
-          style:
-              StreamloadTypography.v3DisplayHero().copyWith(fontSize: titleSize),
-          textAlign: ta,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
+        titleVisual,
         const SizedBox(height: 12),
         Text(
           _metaLine(),

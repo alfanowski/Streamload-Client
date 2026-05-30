@@ -253,6 +253,33 @@ E? _firstWhereOrNull<E>(Iterable<E> source, bool Function(E) test) {
 
 final _videosCacheProvider = Provider<_VideosCache>((_) => _VideosCache());
 
+/// Per-session cache of official title-logo URLs (TMDB image treatment),
+/// keyed by title — same lifetime/shape as [_VideosCache]. A null result
+/// means "no logo art; render the text title".
+class _LogosCache {
+  final Map<TmdbKey, Future<String?>> _futures = {};
+
+  Future<String?> get(Ref ref, TmdbKey key) {
+    final hit = _futures[key];
+    if (hit != null) return hit;
+    final fut = _fetch(ref, key);
+    _futures[key] = fut;
+    return fut;
+  }
+
+  Future<String?> _fetch(Ref ref, TmdbKey key) async {
+    final api = await ref.read(catalogApiProvider.future);
+    try {
+      return await api.logo(key.tmdbId, mediaType: key.mediaType);
+    } catch (_) {
+      // Missing logo art must never break the hero — fall back to text.
+      return null;
+    }
+  }
+}
+
+final _logosCacheProvider = Provider<_LogosCache>((_) => _LogosCache());
+
 /// Returns the best-pick YouTube trailer key for a given title, or null
 /// when no playable trailer is available. Backed by the same per-session
 /// cache HeroCarousel uses, so opening a title page after seeing it on
@@ -284,11 +311,17 @@ final heroSlidesProvider =
   if (trending.isEmpty) return const <HeroSlideData>[];
   final top = trending.take(5).toList(growable: false);
   final cache = ref.read(_videosCacheProvider);
+  final logosCache = ref.read(_logosCacheProvider);
   final keys = top
       .map((m) => TmdbKey(tmdbId: m.tmdbId, mediaType: m.mediaType))
       .toList(growable: false);
   final videoKeys = await Future.wait(
     keys.map((k) => cache.get(ref, k)),
+  );
+  // Official title logos (transparent PNG) in parallel — the hero renders
+  // these instead of typeset text when present.
+  final logoUrls = await Future.wait(
+    keys.map((k) => logosCache.get(ref, k)),
   );
   final slides = <HeroSlideData>[];
   for (var i = 0; i < top.length; i++) {
@@ -307,6 +340,7 @@ final heroSlidesProvider =
       // solid black hero behind the title text. (P1 fix.)
       posterUrl: m.posterUrl,
       videoId: videoKeys[i],
+      titleLogoUrl: logoUrls[i],
     ));
   }
   return slides;

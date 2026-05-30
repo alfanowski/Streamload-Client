@@ -662,6 +662,7 @@ class _HeroSection extends ConsumerWidget {
                   synopsis: s.synopsis,
                   backdropUrl: s.backdropUrl,
                   posterUrl: s.posterUrl,
+                  titleLogoUrl: s.titleLogoUrl,
                   videoId: s.videoId,
                   languageCode: s.languageCode,
                   inList: s.tmdbId != null &&

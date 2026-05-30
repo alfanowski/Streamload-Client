@@ -44,7 +44,8 @@ void main() {
     )));
     expect(find.text('Inception'), findsOneWidget);
     expect(find.text('2010 · 148 min · IT · ⭐ 8.4'), findsOneWidget);
-    expect(find.textContaining('IN EVIDENZA'), findsOneWidget);
+    // The "IN EVIDENZA" eyebrow was removed — the title stands on its own.
+    expect(find.textContaining('IN EVIDENZA'), findsNothing);
     // No trailer, no mute toggle — heroes are static now.
     expect(find.byType(HeroTrailer), findsNothing);
     expect(find.byIcon(Icons.volume_off), findsNothing);
