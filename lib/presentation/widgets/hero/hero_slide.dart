@@ -170,11 +170,12 @@ class HeroMetadata extends StatelessWidget {
         final maxBlockWidth = isPhone
             ? availableWidth - (horizontalPad * 2)
             : (availableWidth * 0.5).clamp(360.0, 760.0);
-        // Phone: lift the whole block well clear of the fade/first row (it sat
-        // too low at 32px). Scale gently with hero height but keep a healthy
-        // floor. Desktop/tablet keep their original ≤15%-of-height clamp.
+        // Phone: lift the block clear of the fade/first row, but a touch
+        // lower than the first pass (the CTAs sat a hair high). The extra
+        // title→CTA gap below keeps the TITLE where it was while the buttons
+        // drop slightly. Desktop/tablet keep their original ≤15% clamp.
         final bottomInset = isPhone
-            ? (c.maxHeight * 0.18).clamp(88.0, 180.0)
+            ? (c.maxHeight * 0.15).clamp(72.0, 160.0)
             : baseBottomInset.clamp(0.0, c.maxHeight * 0.15);
 
         return Padding(
@@ -190,7 +191,9 @@ class HeroMetadata extends StatelessWidget {
                     isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start,
                 children: [
                   text,
-                  const SizedBox(height: 24),
+                  // Phone uses a larger gap so lowering the block's bottom
+                  // inset drops the CTAs without pulling the title down too.
+                  SizedBox(height: isPhone ? 40 : 24),
                   ctas,
                 ],
               ),
@@ -302,7 +305,7 @@ class HeroCtas extends StatelessWidget {
       // pair stays compact instead of stretching to the screen edges.
       return LayoutBuilder(
         builder: (context, c) {
-          final w = ((c.maxWidth - 12) / 2).clamp(0.0, 168.0);
+          final w = ((c.maxWidth - 10) / 2).clamp(0.0, 152.0);
           return Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -314,7 +317,7 @@ class HeroCtas extends StatelessWidget {
                   onTap: onPlay,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               SizedBox(
                 width: w,
                 child: HeroCtaButton.glass(

@@ -152,25 +152,27 @@ class _BottomGradient extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // CM-5: editorial scrim — transparent over the top 65% of the hero,
-    // then a soft warm-bg fade over the bottom 35%. Stops below match
-    // the brief: 0.0 transparent → 0.65 transparent → 1.0 #0F0E0D at
-    // 70% alpha. Reads as a "page tinted underneath the title" rather
-    // than a hard band of darkness, so the title pops without the
-    // backdrop image looking crushed.
+    // A long, GRADUAL fade to the page background. The old scrim only
+    // darkened in the last 20% — that abrupt ramp read as a visible
+    // "horizon line" (the stacco). This spreads the darkening smoothly from
+    // ~30% down, reaches the page colour fully by 90%, then holds a solid
+    // band to the very bottom so the image edge is completely buried and the
+    // hero merges seamlessly into the content below.
     return IgnorePointer(
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: const [0.0, 0.48, 0.8, 1.0],
+            stops: const [0.0, 0.32, 0.56, 0.76, 0.90, 1.0],
             colors: [
               Colors.transparent,
-              StreamloadColors.v3BgBase.withValues(alpha: 0.08),
-              StreamloadColors.v3BgBase.withValues(alpha: 0.6),
-              // Bottom edge becomes the page background EXACTLY, so the hero
-              // dissolves seamlessly into the content below it.
+              StreamloadColors.v3BgBase.withValues(alpha: 0.05),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.26),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.70),
+              // Fully the page background by 90%…
+              StreamloadColors.v3BgBase,
+              // …and held solid to the bottom edge — no visible seam.
               StreamloadColors.v3BgBase,
             ],
           ),

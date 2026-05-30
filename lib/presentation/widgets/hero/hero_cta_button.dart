@@ -49,8 +49,8 @@ class HeroCtaButton extends StatelessWidget {
   final bool glass;
   final VoidCallback? onTap;
 
-  static const double _height = 52;
-  static const double _iconSize = 20;
+  static const double _height = 48;
+  static const double _iconSize = 18;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +70,7 @@ class HeroCtaButton extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: fg,
-              fontSize: 15.5,
+              fontSize: 14.5,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.1,
             ),
