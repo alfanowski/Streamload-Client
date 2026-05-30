@@ -63,12 +63,10 @@ class HeroCtaButton extends StatelessWidget {
     final enabled = onTap != null;
 
     final Color fg;
-    if (prominent) {
-      fg = StreamloadTokens.ctaPrimaryFg; // dark text on the bright frost
-    } else if (active) {
+    if (active) {
       fg = _added; // green "added" state
     } else {
-      fg = Colors.white;
+      fg = Colors.white; // white label on both Guarda and La mia lista
     }
 
     final content = Row(
@@ -111,12 +109,13 @@ class HeroCtaButton extends StatelessWidget {
     late final List<Color> fill;
     late final Color rim;
     if (prominent) {
-      // Bright "ice" frost — light enough for dark text, still blurred glass.
+      // Same glass family, just a bit LIGHTER than La mia lista so Guarda
+      // leads — white label stays legible over the dark lower hero.
       fill = [
-        Colors.white.withValues(alpha: 0.66),
-        Colors.white.withValues(alpha: 0.44),
+        Colors.white.withValues(alpha: 0.30),
+        Colors.white.withValues(alpha: 0.13),
       ];
-      rim = Colors.white.withValues(alpha: 0.70);
+      rim = Colors.white.withValues(alpha: 0.42);
     } else if (active) {
       // Green wash + green rim → unmistakably "in the list".
       fill = [
