@@ -39,7 +39,6 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
-import '../widgets/primitives/glass_surface.dart';
 import '../widgets/rows/poster_row.dart';
 import '../widgets/shimmer.dart';
 
@@ -55,9 +54,10 @@ class SearchPage extends ConsumerStatefulWidget {
 }
 
 class _SearchPageState extends ConsumerState<SearchPage> {
-  // Hard cap to keep TMDB happy and the grid finite. 5 pages × 20 items
-  // = 100 results, which is more than enough for the user to skim.
-  static const int _maxPages = 5;
+  // Netflix-style: a tight, relevant result set rather than an endless tail
+  // of obscure matches. 2 pages × 20 = 40 max, with the backend ranking the
+  // best matches first.
+  static const int _maxPages = 2;
 
   late final TextEditingController _controller;
   late final ScrollController _scrollController;
@@ -374,9 +374,8 @@ class _SearchWordmark extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Floating glass search bar — same translucent glass family as the hero CTAs
-// (BackdropFilter blur + sheen + hairline rim). Clears the Dynamic Island via
-// SafeArea; content scrolls under it.
+// Search field — clean, flat, editorial. A subtle neutral fill + a hairline
+// rim, no heavy glass: crisp and consistent with the (de-creamed) Home theme.
 // ──────────────────────────────────────────────────────────────────────────
 
 class _GlassSearchBar extends StatelessWidget {
@@ -394,80 +393,69 @@ class _GlassSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The official native Apple Liquid Glass capsule (same primitive as the
-    // bottom tab bar) — Apple-Music-style search field on iOS, shader/fake
-    // glass elsewhere.
-    return GlassSurface(
-      capsule: true,
-      borderRadius: 26,
-      blur: 10,
-      child: SizedBox(
-        height: 52,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Icon(
-                Icons.search,
-                color: Colors.white.withValues(alpha: 0.75),
-                size: 22,
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: StreamloadColors.v3SurfaceGlass,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: StreamloadColors.v3BorderGlass, width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.search,
+            color: StreamloadColors.v3TextSecondary,
+            size: 22,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              cursorColor: StreamloadColors.v3TextPrimary,
+              cursorWidth: 1.5,
+              textInputAction: TextInputAction.search,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
+              style: const TextStyle(
+                color: StreamloadColors.v3TextPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w500,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  cursorColor: Colors.white,
-                  cursorWidth: 1.5,
-                  textInputAction: TextInputAction.search,
-                  onChanged: onChanged,
-                  onSubmitted: onSubmitted,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Film, serie TV, attori e altro…',
-                    hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    isCollapsed: true,
+              decoration: InputDecoration(
+                hintText: 'Film, serie TV, attori e altro…',
+                hintStyle: TextStyle(
+                  color: StreamloadColors.v3TextMuted,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w400,
+                ),
+                border: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                isCollapsed: true,
+              ),
+            ),
+          ),
+          ValueListenableBuilder<TextEditingValue>(
+            valueListenable: controller,
+            builder: (context, value, _) {
+              if (value.text.isEmpty) return const SizedBox.shrink();
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onClear,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: StreamloadColors.v3TextSecondary,
+                    size: 20,
                   ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              // Mic (decorative, Apple-Music look) when empty; clear ✕ when
-              // there's text.
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: controller,
-                builder: (context, value, _) {
-                  if (value.text.isEmpty) {
-                    return Icon(
-                      Icons.mic_none_rounded,
-                      color: Colors.white.withValues(alpha: 0.6),
-                      size: 22,
-                    );
-                  }
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onClear,
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: Colors.white.withValues(alpha: 0.85),
-                      size: 21,
-                    ),
-                  );
-                },
-              ),
-            ],
+              );
+            },
           ),
-        ),
+        ],
       ),
     );
   }
