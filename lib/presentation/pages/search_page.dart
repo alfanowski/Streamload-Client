@@ -40,6 +40,7 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
+import '../widgets/rows/poster_row.dart';
 import '../widgets/shimmer.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
@@ -286,6 +287,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   padding: horizontalPad,
                   items: _items,
                 ),
+                // Netflix-style: a "similar titles" row under the matches,
+                // seeded from the top result's recommendations.
+                if (_exhausted)
+                  _RelatedSliver(
+                    seed: _items.first,
+                    excludeIds: {for (final m in _items) m.tmdbId},
+                  ),
               ],
             ],
             // Footer: trailing spinner during incremental fetches.
@@ -954,6 +962,45 @@ class _ResultsGridSliver extends StatelessWidget {
           childCount: items.length,
         ),
       ),
+    );
+  }
+}
+
+/// "Titoli simili a …" — a Home-style covers row under the results, seeded
+/// from the top match's TMDB recommendations (the "Marvel catalogue under
+/// Iron Man" idea). Renders nothing until recommendations resolve / if empty.
+class _RelatedSliver extends ConsumerWidget {
+  const _RelatedSliver({required this.seed, required this.excludeIds});
+  final MediaSummary seed;
+  final Set<int> excludeIds;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(
+      recommendationsProvider(
+        TmdbKey(tmdbId: seed.tmdbId, mediaType: seed.mediaType),
+      ),
+    );
+    return async.maybeWhen(
+      data: (recs) {
+        final filtered = recs
+            .where((r) => !excludeIds.contains(r.tmdbId))
+            .take(18)
+            .toList(growable: false);
+        if (filtered.isEmpty) {
+          return const SliverToBoxAdapter(child: SizedBox.shrink());
+        }
+        return SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 20),
+            child: PosterRow(
+              title: 'Titoli simili a "${seed.title}"',
+              items: filtered,
+            ),
+          ),
+        );
+      },
+      orElse: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
     );
   }
 }
