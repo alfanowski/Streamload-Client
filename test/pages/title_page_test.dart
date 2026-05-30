@@ -65,6 +65,10 @@ Widget wrap({
       // Default to an empty payload so existing tests don't have to care;
       // the cast-row tests override per-call with synthetic cast data.
       creditsProvider.overrideWith((_, __) async => credits),
+      // The Titoli simili grid reads recommendations → similar; stub both to
+      // empty so the page settles without a live catalog-rows HTTP call.
+      recommendationsProvider.overrideWith((_, __) async => const []),
+      similarProvider.overrideWith((_, __) async => const []),
     ],
     child: MaterialApp(
       home: MediaQuery(
@@ -101,8 +105,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Dune'), findsOneWidget);
+      // Trama is justified body text now (no "Trama" header).
       expect(find.text('A hero rises.'), findsOneWidget);
-      expect(find.text('Trama'), findsOneWidget);
       // Glass primary CTA + the modal close button.
       expect(find.text('Riproduci'), findsOneWidget);
       expect(find.byIcon(Icons.close_rounded), findsOneWidget);
@@ -232,13 +236,21 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
+      // New structure: an Episodi/Simili segmented control + a "Stagione 1"
+      // button + a rich episode tile "1. Pilot".
       await tester.scrollUntilVisible(
-        find.text('EPISODI · S1'),
+        find.text('Episodi'),
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(find.text('EPISODI · S1'), findsOneWidget);
-      expect(find.text('Pilot'), findsOneWidget);
+      expect(find.text('Episodi'), findsOneWidget);
+      await tester.scrollUntilVisible(
+        find.text('1. Pilot'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Stagione 1'), findsOneWidget);
+      expect(find.text('1. Pilot'), findsOneWidget);
     });
   });
 }

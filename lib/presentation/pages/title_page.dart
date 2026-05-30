@@ -28,14 +28,23 @@ import '../widgets/cast/cast_row.dart';
 import '../widgets/hero/hero_backdrop.dart';
 import '../widgets/hero/hero_cta_button.dart';
 import '../widgets/primitives/glass_surface.dart';
-import '../widgets/title/episode_list.dart';
-import '../widgets/title/similar_titles_row.dart';
+import '../widgets/title/season_episodes.dart';
+import '../widgets/title/similar_grid.dart';
 
 class TitlePage extends ConsumerWidget {
-  const TitlePage({super.key, required this.tmdbId, required this.mediaType});
+  const TitlePage({
+    super.key,
+    required this.tmdbId,
+    required this.mediaType,
+    this.heroTag,
+  });
 
   final int tmdbId;
   final String mediaType;
+
+  /// Shared-element tag of the poster the user tapped — the hero animates
+  /// open FROM that poster (and back to it on close). Null → plain fade.
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -194,29 +203,27 @@ class _TitleContent extends StatelessWidget {
         ),
         SliverList(
           delegate: SliverChildListDelegate([
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            // Trama — justified body, no header.
             if ((item.overview ?? '').isNotEmpty)
-              Padding(
-                padding: pad,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _SectionHeader('Trama'),
-                    const SizedBox(height: 12),
-                    _ExpandableText(item.overview!),
-                  ],
-                ),
-              ),
-            const SizedBox(height: 30),
+              Padding(padding: pad, child: _ExpandableText(item.overview!)),
+            const SizedBox(height: 28),
             _CastSection(item: item),
-            const SizedBox(height: 30),
+            const SizedBox(height: 28),
             Padding(padding: pad, child: _InfoBlock(item: item)),
-            if (item.mediaType == 'tv') ...[
-              const SizedBox(height: 30),
-              Padding(padding: pad, child: EpisodeList(tmdbId: item.tmdbId)),
-            ],
-            const SizedBox(height: 34),
-            SimilarTitlesRow(tmdbId: item.tmdbId, mediaType: item.mediaType),
+            const SizedBox(height: 30),
+            // TV → Episodi / Simili tabs; Movie → Titoli simili grid at the
+            // bottom (no tab).
+            Padding(
+              padding: pad,
+              child: item.mediaType == 'tv'
+                  ? _TvTabs(item: item)
+                  : SimilarGrid(
+                      tmdbId: item.tmdbId,
+                      mediaType: item.mediaType,
+                      showHeader: true,
+                    ),
+            ),
             const SizedBox(height: 56),
           ]),
         ),
@@ -263,6 +270,7 @@ class _ExpandableTextState extends State<_ExpandableText> {
           child: Text(
             widget.text,
             style: style,
+            textAlign: TextAlign.justify,
             maxLines: _expanded ? null : 5,
             overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
           ),
@@ -581,6 +589,115 @@ class _InfoBlock extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+}
+
+// ── TV tabs (Episodi / Simili) ─────────────────────────────────────────────
+
+class _TvTabs extends StatefulWidget {
+  const _TvTabs({required this.item});
+  final CatalogItemResponse item;
+  @override
+  State<_TvTabs> createState() => _TvTabsState();
+}
+
+class _TvTabsState extends State<_TvTabs> {
+  int _tab = 0;
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SegmentedControl(
+          labels: const ['Episodi', 'Simili'],
+          index: _tab,
+          onChanged: (i) => setState(() => _tab = i),
+        ),
+        const SizedBox(height: 22),
+        if (_tab == 0)
+          SeasonEpisodes(tmdbId: widget.item.tmdbId)
+        else
+          SimilarGrid(
+            tmdbId: widget.item.tmdbId,
+            mediaType: widget.item.mediaType,
+          ),
+      ],
+    );
+  }
+}
+
+/// iOS-style segmented control — a pill with an animated selected segment.
+class _SegmentedControl extends StatelessWidget {
+  const _SegmentedControl({
+    required this.labels,
+    required this.index,
+    required this.onChanged,
+  });
+  final List<String> labels;
+  final int index;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, c) {
+        final n = labels.length;
+        final segW = (c.maxWidth - 8) / n;
+        return Container(
+          height: 44,
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: StreamloadColors.v3SurfaceGlass,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: StreamloadColors.v3BorderGlass),
+          ),
+          child: Stack(
+            children: [
+              AnimatedAlign(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment(n == 1 ? 0 : (index / (n - 1)) * 2 - 1, 0),
+                child: Container(
+                  width: segW,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: StreamloadColors.v3SurfaceGlassMax,
+                    borderRadius: BorderRadius.circular(10),
+                    border:
+                        Border.all(color: StreamloadColors.v3BorderGlass),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  for (var i = 0; i < n; i++)
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => onChanged(i),
+                        child: Center(
+                          child: Text(
+                            labels[i],
+                            style: StreamloadTypography.v3Body(fontSize: 14)
+                                .copyWith(
+                              fontWeight: i == index
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: i == index
+                                  ? StreamloadColors.v3TextPrimary
+                                  : StreamloadColors.v3TextSecondary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

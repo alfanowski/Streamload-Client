@@ -22,7 +22,7 @@ import 'state/github_token_provider.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/onboarding/github',
+    initialLocation: '/search?q=spider',
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final auth = ref.read(authProvider);

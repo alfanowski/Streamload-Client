@@ -315,6 +315,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       ),
                     ),
                   ),
+                  // Results modes glue straight onto the bar otherwise — give
+                  // them the same ~24px breathing room the "Suggeriti" header
+                  // gets in empty mode (16 bar-pad + 8 here).
+                  if (_activeQuery.isNotEmpty)
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
                   // Body branches: empty → "Suggeriti" grid;
                   // otherwise loading/error/no-results/grid.
                   if (_activeQuery.isEmpty)
@@ -528,7 +533,7 @@ class _TopSearchesSection extends ConsumerWidget {
     final async = ref.watch(trendingDayProvider);
     return SliverToBoxAdapter(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(padding, 20, padding, 24),
+        padding: EdgeInsets.fromLTRB(padding, 8, padding, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -541,7 +546,7 @@ class _TopSearchesSection extends ConsumerWidget {
                 style: StreamloadTypography.v3SectionHeader(),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             async.when(
               loading: () => const _SkeletonGrid(padding: 0, cells: 12),
               error: (_, __) => Text(
@@ -935,7 +940,7 @@ class _SectionHeaderSliver extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverPadding(
-      padding: EdgeInsets.fromLTRB(padding + 4, 20, padding + 4, 6),
+      padding: EdgeInsets.fromLTRB(padding + 4, 12, padding + 4, 6),
       sliver: SliverToBoxAdapter(
         child: Text(
           label,
