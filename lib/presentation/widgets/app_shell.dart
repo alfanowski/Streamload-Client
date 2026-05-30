@@ -20,10 +20,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../responsive.dart';
 import '../theme/colors.dart';
 import 'bottom_tab_bar.dart';
+import 'mobile_top_bar.dart';
 import 'search_overlay.dart';
 import 'top_nav_bar.dart';
 
@@ -36,12 +38,27 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isPhone = Responsive.isPhone(context);
     if (isPhone) {
+      // The player is immersive (forced landscape) — no chrome there.
+      final loc = GoRouterState.of(context).matchedLocation;
+      if (loc.startsWith('/watch')) {
+        return Scaffold(
+          backgroundColor: StreamloadColors.v3BgBase,
+          body: child,
+        );
+      }
       return Scaffold(
         backgroundColor: StreamloadColors.v3BgBase,
         // extendBody lets the page draw behind the FLOATING glass tab bar
         // so content blurs through it (Apple iOS 26 style).
         extendBody: true,
-        body: SafeArea(top: true, bottom: false, child: child),
+        // Fixed mobile top bar (Streamload + cast) with its own space; the
+        // page content lives below it.
+        body: Column(
+          children: [
+            const StreamloadMobileTopBar(),
+            Expanded(child: child),
+          ],
+        ),
         bottomNavigationBar: const StreamloadBottomTabBar(),
       );
     }
