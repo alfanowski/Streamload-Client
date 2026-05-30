@@ -114,7 +114,7 @@ class PosterRow extends StatelessWidget {
                   if (onItemTap != null) {
                     onItemTap!(m);
                   } else {
-                    context.go(
+                    context.push(
                       '/title/${m.tmdbId}?media_type=${m.mediaType}',
                     );
                   }

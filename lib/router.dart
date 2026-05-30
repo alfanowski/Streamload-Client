@@ -82,10 +82,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               )),
           _fadeRoute('/profile', (_, __) => const ProfilePage()),
           _fadeRoute('/settings', (_, __) => const SettingsPage()),
-          _fadeRoute('/title/:tmdbId', (ctx, state) => TitlePage(
-                tmdbId: int.parse(state.pathParameters['tmdbId']!),
-                mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
-              )),
           // Pass 3 CAST-5 — actor / director dedicated page. CastCard
           // taps and any future "person link" land here.
           _fadeRoute('/person/:tmdbId', (ctx, state) => PersonPage(
@@ -104,6 +100,13 @@ final routerProvider = Provider<GoRouter>((ref) {
               )),
         ],
       ),
+      // The title page is a TOP-LEVEL full-screen modal (outside the shell →
+      // no bottom bar) that slides up over whatever you came from and is
+      // dismissed by ✕ / drag-down. Callers push() it so it can pop back.
+      _modalRoute('/title/:tmdbId', (ctx, state) => TitlePage(
+            tmdbId: int.parse(state.pathParameters['tmdbId']!),
+            mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+          )),
     ],
   );
 });
@@ -132,6 +135,33 @@ GoRoute _fadeRoute(
       reverseTransitionDuration: const Duration(milliseconds: 200),
       transitionsBuilder: (_, animation, __, child) =>
           streamloadPageTransition(animation, child),
+    ),
+  );
+}
+
+/// Netflix-style full-screen modal: slides up from the bottom and leaves the
+/// page beneath painted (opaque:false) so the drag-to-dismiss reveals it.
+GoRoute _modalRoute(
+    String path, Widget Function(BuildContext, GoRouterState) builder) {
+  return GoRoute(
+    path: path,
+    pageBuilder: (ctx, state) => CustomTransitionPage<void>(
+      key: state.pageKey,
+      opaque: false,
+      barrierColor: Colors.transparent,
+      fullscreenDialog: true,
+      transitionDuration: const Duration(milliseconds: 320),
+      reverseTransitionDuration: const Duration(milliseconds: 240),
+      child: builder(ctx, state),
+      transitionsBuilder: (_, animation, __, child) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 1),
+          end: Offset.zero,
+        ).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+        );
+        return SlideTransition(position: slide, child: child);
+      },
     ),
   );
 }

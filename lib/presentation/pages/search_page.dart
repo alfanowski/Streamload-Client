@@ -611,7 +611,7 @@ class _Grid extends StatelessWidget {
           summary: m,
           width: 180,
           showLabel: false,
-          onTap: () => context.go(
+          onTap: () => context.push(
             '/title/${m.tmdbId}?media_type=${m.mediaType}',
           ),
         );
@@ -985,7 +985,7 @@ class _ResultsGridSliver extends StatelessWidget {
               summary: m,
               width: 180,
               showLabel: false,
-              onTap: () => context.go(
+              onTap: () => context.push(
                 '/title/${m.tmdbId}?media_type=${m.mediaType}',
               ),
             );

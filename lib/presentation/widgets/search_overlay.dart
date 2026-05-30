@@ -130,7 +130,7 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
 
   void _onSelectSuggestion(MediaSummary m) {
     _close();
-    context.go('/title/${m.tmdbId}?media_type=${m.mediaType}');
+    context.push('/title/${m.tmdbId}?media_type=${m.mediaType}');
   }
 
   void _onSelectPerson(SearchPersonResult p) {

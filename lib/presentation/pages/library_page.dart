@@ -208,7 +208,7 @@ class _ResolvedGrid extends ConsumerWidget {
               final vm = MediaCardVm.fromSummary(items[i]);
               return MediaPosterCard(
                 item: vm,
-                onTap: () => context.go(
+                onTap: () => context.push(
                   '/title/${vm.tmdbId}?media_type=${vm.mediaType}',
                 ),
               );

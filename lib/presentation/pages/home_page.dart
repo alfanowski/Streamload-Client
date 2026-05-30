@@ -712,13 +712,13 @@ class _HeroSection extends ConsumerWidget {
                       )),
                   onPlay: s.tmdbId == null
                       ? null
-                      : () => context.go(
+                      : () => context.push(
                             '/title/${s.tmdbId}?media_type=${s.mediaType}',
                           ),
                   // Tap anywhere on the hero → open the title page (Netflix).
                   onOpen: s.tmdbId == null
                       ? null
-                      : () => context.go(
+                      : () => context.push(
                             '/title/${s.tmdbId}?media_type=${s.mediaType}',
                           ),
                   onAdd: s.tmdbId == null
