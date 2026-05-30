@@ -135,8 +135,10 @@ class _HomePageState extends ConsumerState<HomePage> {
     final filter = widget.filter;
     final heroHeight = _heroHeightFor(context);
 
-    return DecoratedBox(
-      decoration: _bgGradient,
+    return ColoredBox(
+      // Solid black so the hero (which fades to pure black on phone) merges
+      // into the page with zero seam, and the content reads on true black.
+      color: Colors.black,
       child: Stack(
         children: [
           CustomScrollView(
@@ -158,7 +160,22 @@ class _HomePageState extends ConsumerState<HomePage> {
                 automaticallyImplyLeading: false,
                 flexibleSpace: FlexibleSpaceBar(
                   stretchModes: const [StretchMode.zoomBackground],
-                  background: _HeroSection(height: heroHeight),
+                  // Hero gently dissolves to black AS you scroll — starting
+                  // immediately, fully gone by ~half a hero's worth of scroll
+                  // (Apple TV+). The black page behind it means it just melts
+                  // away rather than sliding off.
+                  background: AnimatedBuilder(
+                    animation: _scrollController,
+                    builder: (context, child) {
+                      final off = _scrollController.hasClients
+                          ? _scrollController.offset
+                          : 0.0;
+                      final opacity =
+                          (1 - off / (heroHeight * 0.55)).clamp(0.0, 1.0);
+                      return Opacity(opacity: opacity, child: child);
+                    },
+                    child: _HeroSection(height: heroHeight),
+                  ),
                 ),
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 24)),

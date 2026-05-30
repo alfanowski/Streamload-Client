@@ -31,6 +31,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../responsive.dart';
 import '../../theme/colors.dart';
 
 class HeroBackdrop extends StatelessWidget {
@@ -69,6 +70,10 @@ class HeroBackdrop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Phone fades to PURE BLACK so it matches the (now solid-black) phone
+    // page background with zero seam; desktop keeps the warm page colour.
+    final fadeColor =
+        Responsive.isMobile(context) ? Colors.black : StreamloadColors.v3BgBase;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -77,7 +82,11 @@ class HeroBackdrop extends StatelessWidget {
         // bottom-left title sits on, without crushing the whole image.
         const _LeftScrim(),
         // Stronger cinematic bottom fade so the title + CTAs pop.
-        const _BottomGradient(),
+        _BottomGradient(fadeColor: fadeColor),
+        // Slight top scrim behind the status bar / Dynamic Island so the
+        // clock, battery and wordmark stay legible over bright artwork
+        // (Apple TV+ does the same).
+        const _TopGradient(),
       ],
     );
   }
@@ -147,8 +156,39 @@ class _LeftScrim extends StatelessWidget {
   }
 }
 
+/// Slight top-down scrim so the OS status bar (clock / wifi / battery) and the
+/// "Streamload" wordmark read cleanly over bright artwork. Subtle on purpose —
+/// just enough contrast behind the notch, fully transparent by ~18% down.
+class _TopGradient extends StatelessWidget {
+  const _TopGradient();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.09, 0.18],
+            colors: [
+              Colors.black.withValues(alpha: 0.45),
+              Colors.black.withValues(alpha: 0.18),
+              Colors.transparent,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _BottomGradient extends StatelessWidget {
-  const _BottomGradient();
+  const _BottomGradient({required this.fadeColor});
+
+  /// The opaque colour the hero dissolves into at its bottom edge — must match
+  /// whatever sits below it so there's no visible seam.
+  final Color fadeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -167,13 +207,13 @@ class _BottomGradient extends StatelessWidget {
             stops: const [0.0, 0.32, 0.56, 0.76, 0.90, 1.0],
             colors: [
               Colors.transparent,
-              StreamloadColors.v3BgBase.withValues(alpha: 0.05),
-              StreamloadColors.v3BgBase.withValues(alpha: 0.26),
-              StreamloadColors.v3BgBase.withValues(alpha: 0.70),
+              fadeColor.withValues(alpha: 0.05),
+              fadeColor.withValues(alpha: 0.26),
+              fadeColor.withValues(alpha: 0.70),
               // Fully the page background by 90%…
-              StreamloadColors.v3BgBase,
+              fadeColor,
               // …and held solid to the bottom edge — no visible seam.
-              StreamloadColors.v3BgBase,
+              fadeColor,
             ],
           ),
         ),
