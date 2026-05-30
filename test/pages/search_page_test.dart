@@ -20,6 +20,7 @@ import 'package:streamload_client/data/remote/endpoints/search_api.dart';
 import 'package:streamload_client/domain/models/media_summary.dart';
 import 'package:streamload_client/domain/models/search_results.dart';
 import 'package:streamload_client/presentation/pages/search_page.dart';
+import 'package:streamload_client/presentation/widgets/poster_card.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 
 class _SearchApiMock extends Mock implements SearchApi {}
@@ -180,7 +181,8 @@ void main() {
     // rendered alongside the trending poster grid.
     expect(find.text('SUGGERITE PER TE'), findsOneWidget);
     expect(find.text('Ricerche di tendenza'), findsOneWidget);
-    expect(find.text('TrendingPick'), findsOneWidget);
+    // Covers-only grid: assert the trending card by type.
+    expect(find.byType(PosterCard), findsOneWidget);
     verifyNever(() => api.search(any()));
   });
 
@@ -197,7 +199,7 @@ void main() {
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=dune');
     await t.pumpAndSettle();
     expect(find.widgetWithText(TextField, 'dune'), findsOneWidget);
-    expect(find.text('Dune'), findsOneWidget);
+    expect(find.byType(PosterCard), findsOneWidget);
     verify(() => api.search('dune', page: 1)).called(1);
   });
 
@@ -228,8 +230,7 @@ void main() {
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=mix');
     await t.pumpAndSettle();
-    expect(find.text('MixMovie'), findsOneWidget);
-    expect(find.text('MixSeries'), findsOneWidget);
+    expect(find.byType(PosterCard), findsNWidgets(2));
     // Chips are gone — neither label appears as a chip OR a button.
     expect(find.text('Tutto'), findsNothing);
     expect(find.text('Film'), findsNothing);
@@ -259,7 +260,7 @@ void main() {
     expect(find.text('Persone'), findsOneWidget);
     expect(find.text('Brad Pitt'), findsOneWidget);
     expect(find.text('Titoli'), findsOneWidget);
-    expect(find.text('Fight Club'), findsOneWidget);
+    expect(find.byType(PosterCard), findsOneWidget);
   });
 
   testWidgets('no "Persone" section when people are empty (PS-4)', (t) async {
@@ -278,7 +279,7 @@ void main() {
     // With no people we don't print a "Titoli" header either — the grid
     // stands alone as before.
     expect(find.text('Titoli'), findsNothing);
-    expect(find.text('MixMovie'), findsOneWidget);
+    expect(find.byType(PosterCard), findsOneWidget);
   });
 
   testWidgets('no-results state shows the "Nessun risultato" message',

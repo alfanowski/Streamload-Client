@@ -24,7 +24,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -62,6 +61,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   late final ScrollController _scrollController;
   String _activeQuery = '';
 
+  /// Debounce for real-time search — fires ~300ms after the user stops
+  /// typing so we don't hit TMDB on every keystroke.
+  Timer? _debounce;
+
   final List<MediaSummary> _items = [];
   // People only come back on page 1 of the multi-search; TMDB doesn't
   // re-surface them on later pages, so we capture them once and keep them
@@ -86,18 +89,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void didUpdateWidget(covariant SearchPage oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // External URL change (e.g. opened with ?q=…). Skip when the URL is just
+    // catching up to a query we already ran live, to avoid a double fetch.
     if (oldWidget.initialQuery != widget.initialQuery) {
-      _controller.text = widget.initialQuery;
-      _activeQuery = widget.initialQuery.trim();
-      _resetResults();
-      if (_activeQuery.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => _runFirstPage());
+      final q = widget.initialQuery.trim();
+      if (q != _activeQuery) {
+        _controller.text = widget.initialQuery;
+        _activeQuery = q;
+        _resetResults();
+        if (q.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _runFirstPage());
+        }
       }
     }
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -166,11 +175,42 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
-  void _onSubmit(String value) {
+  /// Real-time: debounce keystrokes, then run the search locally (no Enter,
+  /// no per-keystroke navigation).
+  void _onQueryChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _applyQuery(value),
+    );
+  }
+
+  void _applyQuery(String value) {
     final v = value.trim();
     if (v == _activeQuery) return;
-    // URL is the source of truth.
-    context.go('/search?q=${Uri.encodeQueryComponent(v)}');
+    setState(() => _activeQuery = v);
+    if (v.isEmpty) {
+      _resetResults();
+    } else {
+      _runFirstPage();
+    }
+  }
+
+  /// Enter (or the search action) — apply immediately and stamp the URL so the
+  /// query stays shareable / survives a refresh.
+  void _onSubmit(String value) {
+    _debounce?.cancel();
+    _applyQuery(value);
+    final v = value.trim();
+    if (v.isNotEmpty) {
+      context.go('/search?q=${Uri.encodeQueryComponent(v)}');
+    }
+  }
+
+  void _onClear() {
+    _debounce?.cancel();
+    _controller.clear();
+    _applyQuery('');
   }
 
   @override
@@ -202,7 +242,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   maxWidth: isPhone ? double.infinity : 820,
                   child: _SearchInput(
                     controller: _controller,
+                    onChanged: _onQueryChanged,
                     onSubmitted: _onSubmit,
+                    onClear: _onClear,
                   ),
                 ),
               ),
@@ -271,64 +313,86 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 // ──────────────────────────────────────────────────────────────────────────
 
 class _SearchInput extends StatelessWidget {
-  const _SearchInput({required this.controller, required this.onSubmitted});
+  const _SearchInput({
+    required this.controller,
+    required this.onChanged,
+    required this.onSubmitted,
+    required this.onClear,
+  });
   final TextEditingController controller;
+  final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
-    return Shortcuts(
-      shortcuts: const <ShortcutActivator, Intent>{
-        SingleActivator(LogicalKeyboardKey.enter): ActivateIntent(),
-      },
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: StreamloadColors.v3BorderGlass,
-              width: 1,
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(
+            color: StreamloadColors.v3BorderGlass,
+            width: 1,
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                Icons.search,
-                color: StreamloadColors.v3TextSecondary,
-                size: 26,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  cursorColor: StreamloadColors.v3TextPrimary,
-                  cursorWidth: 1.5,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: onSubmitted,
-                  style: StreamloadTypography.display(
-                    fontSize: 28,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              Icons.search,
+              color: StreamloadColors.v3TextSecondary,
+              size: 26,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                autofocus: true,
+                cursorColor: StreamloadColors.v3TextPrimary,
+                cursorWidth: 1.5,
+                textInputAction: TextInputAction.search,
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
+                style: StreamloadTypography.display(
+                  fontSize: 28,
+                  italic: true,
+                  color: StreamloadColors.v3TextPrimary,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Cerca un titolo, una serie o un anime…',
+                  hintStyle: StreamloadTypography.display(
+                    fontSize: 22,
                     italic: true,
-                    color: StreamloadColors.v3TextPrimary,
+                    color: StreamloadColors.v3TextMuted,
                   ),
-                  decoration: InputDecoration(
-                    hintText: 'Cerca un titolo, una serie o un anime…',
-                    hintStyle: StreamloadTypography.display(
-                      fontSize: 22,
-                      italic: true,
-                      color: StreamloadColors.v3TextMuted,
-                    ),
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                    isCollapsed: true,
-                  ),
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  isCollapsed: true,
                 ),
               ),
-            ],
-          ),
+            ),
+            // Clear (×) — only while there's text. Real-time search means no
+            // submit button, so this is the quick way to reset.
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, _) {
+                if (value.text.isEmpty) return const SizedBox(width: 4);
+                return IconButton(
+                  onPressed: onClear,
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: StreamloadColors.v3TextSecondary,
+                    size: 22,
+                  ),
+                  splashRadius: 20,
+                  tooltip: 'Cancella',
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -438,7 +502,7 @@ class _Grid extends StatelessWidget {
         maxCrossAxisExtent: 200,
         mainAxisSpacing: 16,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.55,
+        childAspectRatio: 2 / 3,
       ),
       itemCount: items.length,
       itemBuilder: (context, i) {
@@ -446,6 +510,7 @@ class _Grid extends StatelessWidget {
         return PosterCard(
           summary: m,
           width: 180,
+          showLabel: false,
           onTap: () => context.go(
             '/title/${m.tmdbId}?media_type=${m.mediaType}',
           ),
@@ -563,7 +628,7 @@ class _SkeletonGridSliver extends StatelessWidget {
           maxCrossAxisExtent: 200,
           mainAxisSpacing: 16,
           crossAxisSpacing: 12,
-          childAspectRatio: 0.62,
+          childAspectRatio: 2 / 3,
         ),
         delegate: SliverChildBuilderDelegate(
           (_, __) => Shimmer(
@@ -605,7 +670,7 @@ class _SkeletonGrid extends StatelessWidget {
           maxCrossAxisExtent: 200,
           mainAxisSpacing: 16,
           crossAxisSpacing: 12,
-          childAspectRatio: 0.62,
+          childAspectRatio: 2 / 3,
         ),
         itemCount: cells,
         itemBuilder: (_, __) => Shimmer(
@@ -690,7 +755,7 @@ class _ResultsGridSliver extends StatelessWidget {
           maxCrossAxisExtent: 200,
           mainAxisSpacing: 16,
           crossAxisSpacing: 12,
-          childAspectRatio: 0.55,
+          childAspectRatio: 2 / 3,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, i) {
@@ -698,6 +763,7 @@ class _ResultsGridSliver extends StatelessWidget {
             return PosterCard(
               summary: m,
               width: 180,
+              showLabel: false,
               onTap: () => context.go(
                 '/title/${m.tmdbId}?media_type=${m.mediaType}',
               ),
