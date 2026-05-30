@@ -25,7 +25,6 @@ import 'package:go_router/go_router.dart';
 import '../responsive.dart';
 import '../theme/colors.dart';
 import 'bottom_tab_bar.dart';
-import 'mobile_top_bar.dart';
 import 'search_overlay.dart';
 import 'top_nav_bar.dart';
 
@@ -48,23 +47,11 @@ class AppShell extends ConsumerWidget {
       }
       return Scaffold(
         backgroundColor: StreamloadColors.v3BgBase,
-        // extendBody lets the page draw behind the FLOATING glass tab bar
-        // so content blurs through it (Apple iOS 26 style).
+        // extendBody + full-bleed body: no top bar (Apple-TV style). The
+        // page draws edge-to-edge — its hero can sit ABOVE the Dynamic
+        // Island — and content blurs under the floating glass tab bar.
         extendBody: true,
-        // Both bars FLOAT (glass): the page fills the stack and scrolls
-        // under them. Pages add a top inset = StreamloadMobileTopBar.height
-        // so their first elements start below the bar (then blur under it).
-        body: Stack(
-          children: [
-            Positioned.fill(child: child),
-            const Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: StreamloadMobileTopBar(),
-            ),
-          ],
-        ),
+        body: child,
         bottomNavigationBar: const StreamloadBottomTabBar(),
       );
     }

@@ -48,7 +48,6 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/hero/hero_carousel.dart';
-import '../widgets/mobile_top_bar.dart';
 import '../widgets/rows/poster_row.dart';
 import '../widgets/top_nav_bar.dart';
 
@@ -91,44 +90,102 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    return Responsive.isPhone(context)
+        ? _buildMobile(context)
+        : _buildDesktop(context);
+  }
+
+  static const _bgGradient = BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        StreamloadColors.v3BgGradientStart,
+        StreamloadColors.v3BgGradientEnd,
+      ],
+    ),
+  );
+
+  // ── Desktop / tablet: content starts below the floating top nav bar and
+  //    scrolls under it. ──────────────────────────────────────────────────
+  Widget _buildDesktop(BuildContext context) {
     final filter = widget.filter;
     final heroHeight = _heroHeightFor(context);
-    // Start the content BELOW the floating glass top bar so the first
-    // elements aren't hidden — yet as the user scrolls, everything passes
-    // UNDER the translucent bar (visible + blurred). Phone has no top bar.
-    final topInset = Responsive.isPhone(context)
-        ? StreamloadMobileTopBar.height + MediaQuery.of(context).padding.top
-        : TopNavBar.height + MediaQuery.of(context).padding.top;
+    final topInset = TopNavBar.height + MediaQuery.of(context).padding.top;
 
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            StreamloadColors.v3BgGradientStart,
-            StreamloadColors.v3BgGradientEnd,
-          ],
-        ),
-      ),
+      decoration: _bgGradient,
       child: ListView(
         controller: _scrollController,
         padding: EdgeInsets.only(top: topInset),
         children: [
-          // Hero carousel — autoDispose so reopening Home gets fresh
-          // trending titles. On loading / error, we render a backdrop
-          // placeholder of the same height.
           _HeroSection(height: heroHeight),
-          // Pass 2C: the per-page filter chip row was dropped per
-          // operator feedback. The TopNavBar already exposes Home /
-          // Film / Serie TV / Anime / La mia lista — duplicating those
-          // choices below the hero was visual noise without adding
-          // affordance. The filter routing still works via the top nav
-          // tabs.
           const SizedBox(height: 24),
-          // Rows section. Each row is hidden when the filter excludes it.
           ..._buildRows(context, filter),
           const SizedBox(height: 60),
+        ],
+      ),
+    );
+  }
+
+  // ── Phone (Apple-TV style): full-bleed hero that sits ABOVE the Dynamic
+  //    Island, stretches on top overscroll, and a "Streamload" wordmark that
+  //    fades out as you scroll down. No top bar. ─────────────────────────────
+  Widget _buildMobile(BuildContext context) {
+    final filter = widget.filter;
+    final heroHeight = _heroHeightFor(context);
+
+    return DecoratedBox(
+      decoration: _bgGradient,
+      child: Stack(
+        children: [
+          CustomScrollView(
+            controller: _scrollController,
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            slivers: [
+              SliverAppBar(
+                expandedHeight: heroHeight,
+                toolbarHeight: 0,
+                collapsedHeight: 0,
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                pinned: false,
+                floating: false,
+                stretch: true,
+                stretchTriggerOffset: 60,
+                automaticallyImplyLeading: false,
+                flexibleSpace: FlexibleSpaceBar(
+                  stretchModes: const [StretchMode.zoomBackground],
+                  background: _HeroSection(height: heroHeight),
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 24)),
+              SliverList(
+                delegate: SliverChildListDelegate([
+                  ..._buildRows(context, filter),
+                  const SizedBox(height: 100),
+                ]),
+              ),
+            ],
+          ),
+          // Fading wordmark, kept below the Dynamic Island via SafeArea.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _FadingWordmark(controller: _scrollController),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -505,6 +562,44 @@ class _HomePageState extends ConsumerState<HomePage> {
       return (viewportH * 0.70).clamp(420.0, 560.0);
     }
     return (viewportH * 0.75).clamp(560.0, 720.0);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Fading wordmark — "Streamload" over the hero, fades out as the user scrolls
+// down (Apple-TV style). Driven directly by the page scroll controller.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _FadingWordmark extends StatelessWidget {
+  const _FadingWordmark({required this.controller});
+  final ScrollController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        final offset = controller.hasClients ? controller.offset : 0.0;
+        final opacity = (1 - (offset / 110)).clamp(0.0, 1.0);
+        return IgnorePointer(
+          ignoring: opacity < 0.05,
+          child: Opacity(
+            opacity: opacity,
+            child: Text(
+              'Streamload',
+              style: StreamloadTypography.display(fontSize: 22, italic: true)
+                  .copyWith(
+                letterSpacing: -0.3,
+                color: StreamloadColors.v3TextPrimary,
+                shadows: const [
+                  Shadow(color: Colors.black54, blurRadius: 12),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

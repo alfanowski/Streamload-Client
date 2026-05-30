@@ -28,7 +28,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/person.dart';
 import '../../state/person_provider.dart';
 import '../responsive.dart';
-import '../widgets/mobile_top_bar.dart';
 import '../widgets/top_nav_bar.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
@@ -64,9 +63,10 @@ class _PersonBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final creditsAsync = ref.watch(personCreditsProvider(person.tmdbId));
-    // Start below the floating top bar (content still scrolls under it).
+    // Phone: just clear the status bar / Dynamic Island. Desktop: clear the
+    // floating top nav bar.
     final topInset = Responsive.isPhone(context)
-        ? StreamloadMobileTopBar.height + MediaQuery.of(context).padding.top
+        ? MediaQuery.of(context).padding.top + 8
         : TopNavBar.height + MediaQuery.of(context).padding.top;
     return ListView(
       padding: EdgeInsets.only(top: topInset),
