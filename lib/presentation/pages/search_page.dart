@@ -33,6 +33,7 @@ import '../../domain/models/media_summary.dart';
 import '../../domain/models/search_results.dart';
 import '../../state/api_client_provider.dart';
 import '../../state/home_rows_provider.dart';
+import '../../state/person_provider.dart';
 import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
@@ -177,6 +178,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
+  /// If the query is clearly a PERSON's name (a full name whose words all
+  /// appear in a matched person, or an exact name), return that person so the
+  /// page can show their filmography by rating instead of generic title hits
+  /// (e.g. "angelina jolie" → the actress + her films, not documentaries).
+  SearchPersonResult? get _personMatch {
+    final q = _activeQuery.toLowerCase().trim();
+    if (q.isEmpty || _people.isEmpty) return null;
+    final tokens = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    for (final p in _people) {
+      final name = p.name.toLowerCase();
+      if (name == q) return p;
+      if (tokens.length >= 2 && tokens.every(name.contains)) return p;
+    }
+    return null;
+  }
+
   /// Real-time: debounce keystrokes, then run the search locally (no Enter,
   /// no per-keystroke navigation).
   void _onQueryChanged(String value) {
@@ -268,10 +285,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 padding: horizontalPad,
                 query: _activeQuery,
               )
-            else ...[
-              // PS-4: when an actor/director matched, surface a "Persone"
-              // section ABOVE the title grid — the operator's "l'attore
-              // come primo risultato, sotto i film". Up to 3 people.
+            else if (_personMatch != null) ...[
+              // PERSON MODE: the matched actor/director + their filmography,
+              // sorted by rating (backend), instead of generic title hits.
+              _PeopleSectionSliver(padding: horizontalPad, people: _people),
+              _PersonFilmographySliver(
+                person: _personMatch!,
+                padding: horizontalPad,
+              ),
+            ] else ...[
+              // TITLE MODE: people (if any) above, then the ranked title grid.
               if (_people.isNotEmpty)
                 _PeopleSectionSliver(
                   padding: horizontalPad,
@@ -984,5 +1007,49 @@ class _RelatedSliver extends ConsumerWidget {
       },
       orElse: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
     );
+  }
+}
+
+/// PERSON MODE filmography — the matched person's films & shows, sorted by
+/// rating on the backend. Covers-only grid under a "Film e serie" header.
+class _PersonFilmographySliver extends ConsumerWidget {
+  const _PersonFilmographySliver({required this.person, required this.padding});
+  final SearchPersonResult person;
+  final double padding;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(personCreditsProvider(person.tmdbId));
+    return SliverToBoxAdapter(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(padding, 8, padding, 0),
+        child: async.when(
+          data: (films) {
+            if (films.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: _FilmografiaHeader(),
+                ),
+                const SizedBox(height: 16),
+                _Grid(items: films),
+              ],
+            );
+          },
+          loading: () => const _SkeletonGrid(padding: 0, cells: 9),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+      ),
+    );
+  }
+}
+
+class _FilmografiaHeader extends StatelessWidget {
+  const _FilmografiaHeader();
+  @override
+  Widget build(BuildContext context) {
+    return Text('Film e serie', style: StreamloadTypography.v3SectionHeader());
   }
 }
