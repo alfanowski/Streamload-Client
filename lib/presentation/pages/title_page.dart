@@ -1,13 +1,15 @@
 // lib/presentation/pages/title_page.dart
 //
-// Title page — a full-screen, Netflix-style MODAL that slides up over the
-// app, dismissible by the ✕ button or by dragging it down (it pulls down and
-// reveals the page beneath, then pops). It reads like a standalone page, not
-// a popup. Content is rebuilt in the Home's premium style: a cinematic hero
-// (backdrop → black) with glass CTAs (Riproduci · La mia lista · share), then
-// Trama, Cast (avatars), Info, Episodi (TV) and Titoli simili.
+// Title page — a full-screen, Netflix-style MODAL that slides up over the app.
+// The hero behaves like the Home's: pulling DOWN at the top stretches/zooms it
+// (SliverAppBar stretch), and pulling past a threshold closes the panel. A
+// native Liquid Glass ✕ also closes it. It reads like a standalone page.
+//
+// Content (Home's premium style): a cinematic hero (official title logo or
+// big serif title + clean meta) with glass CTAs (Riproduci + La mia lista),
+// then Trama (expandable), Cast (bigger avatars), Info, Episodi (TV) and
+// Titoli simili.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -25,6 +27,7 @@ import '../widgets/cast/cast_card.dart';
 import '../widgets/cast/cast_row.dart';
 import '../widgets/hero/hero_backdrop.dart';
 import '../widgets/hero/hero_cta_button.dart';
+import '../widgets/primitives/glass_surface.dart';
 import '../widgets/title/episode_list.dart';
 import '../widgets/title/similar_titles_row.dart';
 
@@ -65,7 +68,7 @@ class TitlePage extends ConsumerWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Dismissible modal shell — drag down to pull the page off, or tap ✕.
+// Dismissible modal shell — pull the hero down past a threshold, or tap ✕.
 // ──────────────────────────────────────────────────────────────────────────
 
 class _TitleModal extends StatefulWidget {
@@ -77,11 +80,12 @@ class _TitleModal extends StatefulWidget {
 }
 
 class _TitleModalState extends State<_TitleModal> {
-  double _drag = 0; // how far the sheet is pulled down
-
-  static const double _dismissThreshold = 110;
+  bool _dismissing = false;
+  static const double _closeThreshold = 130;
 
   void _dismiss() {
+    if (_dismissing) return;
+    _dismissing = true;
     if (Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     } else {
@@ -90,19 +94,11 @@ class _TitleModalState extends State<_TitleModal> {
   }
 
   bool _onScroll(ScrollNotification n) {
-    if (n is OverscrollNotification && n.overscroll < 0) {
-      // Pulling down past the top of the content.
-      setState(() => _drag = (_drag - n.overscroll).clamp(0.0, 600.0));
-    } else if (n is ScrollUpdateNotification && _drag > 0) {
-      // Scrolling back up while pulled → ease the sheet back.
-      final delta = n.scrollDelta ?? 0;
-      if (delta > 0) setState(() => _drag = (_drag - delta).clamp(0.0, 600.0));
-    } else if (n is ScrollEndNotification) {
-      if (_drag > _dismissThreshold) {
-        _dismiss();
-      } else if (_drag != 0) {
-        setState(() => _drag = 0);
-      }
+    // Overscroll at the very top (pixels below the min extent) → the hero
+    // zooms via the SliverAppBar; pulling past the threshold closes the panel.
+    if (n is ScrollUpdateNotification || n is OverscrollNotification) {
+      final pull = n.metrics.minScrollExtent - n.metrics.pixels;
+      if (pull > _closeThreshold && !_dismissing) _dismiss();
     }
     return false;
   }
@@ -110,50 +106,33 @@ class _TitleModalState extends State<_TitleModal> {
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
-    // Behind-the-modal dim fades a touch as you drag it away.
-    final scrimOpacity = (1 - _drag / 400).clamp(0.0, 1.0);
     return Material(
       type: MaterialType.transparency,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: IgnorePointer(
-              child: ColoredBox(color: Colors.black54.withValues(alpha: 0.55 * scrimOpacity)),
-            ),
-          ),
-          AnimatedPadding(
-            duration: _drag == 0
-                ? const Duration(milliseconds: 240)
-                : Duration.zero,
-            curve: Curves.easeOutCubic,
-            padding: EdgeInsets.only(top: _drag),
-            child: ClipRRect(
-              borderRadius: BorderRadius.vertical(
-                top: Radius.circular(_drag > 0 ? 18 : 0),
-              ),
-              child: ColoredBox(
-                color: Colors.black,
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: _onScroll,
-                  child: widget.child,
-                ),
+      child: ColoredBox(
+        color: Colors.black,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _onScroll,
+                child: widget.child,
               ),
             ),
-          ),
-          // ✕ close button.
-          Positioned(
-            top: topPad + 8 + _drag,
-            right: 14,
-            child: _CloseButton(onTap: _dismiss),
-          ),
-        ],
+            // Native iOS Liquid Glass close button.
+            Positioned(
+              top: topPad + 8,
+              right: 14,
+              child: _GlassClose(onTap: _dismiss),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _CloseButton extends StatelessWidget {
-  const _CloseButton({required this.onTap});
+class _GlassClose extends StatelessWidget {
+  const _GlassClose({required this.onTap});
   final VoidCallback onTap;
 
   @override
@@ -161,35 +140,28 @@ class _CloseButton extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.45),
-          shape: BoxShape.circle,
-          border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
+      child: const GlassSurface(
+        capsule: true,
+        borderRadius: 19,
+        blur: 14,
+        thickness: 14,
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Icon(Icons.close_rounded, color: Colors.white, size: 22),
         ),
-        child: const Icon(Icons.close_rounded, color: Colors.white, size: 22),
       ),
     );
   }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Content
+// Content — CustomScrollView with a stretchy SliverAppBar hero.
 // ──────────────────────────────────────────────────────────────────────────
 
 class _TitleContent extends StatelessWidget {
   const _TitleContent({required this.item});
   final CatalogItemResponse item;
-
-  void _onShare(BuildContext context) {
-    final url = 'streamload://title/${item.tmdbId}?media_type=${item.mediaType}';
-    Clipboard.setData(ClipboardData(text: url));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Link copiato negli appunti')),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -197,50 +169,116 @@ class _TitleContent extends StatelessWidget {
     final pad = isPhone
         ? StreamloadSpacing.pagePaddingPhone
         : StreamloadSpacing.pagePaddingDesktop;
-    final heroHeight = MediaQuery.sizeOf(context).height * (isPhone ? 0.62 : 0.7);
+    final heroHeight = MediaQuery.sizeOf(context).height * (isPhone ? 0.6 : 0.7);
 
-    return ListView(
-      padding: EdgeInsets.zero,
+    return CustomScrollView(
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
-      children: [
-        SizedBox(
-          height: heroHeight,
-          child: _TitleHeroSection(item: item, onShare: () => _onShare(context)),
-        ),
-        const SizedBox(height: 8),
-        // Trama
-        if ((item.overview ?? '').isNotEmpty)
-          Padding(
-            padding: pad,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Trama', style: StreamloadTypography.v3SectionHeader()),
-                const SizedBox(height: 12),
-                Text(
-                  item.overview!,
-                  style: StreamloadTypography.v3Body(fontSize: 16)
-                      .copyWith(height: 1.6),
-                ),
-              ],
-            ),
+      slivers: [
+        SliverAppBar(
+          expandedHeight: heroHeight,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          toolbarHeight: 0,
+          collapsedHeight: 0,
+          pinned: false,
+          floating: false,
+          stretch: true,
+          stretchTriggerOffset: 40,
+          automaticallyImplyLeading: false,
+          flexibleSpace: FlexibleSpaceBar(
+            stretchModes: const [StretchMode.zoomBackground],
+            background: _TitleHeroSection(item: item),
           ),
-        const SizedBox(height: 28),
-        _CastSection(item: item),
-        const SizedBox(height: 28),
-        Padding(
-          padding: pad,
-          child: _InfoBlock(item: item),
         ),
-        if (item.mediaType == 'tv') ...[
-          const SizedBox(height: 28),
-          Padding(padding: pad, child: EpisodeList(tmdbId: item.tmdbId)),
-        ],
-        const SizedBox(height: 32),
-        SimilarTitlesRow(tmdbId: item.tmdbId, mediaType: item.mediaType),
-        const SizedBox(height: 48),
+        SliverList(
+          delegate: SliverChildListDelegate([
+            const SizedBox(height: 8),
+            if ((item.overview ?? '').isNotEmpty)
+              Padding(
+                padding: pad,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _SectionHeader('Trama'),
+                    const SizedBox(height: 12),
+                    _ExpandableText(item.overview!),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 30),
+            _CastSection(item: item),
+            const SizedBox(height: 30),
+            Padding(padding: pad, child: _InfoBlock(item: item)),
+            if (item.mediaType == 'tv') ...[
+              const SizedBox(height: 30),
+              Padding(padding: pad, child: EpisodeList(tmdbId: item.tmdbId)),
+            ],
+            const SizedBox(height: 34),
+            SimilarTitlesRow(tmdbId: item.tmdbId, mediaType: item.mediaType),
+            const SizedBox(height: 56),
+          ]),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Shared bits ──────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.text);
+  final String text;
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: StreamloadTypography.display(fontSize: 22, italic: false)
+          .copyWith(color: StreamloadColors.v3TextPrimary),
+    );
+  }
+}
+
+class _ExpandableText extends StatefulWidget {
+  const _ExpandableText(this.text);
+  final String text;
+  @override
+  State<_ExpandableText> createState() => _ExpandableTextState();
+}
+
+class _ExpandableTextState extends State<_ExpandableText> {
+  bool _expanded = false;
+  @override
+  Widget build(BuildContext context) {
+    final style =
+        StreamloadTypography.v3Body(fontSize: 16).copyWith(height: 1.6);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: Text(
+            widget.text,
+            style: style,
+            maxLines: _expanded ? null : 5,
+            overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(height: 6),
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          behavior: HitTestBehavior.opaque,
+          child: Text(
+            _expanded ? 'Riduci' : 'Altro',
+            style: StreamloadTypography.v3Body(
+              fontSize: 14,
+              color: StreamloadColors.v3TextSecondary,
+            ).copyWith(fontWeight: FontWeight.w600),
+          ),
+        ),
       ],
     );
   }
@@ -248,17 +286,48 @@ class _TitleContent extends StatelessWidget {
 
 // ── Hero ───────────────────────────────────────────────────────────────────
 
-class _TitleHeroSection extends StatelessWidget {
-  const _TitleHeroSection({required this.item, required this.onShare});
+class _TitleHeroSection extends ConsumerWidget {
+  const _TitleHeroSection({required this.item});
   final CatalogItemResponse item;
-  final VoidCallback onShare;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isPhone = Responsive.isPhone(context);
     final isTablet = Responsive.isTablet(context);
-    final titleSize = isPhone ? 36.0 : (isTablet ? 46.0 : 56.0);
     final hPad = isPhone ? 16.0 : 64.0;
+    final logoUrl = ref
+        .watch(titleLogoProvider(
+          TmdbKey(tmdbId: item.tmdbId, mediaType: item.mediaType),
+        ))
+        .maybeWhen(data: (u) => u, orElse: () => null);
+
+    final titleSize = isPhone ? 40.0 : (isTablet ? 52.0 : 64.0);
+    // TMDB logos vary wildly in aspect ratio. Keep the HEIGHT modest so most
+    // are height-bound (→ render at the same height = consistent), and cap the
+    // WIDTH so a wide one can't blow out. Same discipline as the Home hero.
+    final logoMaxH = isPhone ? 54.0 : (isTablet ? 70.0 : 86.0);
+    final logoMaxW = isPhone ? 280.0 : (isTablet ? 400.0 : 500.0);
+
+    final Widget titleVisual = (logoUrl != null && logoUrl.isNotEmpty)
+        ? LayoutBuilder(
+            builder: (context, c) {
+              final boxW = (c.maxWidth.isFinite ? c.maxWidth : logoMaxW)
+                  .clamp(0.0, logoMaxW);
+              return SizedBox(
+                width: boxW,
+                height: logoMaxH,
+                child: Image.network(
+                  logoUrl,
+                  fit: BoxFit.contain,
+                  alignment: isPhone
+                      ? Alignment.bottomCenter
+                      : Alignment.bottomLeft,
+                  errorBuilder: (_, __, ___) => _titleText(titleSize, isPhone),
+                ),
+              );
+            },
+          )
+        : _titleText(titleSize, isPhone);
 
     return Stack(
       fit: StackFit.expand,
@@ -271,30 +340,18 @@ class _TitleHeroSection extends StatelessWidget {
               alignment:
                   isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
               child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: isPhone ? 520 : 760),
+                constraints: BoxConstraints(maxWidth: isPhone ? 540 : 780),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: isPhone
                       ? CrossAxisAlignment.center
                       : CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      item.title,
-                      textAlign: isPhone ? TextAlign.center : TextAlign.start,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: StreamloadTypography.v3DisplayHero()
-                          .copyWith(fontSize: titleSize),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      _metaLine(item),
-                      textAlign: isPhone ? TextAlign.center : TextAlign.start,
-                      style: StreamloadTypography.v3MetaMono()
-                          .copyWith(fontSize: 12),
-                    ),
-                    const SizedBox(height: 24),
-                    _HeroCtas(item: item, onShare: onShare, isPhone: isPhone),
+                    titleVisual,
+                    const SizedBox(height: 14),
+                    _MetaLine(item: item, isPhone: isPhone),
+                    const SizedBox(height: 22),
+                    _HeroCtas(item: item, isPhone: isPhone),
                   ],
                 ),
               ),
@@ -305,29 +362,100 @@ class _TitleHeroSection extends StatelessWidget {
     );
   }
 
-  static String _metaLine(CatalogItemResponse item) {
-    final parts = <String>[item.mediaType == 'tv' ? 'Serie TV' : 'Film'];
-    if (item.year != null) parts.add('${item.year}');
+  Widget _titleText(double size, bool isPhone) {
+    return Text(
+      item.title,
+      textAlign: isPhone ? TextAlign.center : TextAlign.start,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
+      style: StreamloadTypography.v3DisplayHero().copyWith(fontSize: size),
+    );
+  }
+}
+
+/// Clean meta line: a rating badge + dot-separated facts, in body type (no
+/// mono). Reads as editorial metadata, not code.
+class _MetaLine extends StatelessWidget {
+  const _MetaLine({required this.item, required this.isPhone});
+  final CatalogItemResponse item;
+  final bool isPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    final facts = <String>[item.mediaType == 'tv' ? 'Serie TV' : 'Film'];
+    if (item.year != null) facts.add('${item.year}');
     if (item.mediaType == 'tv' && item.seasonsCount != null) {
-      parts.add(item.seasonsCount == 1
+      facts.add(item.seasonsCount == 1
           ? '1 stagione'
           : '${item.seasonsCount} stagioni');
     } else if (item.mediaType == 'movie' && item.runtimeMinutes != null) {
-      parts.add('${item.runtimeMinutes} min');
+      facts.add(_fmtRuntime(item.runtimeMinutes!));
     }
-    if (item.rating != null) parts.add('⭐ ${item.rating!.toStringAsFixed(1)}');
-    return parts.join(' · ');
+
+    final style = StreamloadTypography.v3Body(
+      fontSize: 13,
+      color: StreamloadColors.v3TextSecondary,
+    ).copyWith(fontWeight: FontWeight.w500);
+
+    return Wrap(
+      alignment: isPhone ? WrapAlignment.center : WrapAlignment.start,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
+      children: [
+        if (item.rating != null) _RatingBadge(rating: item.rating!),
+        for (var i = 0; i < facts.length; i++) ...[
+          if (i > 0 || item.rating != null)
+            Text('·', style: style.copyWith(
+              color: StreamloadColors.v3TextMuted,
+            )),
+          Text(facts[i], style: style),
+        ],
+      ],
+    );
+  }
+
+  static String _fmtRuntime(int min) {
+    final h = min ~/ 60;
+    final m = min % 60;
+    if (h == 0) return '${m}min';
+    return m == 0 ? '${h}h' : '${h}h ${m}min';
+  }
+}
+
+class _RatingBadge extends StatelessWidget {
+  const _RatingBadge({required this.rating});
+  final double rating;
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: StreamloadColors.accent.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.star_rounded,
+              color: StreamloadColors.accent, size: 14),
+          const SizedBox(width: 3),
+          Text(
+            rating.toStringAsFixed(1),
+            style: StreamloadTypography.v3Body(
+              fontSize: 12.5,
+              color: StreamloadColors.accent,
+            ).copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
   }
 }
 
 class _HeroCtas extends ConsumerWidget {
-  const _HeroCtas({
-    required this.item,
-    required this.onShare,
-    required this.isPhone,
-  });
+  const _HeroCtas({required this.item, required this.isPhone});
   final CatalogItemResponse item;
-  final VoidCallback onShare;
   final bool isPhone;
 
   @override
@@ -371,12 +499,8 @@ class _HeroCtas extends ConsumerWidget {
       context.go('/watch/${item.tmdbId}?$q');
     }
 
-    final playLabel = resume != null
-        ? 'Riprendi'
-        : (item.mediaType == 'tv' ? 'Riproduci' : 'Riproduci');
-
     final play = HeroCtaButton.primary(
-      label: canPlay ? playLabel : 'Non disponibile',
+      label: canPlay ? (resume != null ? 'Riprendi' : 'Riproduci') : 'Non disponibile',
       icon: Icons.play_arrow_rounded,
       onTap: canPlay ? goToWatch : null,
     );
@@ -386,46 +510,20 @@ class _HeroCtas extends ConsumerWidget {
       active: isFav,
       onTap: () => ref.read(favoritesProvider.notifier).toggle(key),
     );
-    final share = _ShareCircle(onTap: onShare);
 
     return LayoutBuilder(
       builder: (context, c) {
-        final w = ((c.maxWidth - 10 - 48) / 2).clamp(0.0, 180.0);
+        final w = ((c.maxWidth - 12) / 2).clamp(0.0, 190.0);
         return Row(
           mainAxisAlignment:
               isPhone ? MainAxisAlignment.center : MainAxisAlignment.start,
           children: [
             SizedBox(width: w, child: play),
-            const SizedBox(width: 10),
+            const SizedBox(width: 12),
             SizedBox(width: w, child: add),
-            const SizedBox(width: 10),
-            share,
           ],
         );
       },
-    );
-  }
-}
-
-class _ShareCircle extends StatelessWidget {
-  const _ShareCircle({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withValues(alpha: 0.12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
-        ),
-        child: const Icon(Icons.ios_share_rounded, color: Colors.white, size: 20),
-      ),
     );
   }
 }
@@ -438,14 +536,15 @@ class _InfoBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (item.genres.isEmpty && item.originalTitle == null) {
-      return const SizedBox.shrink();
-    }
+    final hasOriginal = item.originalTitle != null &&
+        item.originalTitle!.isNotEmpty &&
+        item.originalTitle != item.title;
+    if (item.genres.isEmpty && !hasOriginal) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Info', style: StreamloadTypography.v3SectionHeader()),
-        const SizedBox(height: 14),
+        const _SectionHeader('Info'),
+        const SizedBox(height: 16),
         if (item.genres.isNotEmpty)
           Wrap(
             spacing: 8,
@@ -454,30 +553,31 @@ class _InfoBlock extends StatelessWidget {
               for (final g in item.genres)
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: StreamloadColors.v3SurfaceGlass,
                     borderRadius: BorderRadius.circular(999),
-                    border:
-                        Border.all(color: StreamloadColors.v3BorderGlass),
+                    border: Border.all(color: StreamloadColors.v3BorderGlass),
                   ),
-                  child: Text(
-                    g,
-                    style: StreamloadTypography.v3Body(fontSize: 13),
-                  ),
+                  child: Text(g,
+                      style: StreamloadTypography.v3Body(fontSize: 13)),
                 ),
             ],
           ),
-        if (item.originalTitle != null &&
-            item.originalTitle!.isNotEmpty &&
-            item.originalTitle != item.title) ...[
-          const SizedBox(height: 14),
+        if (hasOriginal) ...[
+          const SizedBox(height: 16),
           Text(
-            'Titolo originale: ${item.originalTitle}',
-            style: StreamloadTypography.v3MetaMono(
-              fontSize: 12,
+            'Titolo originale',
+            style: StreamloadTypography.v3Body(
+              fontSize: 12.5,
               color: StreamloadColors.v3TextMuted,
             ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            item.originalTitle!,
+            style: StreamloadTypography.v3Body(fontSize: 15)
+                .copyWith(fontWeight: FontWeight.w500),
           ),
         ],
       ],

@@ -36,11 +36,13 @@ class CastCard extends StatelessWidget {
 
   final CastCardData data;
 
-  static const double _radiusDesktop = 36;
-  static const double _radiusTabletPhone = 28;
-  static const double _widthDesktop = 96;
-  static const double _widthTablet = 84;
-  static const double _widthPhone = 76;
+  // Bigger, cleaner cast cards — generous circular avatars with a crisp
+  // name + role beneath.
+  static const double _radiusDesktop = 52;
+  static const double _radiusTabletPhone = 44;
+  static const double _widthDesktop = 116;
+  static const double _widthTablet = 104;
+  static const double _widthPhone = 96;
 
   @override
   Widget build(BuildContext context) {
@@ -66,27 +68,27 @@ class CastCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _Avatar(radius: radius, profileUrl: data.profileUrl),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Text(
                 data.name,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
-                style: StreamloadTypography.display(
+                style: StreamloadTypography.v3Body(
                   fontSize: 14,
-                  italic: true,
-                ),
+                  color: StreamloadColors.v3TextPrimary,
+                ).copyWith(fontWeight: FontWeight.w600, height: 1.2),
               ),
               if (data.character != null && data.character!.isNotEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.only(top: 3),
                   child: Text(
                     data.character!,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.center,
-                    style: StreamloadTypography.v3MetaMono(
-                      fontSize: 10,
+                    style: StreamloadTypography.v3Body(
+                      fontSize: 12,
                       color: StreamloadColors.v3TextMuted,
                     ),
                   ),

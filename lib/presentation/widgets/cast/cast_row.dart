@@ -73,13 +73,13 @@ class CastRow extends StatelessWidget {
   }
 
   double _avatarRadius(BuildContext context) =>
-      Responsive.isDesktop(context) ? 36 : 28;
+      Responsive.isDesktop(context) ? 52 : 44;
 
   double _rowHeight(BuildContext context) {
     // Avatar diameter + ~52px for name (2 lines @ ~16px line-height) +
     // character (1 line @ 12px) + the 10px gap above the name. Leaves a
     // few px of headroom for the press scale animation.
-    return _avatarRadius(context) * 2 + 64;
+    return _avatarRadius(context) * 2 + 74;
   }
 }
 

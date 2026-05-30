@@ -161,6 +161,18 @@ final creditsProvider = FutureProvider.autoDispose
   }
 });
 
+/// Official TMDB title logo (transparent PNG wordmark) for a single title —
+/// the title page hero shows it instead of typeset text, like the Home hero.
+final titleLogoProvider = FutureProvider.autoDispose
+    .family<String?, TmdbKey>((ref, key) async {
+  final api = await ref.watch(catalogApiProvider.future);
+  try {
+    return await api.logo(key.tmdbId, mediaType: key.mediaType);
+  } catch (_) {
+    return null;
+  }
+});
+
 // ──────────────────────────────────────────────────────────────────────────
 // Aggregations used by Home for compound rows.
 // ──────────────────────────────────────────────────────────────────────────

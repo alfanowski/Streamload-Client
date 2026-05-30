@@ -18,10 +18,18 @@
 // editorial pivot wants the search input to read like a magazine
 // search field, not an iOS spotlight.
 //
+// iOS26 (2026-05-30): operator wanted the phone search to feel native to
+// iOS 26. The input is now a true "Liquid Glass" pill (full radius +
+// BackdropFilter blur + translucent fill), the "Streamload" wordmark is
+// replaced by an in-scroll large "Cerca" title (App Store / Settings
+// style), and the vertical rhythm was retuned — more air under the bar,
+// section headers pulled tight onto their grids.
+//
 // The URL is still the source of truth for the query (?q=<query>),
 // the input mirrors it on mount, and submitting writes back via
 // context.go so results stay shareable and survive back nav.
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -180,7 +188,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   static const Set<String> _nameSuffixes = {
-    'jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv'
+    'jr',
+    'jr.',
+    'sr',
+    'sr.',
+    'ii',
+    'iii',
+    'iv'
   };
 
   /// User-proof person detection. If the query contains a matched person's
@@ -193,8 +207,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   ({SearchPersonResult person, List<String> leftover})? _personQuery() {
     final q = _activeQuery.toLowerCase().trim();
     if (q.isEmpty || _people.isEmpty) return null;
-    final qTokens =
-        q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toSet();
+    final qTokens = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toSet();
     for (final p in _people) {
       final nameTokens = p.name
           .toLowerCase()
@@ -205,8 +218,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       // First + last name both present → it's this person.
       if (qTokens.contains(nameTokens.first) &&
           qTokens.contains(nameTokens.last)) {
-        final leftover =
-            qTokens.where((t) => !nameTokens.contains(t)).toList();
+        final leftover = qTokens.where((t) => !nameTokens.contains(t)).toList();
         return (person: p, leftover: leftover);
       }
     }
@@ -257,9 +269,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     final horizontalPad = isPhone ? 12.0 : 24.0;
     final personQuery = _personQuery();
     final safeTop = MediaQuery.of(context).padding.top;
-    // Phone: room for the "Streamload" wordmark line above the (in-scroll,
-    // NOT pinned) search bar. Desktop: just clear the floating TopNavBar.
-    final topSpace = isPhone ? safeTop + 44.0 : 72.0;
+    // Phone: clear the status bar, then an in-scroll "Cerca" large title sits
+    // above the (NOT pinned) search bar — iOS App Store / Settings style.
+    // Desktop: just clear the floating TopNavBar.
+    final topSpace = isPhone ? safeTop + 8.0 : 72.0;
     final maxWidth = isPhone ? double.infinity : 820.0;
 
     return Material(
@@ -273,11 +286,24 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 controller: _scrollController,
                 slivers: [
                   SliverToBoxAdapter(child: SizedBox(height: topSpace)),
+                  // iOS large title — scrolls with the content (phone only;
+                  // desktop has the TopNavBar wordmark instead).
+                  if (isPhone)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                            horizontalPad + 4, 0, horizontalPad + 4, 14),
+                        child: Text(
+                          'Cerca',
+                          style: StreamloadTypography.v3DisplayPage(),
+                        ),
+                      ),
+                    ),
                   // Search bar scrolls away with the content (not pinned).
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding:
-                          EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, 8),
+                      padding: EdgeInsets.fromLTRB(
+                          horizontalPad, 0, horizontalPad, 16),
                       child: _MaxWidth(
                         maxWidth: maxWidth,
                         child: _GlassSearchBar(
@@ -290,97 +316,79 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                     ),
                   ),
                   // Body branches: empty → "Suggeriti" grid;
-            // otherwise loading/error/no-results/grid.
-            if (_activeQuery.isEmpty)
-              _TopSearchesSection(padding: horizontalPad)
-            else if (_loading && _items.isEmpty)
-              _SkeletonGridSliver(padding: horizontalPad)
-            else if (_error != null && _items.isEmpty)
-              _ErrorSliver(
-                padding: horizontalPad,
-                onRetry: _runFirstPage,
-              )
-            else if (_items.isEmpty && _people.isEmpty)
-              _NoResultsSliver(
-                padding: horizontalPad,
-                query: _activeQuery,
-              )
-            else if (personQuery != null) ...[
-              // PERSON / COMBINED MODE: the matched actor + their filmography
-              // (sorted by rating), optionally filtered by the leftover words
-              // for "title + actor" queries.
-              _PeopleSectionSliver(
-                padding: horizontalPad,
-                people: [personQuery.person],
-              ),
-              _PersonFilmographySliver(
-                person: personQuery.person,
-                filterTokens: personQuery.leftover,
-                padding: horizontalPad,
-              ),
-            ] else ...[
-              // TITLE MODE: people (if any) above, then the ranked title grid
-              // capped to the top [_maxTitles] (no grocery list).
-              if (_people.isNotEmpty)
-                _PeopleSectionSliver(
-                  padding: horizontalPad,
-                  people: _people,
-                ),
-              if (_items.isNotEmpty) ...[
-                if (_people.isNotEmpty)
-                  _SectionHeaderSliver(
-                    padding: horizontalPad,
-                    label: 'Titoli',
-                  ),
-                _ResultsGridSliver(
-                  padding: horizontalPad,
-                  items: _items.take(_maxTitles).toList(growable: false),
-                ),
-                // Netflix-style: a "similar titles" row under the matches,
-                // seeded from the top result's recommendations.
-                if (_exhausted)
-                  _RelatedSliver(
-                    seed: _items.first,
-                    excludeIds: {for (final m in _items) m.tmdbId},
-                  ),
-              ],
-            ],
-            // Footer: trailing spinner during incremental fetches.
-            if (_loading && _items.isNotEmpty)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Center(
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                  // otherwise loading/error/no-results/grid.
+                  if (_activeQuery.isEmpty)
+                    _TopSearchesSection(padding: horizontalPad)
+                  else if (_loading && _items.isEmpty)
+                    _SkeletonGridSliver(padding: horizontalPad)
+                  else if (_error != null && _items.isEmpty)
+                    _ErrorSliver(
+                      padding: horizontalPad,
+                      onRetry: _runFirstPage,
+                    )
+                  else if (_items.isEmpty && _people.isEmpty)
+                    _NoResultsSliver(
+                      padding: horizontalPad,
+                      query: _activeQuery,
+                    )
+                  else if (personQuery != null) ...[
+                    // PERSON / COMBINED MODE: the matched actor + their filmography
+                    // (sorted by rating), optionally filtered by the leftover words
+                    // for "title + actor" queries.
+                    _PeopleSectionSliver(
+                      padding: horizontalPad,
+                      people: [personQuery.person],
                     ),
-                  ),
-                ),
-              ),
-            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                    _PersonFilmographySliver(
+                      person: personQuery.person,
+                      filterTokens: personQuery.leftover,
+                      padding: horizontalPad,
+                    ),
+                  ] else ...[
+                    // TITLE MODE: people (if any) above, then the ranked title grid
+                    // capped to the top [_maxTitles] (no grocery list).
+                    if (_people.isNotEmpty)
+                      _PeopleSectionSliver(
+                        padding: horizontalPad,
+                        people: _people,
+                      ),
+                    if (_items.isNotEmpty) ...[
+                      if (_people.isNotEmpty)
+                        _SectionHeaderSliver(
+                          padding: horizontalPad,
+                          label: 'Titoli',
+                        ),
+                      _ResultsGridSliver(
+                        padding: horizontalPad,
+                        items: _items.take(_maxTitles).toList(growable: false),
+                      ),
+                      // Netflix-style: a "similar titles" row under the matches,
+                      // seeded from the top result's recommendations.
+                      if (_exhausted)
+                        _RelatedSliver(
+                          seed: _items.first,
+                          excludeIds: {for (final m in _items) m.tmdbId},
+                        ),
+                    ],
+                  ],
+                  // Footer: trailing spinner during incremental fetches.
+                  if (_loading && _items.isNotEmpty)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 1.5),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 80)),
                 ],
               ),
             ),
-            // "Streamload" wordmark top-left (phone), fading on scroll — same
-            // as Home. Sits above the content; the bar scrolls under it.
-            if (isPhone)
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                child: SafeArea(
-                  bottom: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _SearchWordmark(controller: _scrollController),
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
@@ -388,43 +396,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 }
 
-/// "Streamload" wordmark — same look + fade-on-scroll as Home's.
-class _SearchWordmark extends StatelessWidget {
-  const _SearchWordmark({required this.controller});
-  final ScrollController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: controller,
-      builder: (context, _) {
-        final offset = controller.hasClients ? controller.offset : 0.0;
-        final opacity = (1 - (offset / 90)).clamp(0.0, 1.0);
-        return IgnorePointer(
-          ignoring: opacity < 0.05,
-          child: Opacity(
-            opacity: opacity,
-            child: Text(
-              'Streamload',
-              style: StreamloadTypography.display(fontSize: 22, italic: true)
-                  .copyWith(
-                letterSpacing: -0.3,
-                color: StreamloadColors.v3TextPrimary,
-                shadows: const [
-                  Shadow(color: Colors.black54, blurRadius: 12),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
 // ──────────────────────────────────────────────────────────────────────────
-// Search field — clean, flat, editorial. A subtle neutral fill + a hairline
-// rim, no heavy glass: crisp and consistent with the (de-creamed) Home theme.
+// Search field — iOS 26 "Liquid Glass" capsule. A fully-rounded pill with a
+// live backdrop blur behind a translucent fill + hairline rim, so content
+// blurs through the bar as it scrolls under.
 // ──────────────────────────────────────────────────────────────────────────
 
 class _GlassSearchBar extends StatelessWidget {
@@ -440,71 +415,80 @@ class _GlassSearchBar extends StatelessWidget {
   final ValueChanged<String> onSubmitted;
   final VoidCallback onClear;
 
+  static const double _height = 52;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 52,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: StreamloadColors.v3SurfaceGlass,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: StreamloadColors.v3BorderGlass, width: 1),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.search,
-            color: StreamloadColors.v3TextSecondary,
-            size: 22,
+    return ClipRRect(
+      // Full pill: radius = height / 2.
+      borderRadius: BorderRadius.circular(_height / 2),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+          height: _height,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          decoration: BoxDecoration(
+            color: StreamloadColors.v3SurfaceGlass,
+            borderRadius: BorderRadius.circular(_height / 2),
+            border: Border.all(color: StreamloadColors.v3BorderGlass, width: 1),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              autofocus: true,
-              cursorColor: StreamloadColors.v3TextPrimary,
-              cursorWidth: 1.5,
-              textInputAction: TextInputAction.search,
-              onChanged: onChanged,
-              onSubmitted: onSubmitted,
-              style: const TextStyle(
-                color: StreamloadColors.v3TextPrimary,
-                fontSize: 17,
-                fontWeight: FontWeight.w500,
+          child: Row(
+            children: [
+              Icon(
+                Icons.search,
+                color: StreamloadColors.v3TextSecondary,
+                size: 22,
               ),
-              decoration: InputDecoration(
-                hintText: 'Film, serie TV, attori e altro…',
-                hintStyle: TextStyle(
-                  color: StreamloadColors.v3TextMuted,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w400,
-                ),
-                border: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                isCollapsed: true,
-              ),
-            ),
-          ),
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
-            builder: (context, value, _) {
-              if (value.text.isEmpty) return const SizedBox.shrink();
-              return GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onClear,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 8),
-                  child: Icon(
-                    Icons.close_rounded,
-                    color: StreamloadColors.v3TextSecondary,
-                    size: 20,
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  cursorColor: StreamloadColors.v3TextPrimary,
+                  cursorWidth: 1.5,
+                  textInputAction: TextInputAction.search,
+                  onChanged: onChanged,
+                  onSubmitted: onSubmitted,
+                  style: const TextStyle(
+                    color: StreamloadColors.v3TextPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Film, serie TV, attori e altro…',
+                    hintStyle: TextStyle(
+                      color: StreamloadColors.v3TextMuted,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w400,
+                    ),
+                    border: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    isCollapsed: true,
                   ),
                 ),
-              );
-            },
+              ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller,
+                builder: (context, value, _) {
+                  if (value.text.isEmpty) return const SizedBox.shrink();
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onClear,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Icon(
+                        Icons.close_rounded,
+                        color: StreamloadColors.v3TextSecondary,
+                        size: 20,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -544,12 +528,12 @@ class _TopSearchesSection extends ConsumerWidget {
     final async = ref.watch(trendingDayProvider);
     return SliverToBoxAdapter(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(padding, 12, padding, 24),
+        padding: EdgeInsets.fromLTRB(padding, 20, padding, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // A single clean "Suggeriti" header, same editorial style as the
-            // Home row headers.
+            // Home row headers — sits tight above its poster grid.
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Text(
@@ -557,7 +541,7 @@ class _TopSearchesSection extends ConsumerWidget {
                 style: StreamloadTypography.v3SectionHeader(),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             async.when(
               loading: () => const _SkeletonGrid(padding: 0, cells: 12),
               error: (_, __) => Text(
@@ -951,7 +935,7 @@ class _SectionHeaderSliver extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverPadding(
-      padding: EdgeInsets.fromLTRB(padding + 4, 12, padding + 4, 8),
+      padding: EdgeInsets.fromLTRB(padding + 4, 20, padding + 4, 6),
       sliver: SliverToBoxAdapter(
         child: Text(
           label,
