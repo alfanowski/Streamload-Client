@@ -159,16 +159,12 @@ class _HeroCarouselState extends State<HeroCarousel>
 
   void _startTimer() {
     if (widget.slides.length < 2) return;
-    _autoTimer = Timer.periodic(StreamloadMotion.heroRotateInterval, (_) {
+    // No auto-advance — the hero only changes on a manual swipe / arrows.
+    // A light tick just recovers any stuck partial state (a lost drag), it
+    // never scrolls on its own.
+    _autoTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (!mounted || _dragging || _snap.isAnimating) return;
-      // Safety: if a drag was lost without settling, recover to a clean state
-      // instead of staying stuck mid-transition.
-      if (_v.value.abs() > 0.01) {
-        _settle(0);
-        return;
-      }
-      if (_paused) return;
-      _settle(-1); // crossfade to the next slide
+      if (_v.value.abs() > 0.01) _settle(0);
     });
   }
 
