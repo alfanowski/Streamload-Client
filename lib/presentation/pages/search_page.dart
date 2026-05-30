@@ -55,10 +55,11 @@ class SearchPage extends ConsumerStatefulWidget {
 }
 
 class _SearchPageState extends ConsumerState<SearchPage> {
-  // Netflix-style: a tight, relevant result set rather than an endless tail
-  // of obscure matches. 2 pages × 20 = 40 max, with the backend ranking the
-  // best matches first.
-  static const int _maxPages = 2;
+  // Netflix-style: a tight, relevant set, not a grocery list. One TMDB page
+  // (ranked best-first by the backend); the grid shows only the top
+  // [_maxTitles].
+  static const int _maxPages = 1;
+  static const int _maxTitles = 14;
 
   late final TextEditingController _controller;
   late final ScrollController _scrollController;
@@ -178,18 +179,36 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
-  /// If the query is clearly a PERSON's name (a full name whose words all
-  /// appear in a matched person, or an exact name), return that person so the
-  /// page can show their filmography by rating instead of generic title hits
-  /// (e.g. "angelina jolie" → the actress + her films, not documentaries).
-  SearchPersonResult? get _personMatch {
+  static const Set<String> _nameSuffixes = {
+    'jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv'
+  };
+
+  /// User-proof person detection. If the query contains a matched person's
+  /// first AND last name, treat it as a person search and return that person
+  /// plus any LEFTOVER words (the title part). Examples:
+  ///   "angelina jolie"            → (Angelina Jolie, leftover: [])
+  ///   "iron man robert downey"    → (Robert Downey Jr., leftover: [iron, man])
+  /// Empty leftover → show the whole filmography (by rating); non-empty →
+  /// filter the filmography to those words (title + actor combined).
+  ({SearchPersonResult person, List<String> leftover})? _personQuery() {
     final q = _activeQuery.toLowerCase().trim();
     if (q.isEmpty || _people.isEmpty) return null;
-    final tokens = q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    final qTokens =
+        q.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toSet();
     for (final p in _people) {
-      final name = p.name.toLowerCase();
-      if (name == q) return p;
-      if (tokens.length >= 2 && tokens.every(name.contains)) return p;
+      final nameTokens = p.name
+          .toLowerCase()
+          .split(RegExp(r'\s+'))
+          .where((t) => t.isNotEmpty && !_nameSuffixes.contains(t))
+          .toList();
+      if (nameTokens.isEmpty) continue;
+      // First + last name both present → it's this person.
+      if (qTokens.contains(nameTokens.first) &&
+          qTokens.contains(nameTokens.last)) {
+        final leftover =
+            qTokens.where((t) => !nameTokens.contains(t)).toList();
+        return (person: p, leftover: leftover);
+      }
     }
     return null;
   }
@@ -236,6 +255,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
     final horizontalPad = isPhone ? 12.0 : 24.0;
+    final personQuery = _personQuery();
     final safeTop = MediaQuery.of(context).padding.top;
     // Phone: room for the "Streamload" wordmark line above the (in-scroll,
     // NOT pinned) search bar. Desktop: just clear the floating TopNavBar.
@@ -285,16 +305,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 padding: horizontalPad,
                 query: _activeQuery,
               )
-            else if (_personMatch != null) ...[
-              // PERSON MODE: the matched actor/director + their filmography,
-              // sorted by rating (backend), instead of generic title hits.
-              _PeopleSectionSliver(padding: horizontalPad, people: _people),
+            else if (personQuery != null) ...[
+              // PERSON / COMBINED MODE: the matched actor + their filmography
+              // (sorted by rating), optionally filtered by the leftover words
+              // for "title + actor" queries.
+              _PeopleSectionSliver(
+                padding: horizontalPad,
+                people: [personQuery.person],
+              ),
               _PersonFilmographySliver(
-                person: _personMatch!,
+                person: personQuery.person,
+                filterTokens: personQuery.leftover,
                 padding: horizontalPad,
               ),
             ] else ...[
-              // TITLE MODE: people (if any) above, then the ranked title grid.
+              // TITLE MODE: people (if any) above, then the ranked title grid
+              // capped to the top [_maxTitles] (no grocery list).
               if (_people.isNotEmpty)
                 _PeopleSectionSliver(
                   padding: horizontalPad,
@@ -308,7 +334,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   ),
                 _ResultsGridSliver(
                   padding: horizontalPad,
-                  items: _items,
+                  items: _items.take(_maxTitles).toList(growable: false),
                 ),
                 // Netflix-style: a "similar titles" row under the matches,
                 // seeded from the top result's recommendations.
@@ -1013,9 +1039,20 @@ class _RelatedSliver extends ConsumerWidget {
 /// PERSON MODE filmography — the matched person's films & shows, sorted by
 /// rating on the backend. Covers-only grid under a "Film e serie" header.
 class _PersonFilmographySliver extends ConsumerWidget {
-  const _PersonFilmographySliver({required this.person, required this.padding});
+  const _PersonFilmographySliver({
+    required this.person,
+    required this.padding,
+    this.filterTokens = const <String>[],
+  });
   final SearchPersonResult person;
   final double padding;
+
+  /// Leftover query words for a "title + actor" search — when present, the
+  /// filmography is filtered to titles matching them (e.g. "iron man" under
+  /// Robert Downey Jr.).
+  final List<String> filterTokens;
+
+  static const int _maxFilms = 18;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1025,16 +1062,34 @@ class _PersonFilmographySliver extends ConsumerWidget {
         padding: EdgeInsets.fromLTRB(padding, 8, padding, 0),
         child: async.when(
           data: (films) {
-            if (films.isEmpty) return const SizedBox.shrink();
+            var list = films;
+            if (filterTokens.isNotEmpty) {
+              bool matches(MediaSummary m, bool all) {
+                final t = m.title.toLowerCase();
+                return all
+                    ? filterTokens.every(t.contains)
+                    : filterTokens.any(t.contains);
+              }
+
+              // Prefer titles containing ALL leftover words; fall back to ANY.
+              var f = films.where((m) => matches(m, true)).toList();
+              if (f.isEmpty) f = films.where((m) => matches(m, false)).toList();
+              list = f;
+            }
+            list = list.take(_maxFilms).toList(growable: false);
+            if (list.isEmpty) return const SizedBox.shrink();
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 4),
-                  child: _FilmografiaHeader(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    'Film e serie',
+                    style: StreamloadTypography.v3SectionHeader(),
+                  ),
                 ),
                 const SizedBox(height: 16),
-                _Grid(items: films),
+                _Grid(items: list),
               ],
             );
           },
@@ -1043,13 +1098,5 @@ class _PersonFilmographySliver extends ConsumerWidget {
         ),
       ),
     );
-  }
-}
-
-class _FilmografiaHeader extends StatelessWidget {
-  const _FilmografiaHeader();
-  @override
-  Widget build(BuildContext context) {
-    return Text('Film e serie', style: StreamloadTypography.v3SectionHeader());
   }
 }
