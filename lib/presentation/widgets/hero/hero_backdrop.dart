@@ -136,8 +136,8 @@ class _LeftScrim extends StatelessWidget {
             end: Alignment.centerRight,
             stops: const [0.0, 0.45, 1.0],
             colors: [
-              StreamloadColors.v3BgBase.withValues(alpha: 0.55),
-              StreamloadColors.v3BgBase.withValues(alpha: 0.15),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.4),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.1),
               Colors.transparent,
             ],
           ),
@@ -164,11 +164,11 @@ class _BottomGradient extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: const [0.0, 0.35, 0.72, 1.0],
+            stops: const [0.0, 0.48, 0.8, 1.0],
             colors: [
               Colors.transparent,
-              StreamloadColors.v3BgBase.withValues(alpha: 0.2),
-              StreamloadColors.v3BgBase.withValues(alpha: 0.85),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.08),
+              StreamloadColors.v3BgBase.withValues(alpha: 0.6),
               // Bottom edge becomes the page background EXACTLY, so the hero
               // dissolves seamlessly into the content below it.
               StreamloadColors.v3BgBase,

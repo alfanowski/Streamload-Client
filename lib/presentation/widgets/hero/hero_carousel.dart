@@ -237,28 +237,22 @@ class _HeroCarouselState extends State<HeroCarousel>
         Opacity(opacity: 1 - mag, child: _backdrop(_current)),
         if (neighbour != null)
           Opacity(opacity: mag, child: _backdrop(neighbour)),
-        // A SINGLE metadata/CTA set (current slide). It fades OUT during a
-        // transition and back IN once settled — so the native glass buttons
-        // never overlap (the cause of the white flash), Apple-TV style.
+        // A SINGLE metadata/CTA set for the CURRENT slide, ALWAYS mounted
+        // and never opacity-animated — native platform-view buttons glitch
+        // and freeze if faded/transformed. Only the backdrop crossfades;
+        // the text + button targets update on commit.
         Positioned.fill(
-          child: IgnorePointer(
-            ignoring: mag > 0.02,
-            child: AnimatedOpacity(
-              opacity: mag < 0.02 ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 260),
-              child: HeroMetadata(
-                title: cur.title,
-                mediaType: cur.mediaType,
-                year: cur.year,
-                runtimeMinutes: cur.runtimeMinutes,
-                episodeCount: cur.episodeCount,
-                rating: cur.rating,
-                label: 'IN EVIDENZA',
-                languageCode: cur.languageCode,
-                onPlay: _withReset(cur.onPlay),
-                onAdd: _withReset(cur.onAdd),
-              ),
-            ),
+          child: HeroMetadata(
+            title: cur.title,
+            mediaType: cur.mediaType,
+            year: cur.year,
+            runtimeMinutes: cur.runtimeMinutes,
+            episodeCount: cur.episodeCount,
+            rating: cur.rating,
+            label: 'IN EVIDENZA',
+            languageCode: cur.languageCode,
+            onPlay: _withReset(cur.onPlay),
+            onAdd: _withReset(cur.onAdd),
           ),
         ),
       ],
