@@ -138,38 +138,21 @@ class _HeroCarouselState extends State<HeroCarousel> {
     );
   }
 
-  // Title transition — a clean SEQUENTIAL fade: the outgoing title fades out
-  // over the first ~40% of the timeline, then the incoming one fades in over
-  // the last ~60% with a gentle upward rise. Because they never sit at ~50%
-  // together, there's no ghost / double-title. Bottom-anchored so the block
-  // never jumps from its resting position. Self-sizes inside the metadata
-  // Column (no StackFit.expand → no infinite-height demand).
+  // Title transition — the SAME soft, simultaneous cross-dissolve as the
+  // backdrop (matched duration + curve), held in place: no rise, no slide,
+  // no sequential gap. The title simply dissolves into the next one, exactly
+  // like the art behind it. Bottom-anchored so the block never jumps from its
+  // resting position; self-sizes inside the metadata Column (no
+  // StackFit.expand → no infinite-height demand).
   Widget _titleTransition(Widget child) {
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 560),
+      duration: const Duration(milliseconds: 700),
+      switchInCurve: Curves.easeInOut,
+      switchOutCurve: Curves.easeInOut,
       layoutBuilder: (current, previous) => Stack(
         alignment: Alignment.bottomCenter,
         children: [...previous, if (current != null) current],
       ),
-      transitionBuilder: (c, anim) {
-        // Same interval forward AND reverse → the outgoing title fades out in
-        // the first 45% of the timeline, the incoming one fades in over the
-        // last 55%, crossing at zero. No two visible titles at once.
-        const window = Interval(0.45, 1.0, curve: Curves.easeOut);
-        final fade = CurvedAnimation(
-          parent: anim,
-          curve: window,
-          reverseCurve: window,
-        );
-        final rise = Tween<Offset>(
-          begin: const Offset(0, 0.14),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: anim, curve: window));
-        return FadeTransition(
-          opacity: fade,
-          child: SlideTransition(position: rise, child: c),
-        );
-      },
       child: KeyedSubtree(key: ValueKey<int>(_current), child: child),
     );
   }
