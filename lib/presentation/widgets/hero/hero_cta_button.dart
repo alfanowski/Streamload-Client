@@ -1,17 +1,17 @@
 // lib/presentation/widgets/hero/hero_cta_button.dart
 //
-// HeroCtaButton — the hero's two actions, both rendered as real translucent
-// liquid glass (BackdropFilter blur of the art behind + a faint top sheen +
-// a hairline rim, white label):
+// HeroCtaButton — the hero's two actions, both real liquid glass but clearly
+// differentiated:
 //
-//   .primary  → "Guarda": the same glass, a touch BRIGHTER, so it reads as
-//               the primary action without going back to a flat opaque pill.
-//   .glass    → "La mia lista": the neutral glass. [active] swaps ＋→✓ and
-//               "Nella lista" with a slightly fuller frost (no tint colour).
+//   .primary  → "Guarda": a BRIGHT frosted-white glass (ice) with dark text.
+//               Reads as the primary action, still translucent/blurred — not
+//               a flat opaque pill.
+//   .glass    → "La mia lista": the neutral dark glass with white text.
+//               [active] (already in the list) turns it GREEN — green check,
+//               green rim, faint green wash — so "added" is obvious.
 //
-// Built in pure Flutter (no platform views) so the two buttons are pixel-
-// identical in size, perfectly symmetric, genuinely translucent, and never
-// flicker — the things the native glass button kept getting wrong.
+// Pure Flutter (no platform views): pixel-identical sizes, perfectly
+// symmetric, genuinely translucent, never flicker.
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -28,7 +28,7 @@ class HeroCtaButton extends StatelessWidget {
     this.onTap,
   });
 
-  /// Primary "Guarda" — a slightly brighter frost so it leads the eye.
+  /// Primary "Guarda" — bright frosted-white glass, dark text.
   const HeroCtaButton.primary({
     Key? key,
     required String label,
@@ -36,8 +36,7 @@ class HeroCtaButton extends StatelessWidget {
     VoidCallback? onTap,
   }) : this._(label: label, icon: icon, prominent: true, onTap: onTap);
 
-  /// Secondary "La mia lista". [active] = the title is already in the list,
-  /// so it shows ✓ "Nella lista" with a slightly fuller frost.
+  /// Secondary "La mia lista". [active] = already in the list → green state.
   const HeroCtaButton.glass({
     Key? key,
     required String label,
@@ -48,35 +47,43 @@ class HeroCtaButton extends StatelessWidget {
 
   final String label;
   final IconData icon;
-
-  /// The primary action ("Guarda") — a touch brighter than the neutral glass.
   final bool prominent;
-
-  /// In-list state ("Nella lista", ✓).
   final bool active;
-
   final VoidCallback? onTap;
 
   static const double _height = 48;
   static const double _iconSize = 18;
 
+  /// Success green for the "in list" state — desaturated a touch so it sits
+  /// against the warm/mono palette rather than glowing neon.
+  static const Color _added = Color(0xFF5BD08C);
+
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
+
+    final Color fg;
+    if (prominent) {
+      fg = StreamloadTokens.ctaPrimaryFg; // dark text on the bright frost
+    } else if (active) {
+      fg = _added; // green "added" state
+    } else {
+      fg = Colors.white;
+    }
 
     final content = Row(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: _iconSize, color: Colors.white),
+        Icon(icon, size: _iconSize, color: fg),
         const SizedBox(width: 8),
         Flexible(
           child: Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: fg,
               fontSize: 14.5,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.1,
@@ -101,22 +108,29 @@ class HeroCtaButton extends StatelessWidget {
   Widget _glassBody(Widget content) {
     final radius = BorderRadius.circular(StreamloadTokens.radiusPill);
 
-    // One glass family, three weights. Secondary is the baseline the operator
-    // already loves; primary is a hair brighter to lead; active is a touch
-    // fuller so "added" reads — all white, no tint colour.
-    final double fillTop, fillBottom, rimAlpha;
+    late final List<Color> fill;
+    late final Color rim;
     if (prominent) {
-      fillTop = 0.26;
-      fillBottom = 0.11;
-      rimAlpha = 0.36;
+      // Bright "ice" frost — light enough for dark text, still blurred glass.
+      fill = [
+        Colors.white.withValues(alpha: 0.66),
+        Colors.white.withValues(alpha: 0.44),
+      ];
+      rim = Colors.white.withValues(alpha: 0.70);
     } else if (active) {
-      fillTop = 0.22;
-      fillBottom = 0.10;
-      rimAlpha = 0.32;
+      // Green wash + green rim → unmistakably "in the list".
+      fill = [
+        _added.withValues(alpha: 0.22),
+        _added.withValues(alpha: 0.08),
+      ];
+      rim = _added.withValues(alpha: 0.80);
     } else {
-      fillTop = 0.18;
-      fillBottom = 0.06;
-      rimAlpha = 0.22;
+      // Neutral dark glass (the operator's favourite).
+      fill = [
+        Colors.white.withValues(alpha: 0.18),
+        Colors.white.withValues(alpha: 0.06),
+      ];
+      rim = Colors.white.withValues(alpha: 0.22);
     }
 
     return Container(
@@ -124,7 +138,7 @@ class HeroCtaButton extends StatelessWidget {
       // Rim drawn on top of the clip so it stays crisp (never half-clipped).
       foregroundDecoration: BoxDecoration(
         borderRadius: radius,
-        border: Border.all(color: Colors.white.withValues(alpha: rimAlpha)),
+        border: Border.all(color: rim, width: active ? 1.5 : 1.0),
       ),
       child: ClipRRect(
         borderRadius: radius,
@@ -134,15 +148,10 @@ class HeroCtaButton extends StatelessWidget {
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 22),
             decoration: BoxDecoration(
-              // Faint top-down sheen over a low-opacity wash → reads as glass,
-              // not a flat scrim. Stays translucent so the art shows through.
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withValues(alpha: fillTop),
-                  Colors.white.withValues(alpha: fillBottom),
-                ],
+                colors: fill,
               ),
             ),
             child: content,
