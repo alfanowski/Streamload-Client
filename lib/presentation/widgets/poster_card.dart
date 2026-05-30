@@ -168,10 +168,15 @@ class _ResumeOverlay extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
               child: SizedBox(
-                height: 4,
+                height: 5,
+                width: double.infinity,
+                // StackFit.expand → tight constraints, so the track actually
+                // fills (a bare ColoredBox under loose constraints collapses
+                // to 0px and stays invisible).
                 child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    ColoredBox(color: Colors.white.withValues(alpha: 0.28)),
+                    ColoredBox(color: Colors.white.withValues(alpha: 0.30)),
                     FractionallySizedBox(
                       widthFactor: progress.clamp(0.0, 1.0),
                       alignment: Alignment.centerLeft,
