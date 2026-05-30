@@ -136,14 +136,16 @@ class _ResumeOverlay extends StatelessWidget {
       right: 0,
       bottom: 0,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(8, 20, 8, 8),
+        padding: const EdgeInsets.fromLTRB(8, 28, 8, 8),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
+            stops: const [0.0, 0.5, 1.0],
             colors: [
               Colors.transparent,
-              Colors.black.withValues(alpha: 0.82),
+              Colors.black.withValues(alpha: 0.55),
+              Colors.black.withValues(alpha: 0.92),
             ],
           ),
         ),
@@ -158,12 +160,19 @@ class _ResumeOverlay extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 11,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.2,
+                  letterSpacing: 0.3,
+                  shadows: [
+                    Shadow(color: Colors.black, blurRadius: 4),
+                    Shadow(
+                        color: Colors.black,
+                        blurRadius: 2,
+                        offset: Offset(0, 1)),
+                  ],
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 7),
             ],
             ClipRRect(
               borderRadius: BorderRadius.circular(3),
