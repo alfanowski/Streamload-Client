@@ -126,18 +126,26 @@ class _TopSystemScrim extends StatelessWidget {
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
     return SizedBox(
-      height: topPad + 38,
+      // MANY-stop ramp so the falloff is smooth — the old 3-stop version
+      // doubled its slope at the middle stop, which read as a hard "step". A
+      // near-linear multi-stop ramp removes that kink. Kept fairly short so
+      // the band stays concentrated up by the Dynamic Island, not creeping
+      // down the screen.
+      height: topPad + 40,
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            stops: const [0.0, 0.6, 1.0],
+            stops: const [0.0, 0.18, 0.34, 0.50, 0.66, 0.82, 1.0],
             colors: [
-              // Roughly twice as dark as before so the Dynamic Island area
-              // reads strongly on every screen, not just over the hero.
+              // Strong over the Dynamic Island, fading evenly to nothing.
               Colors.black.withValues(alpha: 0.92),
-              Colors.black.withValues(alpha: 0.58),
+              Colors.black.withValues(alpha: 0.78),
+              Colors.black.withValues(alpha: 0.62),
+              Colors.black.withValues(alpha: 0.45),
+              Colors.black.withValues(alpha: 0.28),
+              Colors.black.withValues(alpha: 0.13),
               Colors.transparent,
             ],
           ),
