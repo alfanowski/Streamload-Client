@@ -22,7 +22,9 @@
 // the input mirrors it on mount, and submitting writes back via
 // context.go so results stay shareable and survive back nav.
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,7 +40,6 @@ import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
-import '../widgets/search/person_result_tile.dart';
 import '../widgets/shimmer.dart';
 
 class SearchPage extends ConsumerStatefulWidget {
@@ -216,40 +217,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
-    // Pass 2E: full-bleed — 24 px desktop/tablet, 12 px phone. The Inter
-    // 24 input expects ~16 px of breathing room; chip + grid bleed all
-    // the way to those page paddings.
-    final topPad = isPhone ? 16.0 : 72.0;
     final horizontalPad = isPhone ? 12.0 : 24.0;
+    final safeTop = MediaQuery.of(context).padding.top;
+    // The floating glass bar clears the Dynamic Island on phone (SafeArea)
+    // and sits below the desktop TopNavBar; content scrolls UNDER it.
+    final extraTop = isPhone ? 0.0 : 64.0;
+    final barHeight = extraTop + (isPhone ? safeTop : 0.0) + 68.0;
 
     return Material(
       type: MaterialType.transparency,
       child: DecoratedBox(
         decoration: const BoxDecoration(color: StreamloadColors.v3BgBase),
-        child: CustomScrollView(
-          controller: _scrollController,
-          slivers: [
-            // Input row.
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  horizontalPad,
-                  topPad,
-                  horizontalPad,
-                  16,
-                ),
-                child: _MaxWidth(
-                  maxWidth: isPhone ? double.infinity : 820,
-                  child: _SearchInput(
-                    controller: _controller,
-                    onChanged: _onQueryChanged,
-                    onSubmitted: _onSubmit,
-                    onClear: _onClear,
-                  ),
-                ),
-              ),
-            ),
-            // Body branches: empty → "Ricerche di tendenza" row;
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: CustomScrollView(
+                controller: _scrollController,
+                slivers: [
+                  // Spacer so the first results clear the floating glass bar.
+                  SliverToBoxAdapter(child: SizedBox(height: barHeight + 8)),
+                  // Body branches: empty → "Ricerche di tendenza" row;
             // otherwise loading/error/no-results/grid.
             if (_activeQuery.isEmpty)
               _TopSearchesSection(padding: horizontalPad)
@@ -301,6 +288,25 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 ),
               ),
             const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                ],
+              ),
+            ),
+            // Floating glass search bar — clears the Dynamic Island on phone,
+            // sits below the desktop nav, and content blurs under it.
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _GlassSearchBar(
+                controller: _controller,
+                onChanged: _onQueryChanged,
+                onSubmitted: _onSubmit,
+                onClear: _onClear,
+                extraTop: extraTop,
+                horizontalPad: horizontalPad,
+                maxWidth: isPhone ? double.infinity : 820,
+              ),
+            ),
           ],
         ),
       ),
@@ -309,90 +315,124 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Input — Netflix-style glass pill (Pass 2E)
+// Floating glass search bar — same translucent glass family as the hero CTAs
+// (BackdropFilter blur + sheen + hairline rim). Clears the Dynamic Island via
+// SafeArea; content scrolls under it.
 // ──────────────────────────────────────────────────────────────────────────
 
-class _SearchInput extends StatelessWidget {
-  const _SearchInput({
+class _GlassSearchBar extends StatelessWidget {
+  const _GlassSearchBar({
     required this.controller,
     required this.onChanged,
     required this.onSubmitted,
     required this.onClear,
+    required this.extraTop,
+    required this.horizontalPad,
+    required this.maxWidth,
   });
+
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
   final VoidCallback onClear;
+  final double extraTop;
+  final double horizontalPad;
+  final double maxWidth;
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: StreamloadColors.v3BorderGlass,
-            width: 1,
-          ),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            Icon(
-              Icons.search,
-              color: StreamloadColors.v3TextSecondary,
-              size: 26,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: TextField(
-                controller: controller,
-                autofocus: true,
-                cursorColor: StreamloadColors.v3TextPrimary,
-                cursorWidth: 1.5,
-                textInputAction: TextInputAction.search,
-                onChanged: onChanged,
-                onSubmitted: onSubmitted,
-                style: StreamloadTypography.display(
-                  fontSize: 28,
-                  italic: true,
-                  color: StreamloadColors.v3TextPrimary,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'Cerca un titolo, una serie o un anime…',
-                  hintStyle: StreamloadTypography.display(
-                    fontSize: 22,
-                    italic: true,
-                    color: StreamloadColors.v3TextMuted,
+    final radius = BorderRadius.circular(26);
+    return Padding(
+      padding: EdgeInsets.only(top: extraTop),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(horizontalPad, 8, horizontalPad, 10),
+          child: _MaxWidth(
+            maxWidth: maxWidth,
+            child: ClipRRect(
+              borderRadius: radius,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                child: Container(
+                  height: 50,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  foregroundDecoration: BoxDecoration(
+                    borderRadius: radius,
+                    border:
+                        Border.all(color: Colors.white.withValues(alpha: 0.20)),
                   ),
-                  border: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  isCollapsed: true,
+                  decoration: BoxDecoration(
+                    borderRadius: radius,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.16),
+                        Colors.white.withValues(alpha: 0.05),
+                      ],
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.search,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        size: 22,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: controller,
+                          autofocus: true,
+                          cursorColor: Colors.white,
+                          cursorWidth: 1.5,
+                          textInputAction: TextInputAction.search,
+                          onChanged: onChanged,
+                          onSubmitted: onSubmitted,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: 'Cerca film, serie, attori…',
+                            hintStyle: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontSize: 17,
+                              fontWeight: FontWeight.w400,
+                            ),
+                            border: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            isCollapsed: true,
+                          ),
+                        ),
+                      ),
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: controller,
+                        builder: (context, value, _) {
+                          if (value.text.isEmpty) return const SizedBox.shrink();
+                          return GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: onClear,
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: Colors.white.withValues(alpha: 0.8),
+                                size: 20,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-            // Clear (×) — only while there's text. Real-time search means no
-            // submit button, so this is the quick way to reset.
-            ValueListenableBuilder<TextEditingValue>(
-              valueListenable: controller,
-              builder: (context, value, _) {
-                if (value.text.isEmpty) return const SizedBox(width: 4);
-                return IconButton(
-                  onPressed: onClear,
-                  icon: Icon(
-                    Icons.close_rounded,
-                    color: StreamloadColors.v3TextSecondary,
-                    size: 22,
-                  ),
-                  splashRadius: 20,
-                  tooltip: 'Cancella',
-                );
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -697,26 +737,147 @@ class _PeopleSectionSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Cap at 3 — the operator wants the matched actor(s) front and centre,
-    // not a directory. Three covers "same name" disambiguation without
-    // pushing the films too far down.
-    final top = people.take(3).toList(growable: false);
-    return SliverPadding(
-      padding: EdgeInsets.fromLTRB(padding, 4, padding, 8),
-      sliver: SliverToBoxAdapter(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-              child: Text(
-                'Persone',
-                style: StreamloadTypography.v3SectionHeader(),
-              ),
+    // Up to 6 matched people, as a clean horizontal row of circular avatars
+    // (Apple TV cast style) — tap routes to /person/<id>.
+    final top = people.take(6).toList(growable: false);
+    return SliverToBoxAdapter(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(padding + 4, 4, padding + 4, 0),
+            child: Text(
+              'Persone',
+              style: StreamloadTypography.v3SectionHeader(),
             ),
-            for (final p in top) PersonResultTile(person: p),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 152,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.symmetric(horizontal: padding),
+              itemCount: top.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 16),
+              itemBuilder: (context, i) => _PersonCard(person: top[i]),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+/// A single person result — circular avatar + name + role. Tap → /person/:id.
+class _PersonCard extends StatelessWidget {
+  const _PersonCard({required this.person});
+  final SearchPersonResult person;
+
+  static const double _diameter = 92;
+
+  @override
+  Widget build(BuildContext context) {
+    final role = _departmentLabel(person.department);
+    return PressFeedback(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => context.go('/person/${person.tmdbId}'),
+        child: SizedBox(
+          width: 100,
+          child: Column(
+            children: [
+              Container(
+                width: _diameter,
+                height: _diameter,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: StreamloadColors.v3BorderGlass,
+                    width: 1,
+                  ),
+                ),
+                child: ClipOval(
+                  child: person.profileUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: person.profileUrl!,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => const _AvatarFallback(),
+                          errorWidget: (_, __, ___) => const _AvatarFallback(),
+                        )
+                      : const _AvatarFallback(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                person.name,
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: StreamloadColors.v3TextPrimary,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.15,
+                ),
+              ),
+              if (role != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  role,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: StreamloadColors.v3TextMuted,
+                    fontSize: 10.5,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String? _departmentLabel(String? department) {
+    switch (department) {
+      case 'Acting':
+        return 'Interprete';
+      case 'Directing':
+        return 'Regia';
+      case 'Writing':
+        return 'Sceneggiatura';
+      case 'Production':
+        return 'Produzione';
+      default:
+        return null;
+    }
+  }
+}
+
+class _AvatarFallback extends StatelessWidget {
+  const _AvatarFallback();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            StreamloadColors.v3SurfaceGlassHi,
+            StreamloadColors.v3SurfaceGlass,
           ],
         ),
+      ),
+      child: Icon(
+        Icons.person_outline,
+        color: StreamloadColors.v3TextMuted,
+        size: 30,
       ),
     );
   }
