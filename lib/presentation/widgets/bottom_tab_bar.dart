@@ -8,6 +8,7 @@
 //     the Apple Music behaviour, all handled natively by iOS.
 //   • macOS / Android / tests → a custom glass capsule (Home · Lista ·
 //     Profilo) + a separate Cerca circle, via GlassSurface.
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -16,6 +17,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:native_liquid_glass/native_liquid_glass.dart';
 
+import '../../state/search_query_provider.dart';
 import '../theme/tokens.dart';
 import 'primitives/glass_surface.dart';
 
@@ -46,6 +48,13 @@ class StreamloadBottomTabBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = GoRouterState.of(context).matchedLocation;
+
+    // Apple-Music style: on the search tab the Cerca button has expanded into
+    // a full search field down here (Home collapses to a circle). The field
+    // floats above the keyboard because it's the Scaffold's bottom bar.
+    if (current.startsWith('/search')) {
+      return const _SearchBottomBar();
+    }
 
     if (_useNative) {
       return LiquidGlassTabBar(
@@ -206,6 +215,176 @@ class _CapsuleBar extends StatelessWidget {
       if (tabs[i].path == '/home' && current == '/') return i;
     }
     return null;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Search-active bottom bar (Apple Music): a collapsed Home circle + the Cerca
+// button expanded into a glass search field. Autofocuses → keyboard; the field
+// writes the live query to searchQueryProvider, which SearchPage reads.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _SearchBottomBar extends ConsumerStatefulWidget {
+  const _SearchBottomBar();
+
+  @override
+  ConsumerState<_SearchBottomBar> createState() => _SearchBottomBarState();
+}
+
+class _SearchBottomBarState extends ConsumerState<_SearchBottomBar> {
+  late final TextEditingController _controller;
+  final FocusNode _focus = FocusNode();
+  Timer? _debounce;
+
+  static const double _h = 60;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: ref.read(searchQueryProvider));
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      ref.read(searchQueryProvider.notifier).state = value;
+    });
+  }
+
+  void _submit(String value) {
+    _debounce?.cancel();
+    ref.read(searchQueryProvider.notifier).state = value;
+  }
+
+  void _clear() {
+    _debounce?.cancel();
+    _controller.clear();
+    ref.read(searchQueryProvider.notifier).state = '';
+    _focus.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+        child: Row(
+          children: [
+            // Home circle → leaves search.
+            GlassSurface(
+              capsule: true,
+              borderRadius: _h / 2,
+              blur: 18,
+              thickness: 18,
+              tint: StreamloadTokens.bg.withValues(alpha: 0.5),
+              child: GestureDetector(
+                onTap: () {
+                  FocusScope.of(context).unfocus();
+                  context.go('/home');
+                },
+                behavior: HitTestBehavior.opaque,
+                child: SizedBox(
+                  width: _h,
+                  height: _h,
+                  child: Icon(
+                    Icons.home_rounded,
+                    size: 24,
+                    color: StreamloadTokens.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Expanded glass search field.
+            Expanded(
+              child: GlassSurface(
+                capsule: true,
+                borderRadius: _h / 2,
+                blur: 18,
+                thickness: 18,
+                tint: StreamloadTokens.bg.withValues(alpha: 0.5),
+                child: SizedBox(
+                  height: _h,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search,
+                          size: 22,
+                          color: Colors.white.withValues(alpha: 0.7),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focus,
+                            autofocus: true,
+                            cursorColor: Colors.white,
+                            cursorWidth: 1.5,
+                            textInputAction: TextInputAction.search,
+                            onChanged: _onChanged,
+                            onSubmitted: _submit,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Film, serie TV, attori e altro…',
+                              hintStyle: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.55),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              border: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              isCollapsed: true,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ValueListenableBuilder<TextEditingValue>(
+                          valueListenable: _controller,
+                          builder: (context, value, _) {
+                            if (value.text.isEmpty) {
+                              return Icon(
+                                Icons.mic_none_rounded,
+                                size: 22,
+                                color: Colors.white.withValues(alpha: 0.6),
+                              );
+                            }
+                            return GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: _clear,
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 21,
+                                color: Colors.white.withValues(alpha: 0.85),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

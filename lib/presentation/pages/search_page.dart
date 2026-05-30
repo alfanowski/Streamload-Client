@@ -21,8 +21,6 @@
 // The URL is still the source of truth for the query (?q=<query>),
 // the input mirrors it on mount, and submitting writes back via
 // context.go so results stay shareable and survive back nav.
-import 'dart:async';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,13 +31,13 @@ import '../../domain/models/media_summary.dart';
 import '../../domain/models/search_results.dart';
 import '../../state/api_client_provider.dart';
 import '../../state/home_rows_provider.dart';
+import '../../state/search_query_provider.dart';
 import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
-import '../widgets/primitives/glass_surface.dart';
 import '../widgets/rows/poster_row.dart';
 import '../widgets/shimmer.dart';
 
@@ -59,13 +57,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   // = 100 results, which is more than enough for the user to skim.
   static const int _maxPages = 5;
 
-  late final TextEditingController _controller;
   late final ScrollController _scrollController;
   String _activeQuery = '';
-
-  /// Debounce for real-time search — fires ~300ms after the user stops
-  /// typing so we don't hit TMDB on every keystroke.
-  Timer? _debounce;
 
   final List<MediaSummary> _items = [];
   // People only come back on page 1 of the multi-search; TMDB doesn't
@@ -80,40 +73,42 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: widget.initialQuery);
     _scrollController = ScrollController()..addListener(_onScroll);
-    _activeQuery = widget.initialQuery.trim();
+    // The query lives in searchQueryProvider — the bottom-bar search field
+    // (Apple Music style) writes it. Seed from ?q= if present, else whatever
+    // is already in the provider.
+    final initial = widget.initialQuery.trim();
+    if (initial.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(searchQueryProvider.notifier).state = initial;
+      });
+      _activeQuery = initial;
+    } else {
+      _activeQuery = ref.read(searchQueryProvider).trim();
+    }
     if (_activeQuery.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _runFirstPage());
     }
   }
 
   @override
-  void didUpdateWidget(covariant SearchPage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // External URL change (e.g. opened with ?q=…). Skip when the URL is just
-    // catching up to a query we already ran live, to avoid a double fetch.
-    if (oldWidget.initialQuery != widget.initialQuery) {
-      final q = widget.initialQuery.trim();
-      if (q != _activeQuery) {
-        _controller.text = widget.initialQuery;
-        _activeQuery = q;
-        _resetResults();
-        if (q.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) => _runFirstPage());
-        }
-      }
-    }
-  }
-
-  @override
   void dispose() {
-    _debounce?.cancel();
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
-    _controller.dispose();
     super.dispose();
+  }
+
+  /// Reacts to the shared query (driven by the bottom-bar field).
+  void _onQuery(String value) {
+    final v = value.trim();
+    if (v == _activeQuery) return;
+    setState(() => _activeQuery = v);
+    if (v.isEmpty) {
+      _resetResults();
+    } else {
+      _runFirstPage();
+    }
   }
 
   void _resetResults() {
@@ -177,53 +172,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
   }
 
-  /// Real-time: debounce keystrokes, then run the search locally (no Enter,
-  /// no per-keystroke navigation).
-  void _onQueryChanged(String value) {
-    _debounce?.cancel();
-    _debounce = Timer(
-      const Duration(milliseconds: 300),
-      () => _applyQuery(value),
-    );
-  }
-
-  void _applyQuery(String value) {
-    final v = value.trim();
-    if (v == _activeQuery) return;
-    setState(() => _activeQuery = v);
-    if (v.isEmpty) {
-      _resetResults();
-    } else {
-      _runFirstPage();
-    }
-  }
-
-  /// Enter (or the search action) — apply immediately and stamp the URL so the
-  /// query stays shareable / survives a refresh.
-  void _onSubmit(String value) {
-    _debounce?.cancel();
-    _applyQuery(value);
-    final v = value.trim();
-    if (v.isNotEmpty) {
-      context.go('/search?q=${Uri.encodeQueryComponent(v)}');
-    }
-  }
-
-  void _onClear() {
-    _debounce?.cancel();
-    _controller.clear();
-    _applyQuery('');
-  }
-
   @override
   Widget build(BuildContext context) {
+    // React to the bottom-bar search field.
+    ref.listen<String>(searchQueryProvider, (_, next) => _onQuery(next));
+
     final isPhone = Responsive.isPhone(context);
     final horizontalPad = isPhone ? 12.0 : 24.0;
     final safeTop = MediaQuery.of(context).padding.top;
-    // Phone: room for the "Streamload" wordmark line above the (in-scroll,
-    // NOT pinned) search bar. Desktop: just clear the floating TopNavBar.
+    // Phone: room for the "Streamload" wordmark line. Desktop: clear the nav.
     final topSpace = isPhone ? safeTop + 44.0 : 72.0;
-    final maxWidth = isPhone ? double.infinity : 820.0;
 
     return Material(
       type: MaterialType.transparency,
@@ -234,24 +192,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             Positioned.fill(
               child: CustomScrollView(
                 controller: _scrollController,
+                // Drag down to dismiss the keyboard (the search field lives in
+                // the bottom bar, Apple Music style).
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
                 slivers: [
                   SliverToBoxAdapter(child: SizedBox(height: topSpace)),
-                  // Search bar scrolls away with the content (not pinned).
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding:
-                          EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, 8),
-                      child: _MaxWidth(
-                        maxWidth: maxWidth,
-                        child: _GlassSearchBar(
-                          controller: _controller,
-                          onChanged: _onQueryChanged,
-                          onSubmitted: _onSubmit,
-                          onClear: _onClear,
-                        ),
-                      ),
-                    ),
-                  ),
                   // Body branches: empty → "Suggeriti" grid;
             // otherwise loading/error/no-results/grid.
             if (_activeQuery.isEmpty)
@@ -310,7 +256,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   ),
                 ),
               ),
-            const SliverToBoxAdapter(child: SizedBox(height: 80)),
+            // Clear the bottom search bar (Apple Music style).
+            const SliverToBoxAdapter(child: SizedBox(height: 120)),
                 ],
               ),
             ),
@@ -374,128 +321,7 @@ class _SearchWordmark extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Floating glass search bar — same translucent glass family as the hero CTAs
-// (BackdropFilter blur + sheen + hairline rim). Clears the Dynamic Island via
-// SafeArea; content scrolls under it.
-// ──────────────────────────────────────────────────────────────────────────
-
-class _GlassSearchBar extends StatelessWidget {
-  const _GlassSearchBar({
-    required this.controller,
-    required this.onChanged,
-    required this.onSubmitted,
-    required this.onClear,
-  });
-
-  final TextEditingController controller;
-  final ValueChanged<String> onChanged;
-  final ValueChanged<String> onSubmitted;
-  final VoidCallback onClear;
-
-  @override
-  Widget build(BuildContext context) {
-    // The official native Apple Liquid Glass capsule (same primitive as the
-    // bottom tab bar) — Apple-Music-style search field on iOS, shader/fake
-    // glass elsewhere.
-    return GlassSurface(
-      capsule: true,
-      borderRadius: 26,
-      blur: 10,
-      child: SizedBox(
-        height: 52,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Row(
-            children: [
-              Icon(
-                Icons.search,
-                color: Colors.white.withValues(alpha: 0.75),
-                size: 22,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  cursorColor: Colors.white,
-                  cursorWidth: 1.5,
-                  textInputAction: TextInputAction.search,
-                  onChanged: onChanged,
-                  onSubmitted: onSubmitted,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Film, serie TV, attori e altro…',
-                    hintStyle: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.55),
-                      fontSize: 17,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    isCollapsed: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Mic (decorative, Apple-Music look) when empty; clear ✕ when
-              // there's text.
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: controller,
-                builder: (context, value, _) {
-                  if (value.text.isEmpty) {
-                    return Icon(
-                      Icons.mic_none_rounded,
-                      color: Colors.white.withValues(alpha: 0.6),
-                      size: 22,
-                    );
-                  }
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onClear,
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: Colors.white.withValues(alpha: 0.85),
-                      size: 21,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Layout helpers
-// ──────────────────────────────────────────────────────────────────────────
-
-class _MaxWidth extends StatelessWidget {
-  const _MaxWidth({required this.maxWidth, required this.child});
-  final double maxWidth;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    if (maxWidth == double.infinity) return child;
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: child,
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Empty-query → "Ricerche di tendenza" (Pass 2E)
+// Empty-query → "Suggeriti"
 // ──────────────────────────────────────────────────────────────────────────
 
 class _TopSearchesSection extends ConsumerWidget {

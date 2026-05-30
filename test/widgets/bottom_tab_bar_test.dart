@@ -59,10 +59,7 @@ void main() {
     await t.pump();
     expect(find.text('page:/home'), findsOneWidget);
 
-    await t.tap(find.byIcon(Icons.search));
-    await t.pumpAndSettle();
-    expect(find.text('page:/search'), findsOneWidget);
-
+    // Lista / Profilo are on the capsule (visible on every non-search route).
     await t.tap(find.text('Lista'));
     await t.pumpAndSettle();
     expect(find.text('page:/list'), findsOneWidget);
@@ -70,17 +67,40 @@ void main() {
     await t.tap(find.text('Profilo'));
     await t.pumpAndSettle();
     expect(find.text('page:/profile'), findsOneWidget);
+
+    // The Cerca circle navigates to /search, where the bar becomes the
+    // Apple-Music search field (no more tab labels).
+    await t.tap(find.byIcon(Icons.search));
+    await t.pumpAndSettle();
+    expect(find.text('page:/search'), findsOneWidget);
   });
 
-  testWidgets('active tab uses v3TextPrimary, others use v3TextMuted',
+  testWidgets('on /search the bar becomes a search field with a Home circle',
       (t) async {
     await pumpBar(t, initial: '/search');
+    await t.pumpAndSettle();
+
+    // Apple-Music style: a text field + a Home circle, no Lista/Profilo tabs.
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.byIcon(Icons.home_rounded), findsOneWidget);
+    expect(find.text('Lista'), findsNothing);
+    expect(find.text('Profilo'), findsNothing);
+
+    // Tapping Home leaves search.
+    await t.tap(find.byIcon(Icons.home_rounded));
+    await t.pumpAndSettle();
+    expect(find.text('page:/home'), findsOneWidget);
+  });
+
+  testWidgets('active capsule tab uses v3TextPrimary, others v3TextMuted',
+      (t) async {
+    await pumpBar(t, initial: '/home');
     await t.pump();
 
-    final searchIcon = t.widget<Icon>(find.byIcon(Icons.search));
     final homeIcon = t.widget<Icon>(find.byIcon(Icons.home_outlined));
+    final listIcon = t.widget<Icon>(find.byIcon(Icons.bookmark_outline));
 
-    expect(searchIcon.color, StreamloadColors.v3TextPrimary);
-    expect(homeIcon.color, StreamloadColors.v3TextMuted);
+    expect(homeIcon.color, StreamloadColors.v3TextPrimary);
+    expect(listIcon.color, StreamloadColors.v3TextMuted);
   });
 }
