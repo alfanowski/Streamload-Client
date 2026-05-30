@@ -171,9 +171,15 @@ class _HeroCarouselState extends State<HeroCarousel>
     _startTimer();
   }
 
+  // The neighbour the current drag is locked onto: -1 = next, +1 = prev,
+  // 0 = not yet locked. Locks to ONE shift per drag so you can never drag
+  // past the adjacent slide (and can't flip mid-drag) — the source of bugs.
+  int _dragLockedSign = 0;
+
   void _onDragStart(DragStartDetails _) {
     _snap.stop();
     _paused = true;
+    _dragLockedSign = 0;
     // Any interaction restarts the auto-rotate countdown.
     _restartTimer();
   }
@@ -191,8 +197,22 @@ class _HeroCarouselState extends State<HeroCarousel>
   void _onDragUpdate(DragUpdateDetails d) {
     if (_len < 2) return;
     final w = context.size?.width ?? 1;
+    var nv = _v.value + d.delta.dx / w;
+    // Lock the direction on first real movement.
+    if (_dragLockedSign == 0 && nv.abs() > 0.02) {
+      _dragLockedSign = nv < 0 ? -1 : 1;
+    }
+    // Constrain to the locked neighbour only: never cross 0 to the other
+    // side, never go past ±1 (one shift per drag).
+    if (_dragLockedSign < 0) {
+      nv = nv.clamp(-1.0, 0.0);
+    } else if (_dragLockedSign > 0) {
+      nv = nv.clamp(0.0, 1.0);
+    } else {
+      nv = nv.clamp(-1.0, 1.0);
+    }
     // No setState — only the notifier changes → backdrop-only rebuild.
-    _v.value = (_v.value + d.delta.dx / w).clamp(-1.0, 1.0);
+    _v.value = nv;
   }
 
   void _onDragEnd(DragEndDetails d) {
@@ -207,6 +227,10 @@ class _HeroCarouselState extends State<HeroCarousel>
     }
   }
 
+  // If the drag is cancelled mid-way, always snap back — never leave the
+  // hero stuck showing half of one slide and half of another.
+  void _onDragCancel() => _settle(0);
+
   void _pause() {
     if (!_paused) setState(() => _paused = true);
   }
@@ -218,6 +242,20 @@ class _HeroCarouselState extends State<HeroCarousel>
   Widget _backdrop(int i) {
     final s = widget.slides[i];
     return HeroBackdrop(backdropUrl: s.backdropUrl, posterUrl: s.posterUrl);
+  }
+
+  Widget _heroText(int i) {
+    final s = widget.slides[i];
+    return HeroText(
+      title: s.title,
+      mediaType: s.mediaType,
+      year: s.year,
+      runtimeMinutes: s.runtimeMinutes,
+      episodeCount: s.episodeCount,
+      rating: s.rating,
+      label: 'IN EVIDENZA',
+      languageCode: s.languageCode,
+    );
   }
 
   @override
@@ -266,6 +304,7 @@ class _HeroCarouselState extends State<HeroCarousel>
         onHorizontalDragStart: count < 2 ? null : _onDragStart,
         onHorizontalDragUpdate: count < 2 ? null : _onDragUpdate,
         onHorizontalDragEnd: count < 2 ? null : _onDragEnd,
+        onHorizontalDragCancel: count < 2 ? null : _onDragCancel,
         child: backdrops,
       );
     } else {
@@ -281,20 +320,34 @@ class _HeroCarouselState extends State<HeroCarousel>
       child: Stack(
         children: [
           Positioned.fill(child: interactive),
-          // Stable metadata + native CTAs on top (their empty areas let the
-          // drag/tap below through; the buttons capture their own touches).
+          // Metadata layer: the TEXT crossfades with the backdrop (so the
+          // title always matches), while the native CTA buttons stay STABLE
+          // (never animated → no glitch/flicker). The buttons capture their
+          // own touches; the empty areas let the drag/tap below through.
           Positioned.fill(
             child: HeroMetadata(
-              title: cur.title,
-              mediaType: cur.mediaType,
-              year: cur.year,
-              runtimeMinutes: cur.runtimeMinutes,
-              episodeCount: cur.episodeCount,
-              rating: cur.rating,
-              label: 'IN EVIDENZA',
-              languageCode: cur.languageCode,
-              onPlay: _withReset(cur.onPlay),
-              onAdd: _withReset(cur.onAdd),
+              text: ValueListenableBuilder<double>(
+                valueListenable: _v,
+                builder: (context, v, _) {
+                  final mag = v.abs().clamp(0.0, 1.0);
+                  final n = v == 0 ? null : (v < 0 ? _nextIndex : _prevIndex);
+                  final align = Responsive.isPhone(context)
+                      ? Alignment.bottomCenter
+                      : Alignment.bottomLeft;
+                  return Stack(
+                    alignment: align,
+                    children: [
+                      Opacity(opacity: 1 - mag, child: _heroText(_current)),
+                      if (n != null)
+                        Opacity(opacity: mag, child: _heroText(n)),
+                    ],
+                  );
+                },
+              ),
+              ctas: HeroCtas(
+                onPlay: _withReset(cur.onPlay),
+                onAdd: _withReset(cur.onAdd),
+              ),
             ),
           ),
           if (count > 1)

@@ -47,9 +47,13 @@ class CtaButton extends StatelessWidget {
           ),
           const SizedBox(width: 8),
         ],
-        Text(
-          label,
-          style: TextStyle(color: fg, fontSize: 14, fontWeight: FontWeight.w600),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: fg, fontSize: 14, fontWeight: FontWeight.w600),
+          ),
         ),
       ],
     );

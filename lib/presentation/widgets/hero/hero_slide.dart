@@ -120,16 +120,17 @@ class HeroSlide extends StatelessWidget {
             HeroBackdrop(backdropUrl: backdropUrl, posterUrl: posterUrl),
             Positioned.fill(
               child: HeroMetadata(
-                title: title,
-                mediaType: mediaType,
-                year: year,
-                runtimeMinutes: runtimeMinutes,
-                episodeCount: episodeCount,
-                rating: rating,
-                label: label,
-                languageCode: languageCode,
-                onPlay: onPlay,
-                onAdd: onAdd,
+                text: HeroText(
+                  title: title,
+                  mediaType: mediaType,
+                  year: year,
+                  runtimeMinutes: runtimeMinutes,
+                  episodeCount: episodeCount,
+                  rating: rating,
+                  label: label,
+                  languageCode: languageCode,
+                ),
+                ctas: HeroCtas(onPlay: onPlay, onAdd: onAdd),
               ),
             ),
           ],
@@ -145,7 +146,64 @@ class HeroSlide extends StatelessWidget {
 /// a SINGLE set of (native) CTAs fades out and back in, with no flicker from
 /// crossfading two platform-view button sets at once.
 class HeroMetadata extends StatelessWidget {
-  const HeroMetadata({
+  const HeroMetadata({super.key, required this.text, required this.ctas});
+
+  /// Eyebrow + title + meta block (usually a [HeroText], possibly crossfading
+  /// between slides in the carousel).
+  final Widget text;
+
+  /// The CTA row (usually [HeroCtas]) — kept stable across transitions so the
+  /// native glass buttons never animate/flicker.
+  final Widget ctas;
+
+  @override
+  Widget build(BuildContext context) {
+    final isPhone = Responsive.isPhone(context);
+    final isTablet = Responsive.isTablet(context);
+    final horizontalPad = isPhone ? 16.0 : 64.0;
+    final baseBottomInset = isPhone
+        ? 32.0
+        : isTablet
+            ? 64.0
+            : 96.0;
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        final availableWidth = c.maxWidth;
+        final maxBlockWidth = isPhone
+            ? availableWidth - (horizontalPad * 2)
+            : (availableWidth * 0.5).clamp(360.0, 760.0);
+        final bottomInset = baseBottomInset.clamp(0.0, c.maxHeight * 0.15);
+
+        return Padding(
+          padding:
+              EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, bottomInset),
+          child: Align(
+            alignment: isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxBlockWidth),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment:
+                    isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+                children: [
+                  text,
+                  const SizedBox(height: 24),
+                  ctas,
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Eyebrow + title + meta line. Self-sizing; the carousel crossfades two of
+/// these (current + neighbour) so the TITLE always matches the backdrop.
+class HeroText extends StatelessWidget {
+  const HeroText({
     super.key,
     required this.title,
     required this.mediaType,
@@ -155,8 +213,6 @@ class HeroMetadata extends StatelessWidget {
     this.rating,
     this.label = 'IN EVIDENZA',
     this.languageCode = 'IT',
-    this.onPlay,
-    this.onAdd,
   });
 
   final String title;
@@ -167,8 +223,6 @@ class HeroMetadata extends StatelessWidget {
   final double? rating;
   final String label;
   final String languageCode;
-  final VoidCallback? onPlay;
-  final VoidCallback? onAdd;
 
   String _metaLine() {
     final parts = <String>[];
@@ -189,90 +243,50 @@ class HeroMetadata extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
     final isTablet = Responsive.isTablet(context);
-    final horizontalPad = isPhone ? 16.0 : 64.0;
-    final align =
-        isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start;
     final titleSize = isPhone
         ? 36.0
         : isTablet
             ? 44.0
             : 56.0;
-    final baseBottomInset = isPhone
-        ? 32.0
-        : isTablet
-            ? 64.0
-            : 96.0;
-    final metaLine = _metaLine();
-
-    return LayoutBuilder(
-      builder: (context, c) {
-        final availableWidth = c.maxWidth;
-        final maxBlockWidth = isPhone
-            ? availableWidth - (horizontalPad * 2)
-            : (availableWidth * 0.5).clamp(360.0, 760.0);
-        final bottomInset = baseBottomInset.clamp(0.0, c.maxHeight * 0.15);
-
-        return Padding(
-          padding:
-              EdgeInsets.fromLTRB(horizontalPad, 0, horizontalPad, bottomInset),
-          child: Align(
-            alignment: isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxBlockWidth),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: align,
-                children: [
-                  Text(
-                    label,
-                    style: StreamloadTypography.v3LabelMono(
-                      color: StreamloadColors.accent,
-                    ),
-                    textAlign: isPhone ? TextAlign.center : TextAlign.start,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    title,
-                    style: StreamloadTypography.v3DisplayHero()
-                        .copyWith(fontSize: titleSize),
-                    textAlign: isPhone ? TextAlign.center : TextAlign.start,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    metaLine,
-                    style:
-                        StreamloadTypography.v3MetaMono().copyWith(fontSize: 12),
-                    textAlign: isPhone ? TextAlign.center : TextAlign.start,
-                  ),
-                  const SizedBox(height: 24),
-                  _Ctas(
-                    availableWidth: availableWidth - (horizontalPad * 2),
-                    isPhone: isPhone,
-                    onPlay: onPlay,
-                    onAdd: onAdd,
-                  ),
-                ],
-              ),
-            ),
+    final ta = isPhone ? TextAlign.center : TextAlign.start;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: StreamloadTypography.v3LabelMono(
+            color: StreamloadColors.accent,
           ),
-        );
-      },
+          textAlign: ta,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          title,
+          style:
+              StreamloadTypography.v3DisplayHero().copyWith(fontSize: titleSize),
+          textAlign: ta,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _metaLine(),
+          style: StreamloadTypography.v3MetaMono().copyWith(fontSize: 12),
+          textAlign: ta,
+        ),
+      ],
     );
   }
 }
 
-class _Ctas extends StatelessWidget {
-  const _Ctas({
-    required this.availableWidth,
-    required this.isPhone,
-    required this.onPlay,
-    required this.onAdd,
-  });
+/// Hero CTAs — Guarda (left) + La mia lista (right) on ONE row, equal width,
+/// symmetric. Native Apple liquid-glass buttons on iOS; cream/ghost pills as
+/// the cross-platform fallback. Kept stable across hero transitions.
+class HeroCtas extends StatelessWidget {
+  const HeroCtas({super.key, this.onPlay, this.onAdd});
 
-  final double availableWidth;
-  final bool isPhone;
   final VoidCallback? onPlay;
   final VoidCallback? onAdd;
 
@@ -287,99 +301,57 @@ class _Ctas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Phone: full-width stacked CTAs.
-    if (isPhone) {
-      // iOS → OFFICIAL native Apple Liquid Glass buttons.
-      if (_useNativeGlass) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: double.infinity,
-              child: LiquidGlassButton(
-                label: 'Guarda',
-                icon: const NativeLiquidGlassIcon.sfSymbol('play.fill'),
-                onPressed: onPlay ?? () {},
-                style: LiquidGlassButtonStyle.glass,
-                // Translucent glass — let the liquid-glass material show
-                // through (not a solid fill). Light tint for "Guarda".
-                tint: Colors.white.withValues(alpha: 0.22),
-                labelColor: Colors.white,
-                iconColor: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: LiquidGlassButton(
-                label: 'La mia lista',
-                icon: const NativeLiquidGlassIcon.sfSymbol('plus'),
-                onPressed: onAdd ?? () {},
-                style: LiquidGlassButtonStyle.glass,
-                // Darker, more neutral translucent glass for the secondary.
-                tint: Colors.black.withValues(alpha: 0.22),
-                labelColor: Colors.white,
-                iconColor: Colors.white,
-              ),
-            ),
-          ],
-        );
-      }
-      // Fallback (macOS / Android / tests): cream + ghost pills.
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          CtaButton(label: 'Guarda', leading: '▶', onTap: onPlay, block: true),
-          const SizedBox(height: 12),
-          CtaButton(
-            label: 'La mia lista',
-            leading: '＋',
-            onTap: onAdd,
-            filled: false,
-            block: true,
-          ),
-        ],
-      );
-    }
-    final stackVertical = availableWidth < 380;
-    // UI refactor (2026-05-29): the approved "Cinematic Premium" mockup
-    // uses a solid cream Play pill + a ghost "La mia lista" pill (Apple
-    // TV+ lean), overriding the older CM-4 typographic-only cluster. The
-    // rotating hero has no availability lifecycle (that lives on the title
-    // page), so these are plain CtaButtons wired to onPlay / onAdd.
-    final ctaPlay = CtaButton(
-      label: 'Guarda',
-      leading: '▶',
-      onTap: onPlay,
-      filled: true,
-    );
-    final ctaAdd = CtaButton(
-      label: 'La mia lista',
-      leading: '＋',
-      onTap: onAdd,
-      filled: false,
-    );
+    final isPhone = Responsive.isPhone(context);
 
-    if (stackVertical) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+    if (isPhone) {
+      final Widget guarda = _useNativeGlass
+          ? LiquidGlassButton(
+              label: 'Guarda',
+              icon: const NativeLiquidGlassIcon.sfSymbol('play.fill'),
+              onPressed: onPlay ?? () {},
+              style: LiquidGlassButtonStyle.glass,
+              tint: Colors.white.withValues(alpha: 0.22),
+              labelColor: Colors.white,
+              iconColor: Colors.white,
+            )
+          : CtaButton(label: 'Guarda', leading: '▶', onTap: onPlay, block: true);
+
+      final Widget lista = _useNativeGlass
+          ? LiquidGlassButton(
+              label: 'La mia lista',
+              icon: const NativeLiquidGlassIcon.sfSymbol('plus'),
+              onPressed: onAdd ?? () {},
+              style: LiquidGlassButtonStyle.glass,
+              tint: Colors.black.withValues(alpha: 0.22),
+              labelColor: Colors.white,
+              iconColor: Colors.white,
+            )
+          : CtaButton(
+              label: 'La mia lista',
+              leading: '＋',
+              onTap: onAdd,
+              filled: false,
+              block: true,
+            );
+
+      // Same row, equal halves, symmetric.
+      return Row(
         children: [
-          ctaPlay,
-          const SizedBox(height: 12),
-          ctaAdd,
+          Expanded(child: guarda),
+          const SizedBox(width: 12),
+          Expanded(child: lista),
         ],
       );
     }
+
+    // Desktop / tablet (never iOS): side-by-side pills, intrinsic widths.
     return Wrap(
-      spacing: 32,
-      runSpacing: 16,
+      spacing: 24,
+      runSpacing: 12,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        ctaPlay,
-        ctaAdd,
+        CtaButton(label: 'Guarda', leading: '▶', onTap: onPlay, filled: true),
+        CtaButton(label: 'La mia lista', leading: '＋', onTap: onAdd, filled: false),
       ],
     );
   }
