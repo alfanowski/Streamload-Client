@@ -70,7 +70,7 @@ class TitlePage extends ConsumerWidget {
             ),
           ),
         ),
-        data: (item) => _TitleContent(item: item),
+        data: (item) => _TitleContent(item: item, heroTag: heroTag),
       ),
     );
   }
@@ -169,8 +169,9 @@ class _GlassClose extends StatelessWidget {
 // ──────────────────────────────────────────────────────────────────────────
 
 class _TitleContent extends StatelessWidget {
-  const _TitleContent({required this.item});
+  const _TitleContent({required this.item, this.heroTag});
   final CatalogItemResponse item;
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context) {
@@ -197,8 +198,12 @@ class _TitleContent extends StatelessWidget {
           stretchTriggerOffset: 40,
           automaticallyImplyLeading: false,
           flexibleSpace: FlexibleSpaceBar(
+            // No parallax: the hero scrolls 1:1 with the content (the operator
+            // wants normal scrolling, no lag). Stretch still zooms it on a
+            // downward overscroll (which also dismisses past the threshold).
+            collapseMode: CollapseMode.none,
             stretchModes: const [StretchMode.zoomBackground],
-            background: _TitleHeroSection(item: item),
+            background: _TitleHeroSection(item: item, heroTag: heroTag),
           ),
         ),
         SliverList(
@@ -295,8 +300,9 @@ class _ExpandableTextState extends State<_ExpandableText> {
 // ── Hero ───────────────────────────────────────────────────────────────────
 
 class _TitleHeroSection extends ConsumerWidget {
-  const _TitleHeroSection({required this.item});
+  const _TitleHeroSection({required this.item, this.heroTag});
   final CatalogItemResponse item;
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -337,10 +343,12 @@ class _TitleHeroSection extends ConsumerWidget {
           )
         : _titleText(titleSize, isPhone);
 
+    final backdrop =
+        HeroBackdrop(backdropUrl: item.backdropUrl, posterUrl: item.posterUrl);
     return Stack(
       fit: StackFit.expand,
       children: [
-        HeroBackdrop(backdropUrl: item.backdropUrl, posterUrl: item.posterUrl),
+        if (heroTag != null) Hero(tag: heroTag!, child: backdrop) else backdrop,
         Positioned.fill(
           child: Padding(
             padding: EdgeInsets.fromLTRB(hPad, 0, hPad, isPhone ? 24 : 56),

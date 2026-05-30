@@ -66,7 +66,8 @@ class _Grid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shown = items.take(18).toList(growable: false);
+    // Max 6 — two tidy rows of three, not a wall of posters.
+    final shown = items.take(6).toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -90,12 +91,15 @@ class _Grid extends StatelessWidget {
           itemCount: shown.length,
           itemBuilder: (context, i) {
             final m = shown[i];
+            final tag = 'sg_${m.tmdbId}_$i';
             return PosterCard(
               summary: m,
               width: 120,
               showLabel: false,
+              heroTag: tag,
               onTap: () => context.push(
                 '/title/${m.tmdbId}?media_type=${m.mediaType}',
+                extra: tag,
               ),
             );
           },

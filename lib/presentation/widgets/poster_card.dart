@@ -32,11 +32,16 @@ class PosterCard extends StatelessWidget {
     this.progressFraction,
     this.subtitleOverride,
     this.showLabel = true,
+    this.heroTag,
   });
 
   final MediaSummary summary;
   final VoidCallback onTap;
   final double width;
+
+  /// Shared-element tag — when set, the poster image becomes a Hero so the
+  /// title page can open FROM this poster. Must be unique on the screen.
+  final Object? heroTag;
 
   /// 0..1 — when non-null the card shows a "Continua a guardare" overlay on
   /// the poster: a bottom scrim, the season/episode label and a clear
@@ -81,11 +86,21 @@ class PosterCard extends StatelessWidget {
       ),
     );
 
+    final Widget heroPoster = heroTag != null
+        ? Hero(
+            tag: heroTag!,
+            // Keep BoxFit covered during the flight so the poster reads the
+            // same as the destination hero while it expands.
+            flightShuttleBuilder: (_, __, ___, ____, _____) => poster,
+            child: poster,
+          )
+        : poster;
+
     final Widget content = showLabel
         ? Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              poster,
+              heroPoster,
               const SizedBox(height: 12),
               Flexible(
                 child: Text(
@@ -106,7 +121,7 @@ class PosterCard extends StatelessWidget {
                 ),
             ],
           )
-        : poster;
+        : heroPoster;
 
     return PressFeedback(
       child: _HoverScale(

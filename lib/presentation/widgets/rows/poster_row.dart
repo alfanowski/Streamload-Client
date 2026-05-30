@@ -104,10 +104,14 @@ class PosterRow extends StatelessWidget {
                 return _Placeholder(width: cardWidth);
               }
               final m = items[i];
+              // Unique-on-screen shared-element tag (row title + id + index)
+              // so the title page opens FROM this exact poster.
+              final tag = 'ht_${title.hashCode}_${m.tmdbId}_$i';
               return PosterCard(
                 summary: m,
                 width: cardWidth,
                 showLabel: false,
+                heroTag: tag,
                 progressFraction: progressByTmdbId?[m.tmdbId],
                 subtitleOverride: subtitleByTmdbId?[m.tmdbId],
                 onTap: () {
@@ -116,6 +120,7 @@ class PosterRow extends StatelessWidget {
                   } else {
                     context.push(
                       '/title/${m.tmdbId}?media_type=${m.mediaType}',
+                      extra: tag,
                     );
                   }
                 },

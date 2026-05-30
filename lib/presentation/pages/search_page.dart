@@ -596,12 +596,15 @@ class _Grid extends StatelessWidget {
       itemCount: items.length,
       itemBuilder: (context, i) {
         final m = items[i];
+        final tag = 'sgrid_${m.tmdbId}_$i';
         return PosterCard(
           summary: m,
           width: 180,
           showLabel: false,
+          heroTag: tag,
           onTap: () => context.push(
             '/title/${m.tmdbId}?media_type=${m.mediaType}',
+            extra: tag,
           ),
         );
       },
@@ -970,12 +973,15 @@ class _ResultsGridSliver extends StatelessWidget {
         delegate: SliverChildBuilderDelegate(
           (context, i) {
             final m = items[i];
+            final tag = 'res_${m.tmdbId}_$i';
             return PosterCard(
               summary: m,
               width: 180,
               showLabel: false,
+              heroTag: tag,
               onTap: () => context.push(
                 '/title/${m.tmdbId}?media_type=${m.mediaType}',
+                extra: tag,
               ),
             );
           },

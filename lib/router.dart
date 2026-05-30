@@ -51,7 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // Fully ready — bounce out of onboarding pages.
-      if (isOnboardingGithub || isOnboardingProfile) return '/home';
+      if (isOnboardingGithub || isOnboardingProfile) return '/search?q=spider';
       return null;
     },
     refreshListenable: _RouterRefreshNotifier(ref),
@@ -101,11 +101,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
       // The title page is a TOP-LEVEL full-screen modal (outside the shell →
-      // no bottom bar) that slides up over whatever you came from and is
-      // dismissed by ✕ / drag-down. Callers push() it so it can pop back.
+      // no bottom bar). It OPENS FROM THE POSTER via a shared-element Hero
+      // (the poster the user tapped passes its tag through `extra`), with a
+      // plain fade behind it; dismissed by ✕ / drag-down (which flies the
+      // hero back to the poster). Callers push() it so it can pop back.
       _modalRoute('/title/:tmdbId', (ctx, state) => TitlePage(
             tmdbId: int.parse(state.pathParameters['tmdbId']!),
             mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+            heroTag: state.extra,
           )),
     ],
   );
@@ -139,8 +142,9 @@ GoRoute _fadeRoute(
   );
 }
 
-/// Netflix-style full-screen modal: slides up from the bottom and leaves the
-/// page beneath painted (opaque:false) so the drag-to-dismiss reveals it.
+/// Full-screen modal that OPENS FROM THE POSTER: a shared-element Hero does
+/// the expand, so the route itself just fades (no bottom slide). opaque:false
+/// keeps the page beneath painted for the drag-to-dismiss.
 GoRoute _modalRoute(
     String path, Widget Function(BuildContext, GoRouterState) builder) {
   return GoRoute(
@@ -150,18 +154,13 @@ GoRoute _modalRoute(
       opaque: false,
       barrierColor: Colors.transparent,
       fullscreenDialog: true,
-      transitionDuration: const Duration(milliseconds: 320),
-      reverseTransitionDuration: const Duration(milliseconds: 240),
+      transitionDuration: const Duration(milliseconds: 340),
+      reverseTransitionDuration: const Duration(milliseconds: 280),
       child: builder(ctx, state),
-      transitionsBuilder: (_, animation, __, child) {
-        final slide = Tween<Offset>(
-          begin: const Offset(0, 1),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-        );
-        return SlideTransition(position: slide, child: child);
-      },
+      transitionsBuilder: (_, animation, __, child) => FadeTransition(
+        opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        child: child,
+      ),
     ),
   );
 }
