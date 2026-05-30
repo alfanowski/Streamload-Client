@@ -48,6 +48,7 @@ import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/hero/hero_carousel.dart';
+import '../widgets/mobile_top_bar.dart';
 import '../widgets/rows/poster_row.dart';
 import '../widgets/top_nav_bar.dart';
 
@@ -96,7 +97,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     // elements aren't hidden — yet as the user scrolls, everything passes
     // UNDER the translucent bar (visible + blurred). Phone has no top bar.
     final topInset = Responsive.isPhone(context)
-        ? 0.0
+        ? StreamloadMobileTopBar.height + MediaQuery.of(context).padding.top
         : TopNavBar.height + MediaQuery.of(context).padding.top;
 
     return DecoratedBox(

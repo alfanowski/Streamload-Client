@@ -28,6 +28,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/person.dart';
 import '../../state/person_provider.dart';
 import '../responsive.dart';
+import '../widgets/mobile_top_bar.dart';
 import '../widgets/top_nav_bar.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
@@ -65,7 +66,7 @@ class _PersonBody extends ConsumerWidget {
     final creditsAsync = ref.watch(personCreditsProvider(person.tmdbId));
     // Start below the floating top bar (content still scrolls under it).
     final topInset = Responsive.isPhone(context)
-        ? 0.0
+        ? StreamloadMobileTopBar.height + MediaQuery.of(context).padding.top
         : TopNavBar.height + MediaQuery.of(context).padding.top;
     return ListView(
       padding: EdgeInsets.only(top: topInset),

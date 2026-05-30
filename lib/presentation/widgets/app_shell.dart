@@ -51,12 +51,18 @@ class AppShell extends ConsumerWidget {
         // extendBody lets the page draw behind the FLOATING glass tab bar
         // so content blurs through it (Apple iOS 26 style).
         extendBody: true,
-        // Fixed mobile top bar (Streamload + cast) with its own space; the
-        // page content lives below it.
-        body: Column(
+        // Both bars FLOAT (glass): the page fills the stack and scrolls
+        // under them. Pages add a top inset = StreamloadMobileTopBar.height
+        // so their first elements start below the bar (then blur under it).
+        body: Stack(
           children: [
-            const StreamloadMobileTopBar(),
-            Expanded(child: child),
+            Positioned.fill(child: child),
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: StreamloadMobileTopBar(),
+            ),
           ],
         ),
         bottomNavigationBar: const StreamloadBottomTabBar(),
