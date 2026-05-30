@@ -302,9 +302,11 @@ class _Ctas extends StatelessWidget {
                 icon: const NativeLiquidGlassIcon.sfSymbol('play.fill'),
                 onPressed: onPlay ?? () {},
                 style: LiquidGlassButtonStyle.glass,
-                tint: Colors.white,
-                labelColor: Colors.black,
-                iconColor: Colors.black,
+                // Translucent glass — let the liquid-glass material show
+                // through (not a solid fill). Light tint for "Guarda".
+                tint: Colors.white.withValues(alpha: 0.22),
+                labelColor: Colors.white,
+                iconColor: Colors.white,
               ),
             ),
             const SizedBox(height: 12),
@@ -315,7 +317,8 @@ class _Ctas extends StatelessWidget {
                 icon: const NativeLiquidGlassIcon.sfSymbol('plus'),
                 onPressed: onAdd ?? () {},
                 style: LiquidGlassButtonStyle.glass,
-                tint: Colors.black,
+                // Darker, more neutral translucent glass for the secondary.
+                tint: Colors.black.withValues(alpha: 0.22),
                 labelColor: Colors.white,
                 iconColor: Colors.white,
               ),

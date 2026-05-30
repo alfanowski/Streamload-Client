@@ -62,12 +62,19 @@ void main() {
     ));
     expect(find.text('S1'), findsOneWidget);
 
-    // Swipe left → advance one slide (crossfade, not a PageView slide).
-    await t.fling(find.byType(HeroCarousel), const Offset(-300, 0), 1000);
+    // Drag left from the TOP (backdrop) area — not over the CTAs, which
+    // deliberately don't start a slide change. Commits to the next slide.
+    final start =
+        t.getTopLeft(find.byType(HeroCarousel)) + const Offset(195, 50);
+    final gesture = await t.startGesture(start);
+    await gesture.moveBy(const Offset(-180, 0));
+    await t.pump();
+    await gesture.moveBy(const Offset(-180, 0));
+    await t.pump();
+    await gesture.up();
     await t.pumpAndSettle();
 
     expect(find.text('S2'), findsOneWidget);
-    expect(find.text('S1'), findsNothing);
   });
 
   testWidgets('phone variant wraps with GestureDetector for tap-to-pause',

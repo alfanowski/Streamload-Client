@@ -97,10 +97,11 @@ class _HeroCarouselState extends State<HeroCarousel>
   bool _paused = false;
 
   // Interactive crossfade. _v ∈ [-1, 1]: < 0 reveals the NEXT slide, > 0 the
-  // PREVIOUS; |_v| is the crossfade progress toward that neighbour. While
-  // dragging, _v tracks the finger; on release it snaps to ±1 (commit) or 0
-  // (cancel) via [_snap].
-  double _v = 0;
+  // PREVIOUS; |_v| is the crossfade progress toward that neighbour. It's a
+  // ValueNotifier so dragging rebuilds ONLY the backdrop layer (cheap) —
+  // never the native platform-view buttons, which would stutter/freeze if
+  // rebuilt every frame.
+  final ValueNotifier<double> _v = ValueNotifier<double>(0);
   double _snapFrom = 0;
   double _snapTo = 0;
   late final AnimationController _snap = AnimationController(
@@ -130,24 +131,29 @@ class _HeroCarouselState extends State<HeroCarousel>
   }
 
   void _onSnapTick() {
+    // Updates the notifier only → rebuilds the backdrop layer, not the
+    // native buttons.
     final t = Curves.easeInOut.transform(_snap.value);
-    setState(() => _v = _snapFrom + (_snapTo - _snapFrom) * t);
+    _v.value = _snapFrom + (_snapTo - _snapFrom) * t;
   }
 
   void _onSnapStatus(AnimationStatus st) {
     if (st != AnimationStatus.completed) return;
     if (_snapTo != 0) {
-      _current = _snapTo < 0 ? _nextIndex : _prevIndex;
+      // Commit: rebuild the metadata for the new current slide (one setState
+      // per transition, not per frame).
+      setState(() {
+        _current = _snapTo < 0 ? _nextIndex : _prevIndex;
+      });
     }
-    _v = 0;
+    _v.value = 0;
     _snap.reset();
     _paused = false;
-    if (mounted) setState(() {});
   }
 
   void _settle(double to) {
     if (_len < 2) return;
-    _snapFrom = _v;
+    _snapFrom = _v.value;
     _snapTo = to;
     _snap.forward(from: 0);
   }
@@ -185,14 +191,16 @@ class _HeroCarouselState extends State<HeroCarousel>
   void _onDragUpdate(DragUpdateDetails d) {
     if (_len < 2) return;
     final w = context.size?.width ?? 1;
-    setState(() => _v = (_v + d.delta.dx / w).clamp(-1.0, 1.0));
+    // No setState — only the notifier changes → backdrop-only rebuild.
+    _v.value = (_v.value + d.delta.dx / w).clamp(-1.0, 1.0);
   }
 
   void _onDragEnd(DragEndDetails d) {
     final vel = d.primaryVelocity ?? 0;
-    if (_v <= -0.25 || vel < -400) {
+    final v = _v.value;
+    if (v <= -0.25 || vel < -400) {
       _settle(-1);
-    } else if (_v >= 0.25 || vel > 400) {
+    } else if (v >= 0.25 || vel > 400) {
       _settle(1);
     } else {
       _settle(0);
@@ -216,6 +224,7 @@ class _HeroCarouselState extends State<HeroCarousel>
   void dispose() {
     _autoTimer?.cancel();
     _snap.dispose();
+    _v.dispose();
     super.dispose();
   }
 
@@ -226,53 +235,44 @@ class _HeroCarouselState extends State<HeroCarousel>
     }
     final isMobile = Responsive.isMobile(context);
     final count = widget.slides.length;
-    final mag = _v.abs().clamp(0.0, 1.0);
-    final neighbour = _v == 0 ? null : (_v < 0 ? _nextIndex : _prevIndex);
     final cur = widget.slides[_current];
 
-    final Widget content = Stack(
-      fit: StackFit.expand,
-      children: [
-        // Backdrops crossfade interactively (images only → no flicker).
-        Opacity(opacity: 1 - mag, child: _backdrop(_current)),
-        if (neighbour != null)
-          Opacity(opacity: mag, child: _backdrop(neighbour)),
-        // A SINGLE metadata/CTA set for the CURRENT slide, ALWAYS mounted
-        // and never opacity-animated — native platform-view buttons glitch
-        // and freeze if faded/transformed. Only the backdrop crossfades;
-        // the text + button targets update on commit.
-        Positioned.fill(
-          child: HeroMetadata(
-            title: cur.title,
-            mediaType: cur.mediaType,
-            year: cur.year,
-            runtimeMinutes: cur.runtimeMinutes,
-            episodeCount: cur.episodeCount,
-            rating: cur.rating,
-            label: 'IN EVIDENZA',
-            languageCode: cur.languageCode,
-            onPlay: _withReset(cur.onPlay),
-            onAdd: _withReset(cur.onAdd),
-          ),
-        ),
-      ],
+    // Backdrop crossfade — the ONLY thing that rebuilds during a drag (driven
+    // by the _v notifier). Native buttons live on a separate stable layer.
+    final Widget backdrops = ValueListenableBuilder<double>(
+      valueListenable: _v,
+      builder: (context, v, _) {
+        final mag = v.abs().clamp(0.0, 1.0);
+        final neighbour = v == 0 ? null : (v < 0 ? _nextIndex : _prevIndex);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Opacity(opacity: 1 - mag, child: _backdrop(_current)),
+            if (neighbour != null)
+              Opacity(opacity: mag, child: _backdrop(neighbour)),
+          ],
+        );
+      },
     );
 
-    Widget body;
+    // The drag / tap gesture sits ONLY on the backdrop layer. The CTA buttons
+    // are a sibling ON TOP — so touching / stretching a button never starts a
+    // slide-change drag.
+    Widget interactive;
     if (isMobile) {
-      body = GestureDetector(
-        behavior: HitTestBehavior.translucent,
+      interactive = GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: _withReset(cur.onOpen),
         onHorizontalDragStart: count < 2 ? null : _onDragStart,
         onHorizontalDragUpdate: count < 2 ? null : _onDragUpdate,
         onHorizontalDragEnd: count < 2 ? null : _onDragEnd,
-        child: content,
+        child: backdrops,
       );
     } else {
-      body = MouseRegion(
+      interactive = MouseRegion(
         onEnter: (_) => _pause(),
         onExit: (_) => _resume(),
-        child: GestureDetector(onTap: cur.onOpen, child: content),
+        child: GestureDetector(onTap: _withReset(cur.onOpen), child: backdrops),
       );
     }
 
@@ -280,7 +280,23 @@ class _HeroCarouselState extends State<HeroCarousel>
       height: widget.height,
       child: Stack(
         children: [
-          Positioned.fill(child: body),
+          Positioned.fill(child: interactive),
+          // Stable metadata + native CTAs on top (their empty areas let the
+          // drag/tap below through; the buttons capture their own touches).
+          Positioned.fill(
+            child: HeroMetadata(
+              title: cur.title,
+              mediaType: cur.mediaType,
+              year: cur.year,
+              runtimeMinutes: cur.runtimeMinutes,
+              episodeCount: cur.episodeCount,
+              rating: cur.rating,
+              label: 'IN EVIDENZA',
+              languageCode: cur.languageCode,
+              onPlay: _withReset(cur.onPlay),
+              onAdd: _withReset(cur.onAdd),
+            ),
+          ),
           if (count > 1)
             Positioned(
               left: 0,
