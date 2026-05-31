@@ -380,22 +380,53 @@ class _HeroCtas extends ConsumerWidget {
 
 // ── Info ─────────────────────────────────────────────────────────────────
 
-class _InfoBlock extends StatelessWidget {
+class _InfoBlock extends ConsumerWidget {
   const _InfoBlock({required this.item});
   final CatalogItemResponse item;
 
+  /// Unique, order-preserving crew names for the given [jobs].
+  List<String> _crewNames(Iterable crew, Set<String> jobs) {
+    final out = <String>[];
+    for (final p in crew) {
+      if (jobs.contains(p.job) && p.name.isNotEmpty && !out.contains(p.name)) {
+        out.add(p.name);
+      }
+    }
+    return out;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isTv = item.mediaType == 'tv';
+    final credits = ref
+        .watch(creditsProvider(
+          TmdbKey(tmdbId: item.tmdbId, mediaType: item.mediaType),
+        ))
+        .maybeWhen(data: (c) => c, orElse: () => null);
+    final crew = credits?.crew ?? const [];
+
+    // Films → "Regia" (Director); series → "Creato da" (Creator/Showrunner).
+    final directors = isTv
+        ? _crewNames(crew, {'Creator', 'Showrunner'})
+        : _crewNames(crew, {'Director'});
+    final writers = _crewNames(crew, {'Writer'}).take(3).toList();
     final hasOriginal = item.originalTitle != null &&
         item.originalTitle!.isNotEmpty &&
         item.originalTitle != item.title;
-    if (item.genres.isEmpty && !hasOriginal) return const SizedBox.shrink();
+
+    if (item.genres.isEmpty &&
+        !hasOriginal &&
+        directors.isEmpty &&
+        writers.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeader('Info'),
         const SizedBox(height: 16),
-        if (item.genres.isNotEmpty)
+        if (item.genres.isNotEmpty) ...[
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -414,10 +445,37 @@ class _InfoBlock extends StatelessWidget {
                 ),
             ],
           ),
-        if (hasOriginal) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
+        ],
+        if (directors.isNotEmpty)
+          _InfoKV(
+            label: isTv ? 'Creato da' : 'Regia',
+            value: directors.join(', '),
+          ),
+        if (writers.isNotEmpty)
+          _InfoKV(label: 'Sceneggiatura', value: writers.join(', ')),
+        if (hasOriginal)
+          _InfoKV(label: 'Titolo originale', value: item.originalTitle!),
+      ],
+    );
+  }
+}
+
+/// A muted label over a value — the title page's structured Info rows.
+class _InfoKV extends StatelessWidget {
+  const _InfoKV({required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            'Titolo originale',
+            label,
             style: StreamloadTypography.v3Body(
               fontSize: 12.5,
               color: StreamloadColors.v3TextMuted,
@@ -425,12 +483,12 @@ class _InfoBlock extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Text(
-            item.originalTitle!,
+            value,
             style: StreamloadTypography.v3Body(fontSize: 15)
                 .copyWith(fontWeight: FontWeight.w500),
           ),
         ],
-      ],
+      ),
     );
   }
 }

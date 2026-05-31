@@ -68,14 +68,14 @@ Future<void> _setupViewport(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('renders editorial hero + bio + filmography on success',
-      (tester) async {
+  testWidgets('renders hero + Info + filmography on success', (tester) async {
     await _setupViewport(tester);
     await tester.pumpWidget(_host(
       setup: _Setup(
         person: const Person(
           tmdbId: 287,
           name: 'Brad Pitt',
+          // Bio is intentionally NOT rendered anymore (TMDB bios unreliable).
           biography: 'Actor and producer from Oklahoma.',
           birthday: '1963-12-18',
           placeOfBirth: 'Shawnee, Oklahoma, USA',
@@ -97,14 +97,15 @@ void main() {
 
     expect(find.text('Brad Pitt'), findsOneWidget);
     expect(find.text('INTERPRETE'), findsOneWidget);
-    expect(find.text('Actor and producer from Oklahoma.'), findsOneWidget);
+    // Bio removed — its text must NOT appear.
+    expect(find.text('Actor and producer from Oklahoma.'), findsNothing);
     expect(find.text('Filmografia'), findsOneWidget);
     // Rows are covers-only now (no title under the poster) — assert the two
     // filmography cards render by type.
     expect(find.byType(PosterCard), findsNWidgets(2));
   });
 
-  testWidgets('hides biography block when biography is empty', (tester) async {
+  testWidgets('renders with no identity facts at all', (tester) async {
     await tester.pumpWidget(_host(
       setup: _Setup(
         person: const Person(

@@ -65,7 +65,8 @@ class _PersonContent extends StatelessWidget {
         ? StreamloadSpacing.pagePaddingPhone
         : StreamloadSpacing.pagePaddingDesktop;
     final heroHeight = MediaQuery.sizeOf(context).height * (isPhone ? 0.6 : 0.7);
-    final hasBio = (person.biography ?? '').isNotEmpty;
+    // No biography: TMDB bios are unreliable community/Wikipedia text. We show
+    // only the structured Info facts + the filmography.
     final info = _PersonInfoBlock(person: person);
 
     return StretchyHeroScrollView(
@@ -74,11 +75,7 @@ class _PersonContent extends StatelessWidget {
       slivers: [
         SliverList(
           delegate: SliverChildListDelegate([
-            const SizedBox(height: 18),
-            if (hasBio) ...[
-              Padding(padding: pad, child: ExpandableText(person.biography!)),
-              const SizedBox(height: 26),
-            ],
+            const SizedBox(height: 22),
             if (info.hasContent) ...[
               Padding(padding: pad, child: info),
               const SizedBox(height: 30),
