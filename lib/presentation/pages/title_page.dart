@@ -173,35 +173,68 @@ class _GlassClose extends StatelessWidget {
 
 // ──────────────────────────────────────────────────────────────────────────
 // Content — CustomScrollView. The hero is a plain fixed-height sliver so it
-// scrolls away naturally (no SliverAppBar parallax / pin / overlap). The
-// pull-to-dismiss lives in _TitleModal's NotificationListener.
+// scrolls away naturally (no SliverAppBar parallax / pin / overlap). On a
+// downward overscroll at the top it ZOOMS like the Home hero: we paint it
+// scaled into the overscroll gap (paint-only, its layout height never changes,
+// so normal scrolling stays 1:1). The pull-to-dismiss lives in _TitleModal.
 // ──────────────────────────────────────────────────────────────────────────
 
-class _TitleContent extends StatelessWidget {
+class _TitleContent extends StatefulWidget {
   const _TitleContent({required this.item, this.heroTag});
   final CatalogItemResponse item;
   final Object? heroTag;
 
   @override
+  State<_TitleContent> createState() => _TitleContentState();
+}
+
+class _TitleContentState extends State<_TitleContent> {
+  // Current top overscroll (px), clamped. Drives the hero stretch/zoom.
+  double _overscroll = 0;
+
+  bool _onScroll(ScrollNotification n) {
+    if (n is ScrollUpdateNotification || n is OverscrollNotification) {
+      final o = (n.metrics.minScrollExtent - n.metrics.pixels)
+          .clamp(0.0, 220.0)
+          .toDouble();
+      if ((o - _overscroll).abs() > 0.5) setState(() => _overscroll = o);
+    }
+    return false;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     final isPhone = Responsive.isPhone(context);
     final pad = isPhone
         ? StreamloadSpacing.pagePaddingPhone
         : StreamloadSpacing.pagePaddingDesktop;
     final heroHeight = MediaQuery.sizeOf(context).height * (isPhone ? 0.6 : 0.7);
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(
-        parent: AlwaysScrollableScrollPhysics(),
-      ),
-      slivers: [
-        SliverToBoxAdapter(
-          child: SizedBox(
-            height: heroHeight,
-            child: _TitleHeroSection(item: item, heroTag: heroTag),
-          ),
+    return NotificationListener<ScrollNotification>(
+      onNotification: _onScroll,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
         ),
-        SliverList(
+        slivers: [
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: heroHeight,
+              // Paint-only stretch: cancel the overscroll shift (-_overscroll)
+              // and grow the hero downward so it fills the gap and zooms. At
+              // rest (_overscroll == 0) this is the identity transform.
+              child: Transform.translate(
+                offset: Offset(0, -_overscroll),
+                child: Transform.scale(
+                  scale: (heroHeight + _overscroll) / heroHeight,
+                  alignment: Alignment.topCenter,
+                  child: _TitleHeroSection(item: item, heroTag: widget.heroTag),
+                ),
+              ),
+            ),
+          ),
+          SliverList(
           delegate: SliverChildListDelegate([
             const SizedBox(height: 16),
             // Trama — justified body, no header.
@@ -227,7 +260,8 @@ class _TitleContent extends StatelessWidget {
             const SizedBox(height: 56),
           ]),
         ),
-      ],
+        ],
+      ),
     );
   }
 }
