@@ -15,7 +15,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../domain/models/media_summary.dart';
 import '../../domain/models/person.dart';
 import '../../state/person_provider.dart';
 import '../responsive.dart';
@@ -77,13 +76,7 @@ class _PersonContent extends StatelessWidget {
           delegate: SliverChildListDelegate([
             const SizedBox(height: 18),
             if (hasBio) ...[
-              Padding(
-                padding: pad,
-                child: ExpandableText(
-                  person.biography!,
-                  textAlign: TextAlign.start,
-                ),
-              ),
+              Padding(padding: pad, child: ExpandableText(person.biography!)),
               const SizedBox(height: 26),
             ],
             if (info.hasContent) ...[
@@ -248,17 +241,7 @@ class _PersonInfoBlock extends StatelessWidget {
   }
 }
 
-// ── Filmografia (sortable + paged) ─────────────────────────────────────────
-
-enum _Sort { popolari, recenti, menoRecenti }
-
-extension on _Sort {
-  String get label => switch (this) {
-        _Sort.popolari => 'Più popolari',
-        _Sort.recenti => 'Più recenti',
-        _Sort.menoRecenti => 'Meno recenti',
-      };
-}
+// ── Filmografia (paged) ────────────────────────────────────────────────────
 
 class _FilmographySection extends ConsumerStatefulWidget {
   const _FilmographySection({required this.tmdbId});
@@ -270,71 +253,8 @@ class _FilmographySection extends ConsumerStatefulWidget {
 }
 
 class _FilmographySectionState extends ConsumerState<_FilmographySection> {
-  _Sort _sort = _Sort.popolari;
   bool _expanded = false;
   static const int _initial = 12;
-
-  List<MediaSummary> _applySort(List<MediaSummary> items) {
-    switch (_sort) {
-      case _Sort.popolari:
-        // Backend already ranks by popularity + rating, highest first.
-        return items;
-      case _Sort.recenti:
-        return [...items]
-          ..sort((a, b) => (b.year ?? -1).compareTo(a.year ?? -1));
-      case _Sort.menoRecenti:
-        return [...items]
-          ..sort((a, b) => (a.year ?? 1 << 30).compareTo(b.year ?? 1 << 30));
-    }
-  }
-
-  Future<void> _openSortSheet() async {
-    final picked = await showModalBottomSheet<_Sort>(
-      context: context,
-      backgroundColor: StreamloadColors.v3PopoverBg,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
-      showDragHandle: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-              child: Text(
-                'Ordina per',
-                style: StreamloadTypography.display(fontSize: 20, italic: false)
-                    .copyWith(color: StreamloadColors.v3TextPrimary),
-              ),
-            ),
-            for (final s in _Sort.values)
-              ListTile(
-                onTap: () => Navigator.of(ctx).pop(s),
-                title: Text(
-                  s.label,
-                  style: StreamloadTypography.v3Body(fontSize: 16).copyWith(
-                    fontWeight: s == _sort ? FontWeight.w700 : FontWeight.w500,
-                    color: s == _sort
-                        ? StreamloadColors.v3TextPrimary
-                        : StreamloadColors.v3TextSecondary,
-                  ),
-                ),
-                trailing: s == _sort
-                    ? const Icon(Icons.check_rounded,
-                        color: StreamloadColors.accent, size: 20)
-                    : null,
-              ),
-          ],
-        ),
-      ),
-    );
-    if (picked != null && picked != _sort && mounted) {
-      setState(() => _sort = picked);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -347,20 +267,15 @@ class _FilmographySectionState extends ConsumerState<_FilmographySection> {
       error: (_, __) => const _FilmographyEmpty(),
       data: (items) {
         if (items.isEmpty) return const _FilmographyEmpty();
-        final sorted = _applySort(items);
+        // Backend already ranks by rating (70%) + popularity (30%), best first.
         final shown =
-            _expanded ? sorted : sorted.take(_initial).toList(growable: false);
-        final hasMore = sorted.length > shown.length;
+            _expanded ? items : items.take(_initial).toList(growable: false);
+        final hasMore = items.length > shown.length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Expanded(child: SectionHeader('Filmografia')),
-                _SortPill(label: _sort.label, onTap: _openSortSheet),
-              ],
-            ),
-            const SizedBox(height: 16),
+            const SectionHeader('Filmografia'),
+            const SizedBox(height: 12),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -391,7 +306,7 @@ class _FilmographySectionState extends ConsumerState<_FilmographySection> {
               Center(
                 child: _MoreButton(
                   expanded: _expanded,
-                  remaining: sorted.length - shown.length,
+                  remaining: items.length - shown.length,
                   onTap: () => setState(() => _expanded = !_expanded),
                 ),
               ),
@@ -399,45 +314,6 @@ class _FilmographySectionState extends ConsumerState<_FilmographySection> {
           ],
         );
       },
-    );
-  }
-}
-
-class _SortPill extends StatelessWidget {
-  const _SortPill({required this.label, required this.onTap});
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return PressFeedback(
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-          decoration: BoxDecoration(
-            color: StreamloadColors.v3SurfaceGlass,
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: StreamloadColors.v3BorderGlass),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.swap_vert_rounded,
-                  size: 17, color: StreamloadColors.v3TextSecondary),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: StreamloadTypography.v3Body(fontSize: 13).copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: StreamloadColors.v3TextPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
