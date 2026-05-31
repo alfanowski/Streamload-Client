@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/remote/api_exception.dart';
+import '../data/remote/endpoints/auth_api.dart';
 import '../domain/models/user.dart';
 import 'api_client_provider.dart';
 
@@ -32,22 +33,43 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   final Ref _ref;
 
-  /// Called once at app start. Hits /me; success → authenticated, 401 →
-  /// unauthenticated, anything else → error.
+  /// Called once at app start. Hits /me; success → authenticated, a real
+  /// 401 → unauthenticated, anything else → error.
+  ///
+  /// Transient failures (backend/network still settling at cold start, 5xx,
+  /// timeouts) are RETRIED with backoff — a single failed /me must never bounce
+  /// a still-logged-in user (valid 30-day session cookie) back to the login
+  /// screen. Only a genuine 401 logs out.
   Future<void> bootstrap() async {
     state = const AuthLoading();
+    final AuthApi api;
     try {
-      final api = await _ref.read(authApiProvider.future);
-      final user = await api.me();
-      state = AuthAuthenticated(user);
-    } on ApiException catch (e) {
-      if (e.isUnauthorized) {
-        state = const AuthUnauthenticated();
-      } else {
-        state = AuthError(e.toString());
-      }
+      api = await _ref.read(authApiProvider.future);
     } catch (e) {
       state = AuthError(e.toString());
+      return;
+    }
+    const maxAttempts = 4;
+    for (var attempt = 1;; attempt++) {
+      try {
+        state = AuthAuthenticated(await api.me());
+        return;
+      } on ApiException catch (e) {
+        if (e.isUnauthorized) {
+          state = const AuthUnauthenticated(); // genuinely no session
+          return;
+        }
+        if (attempt >= maxAttempts) {
+          state = AuthError(e.toString());
+          return;
+        }
+      } catch (e) {
+        if (attempt >= maxAttempts) {
+          state = AuthError(e.toString());
+          return;
+        }
+      }
+      await Future<void>.delayed(Duration(milliseconds: 500 * attempt));
     }
   }
 
