@@ -120,6 +120,7 @@ class _Header extends StatelessWidget {
       summary.title,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
+      textAlign: TextAlign.center,
       style: StreamloadTypography.v3DisplayHero().copyWith(fontSize: 24),
     );
 
@@ -128,7 +129,7 @@ class _Header extends StatelessWidget {
       content = Image.network(
         url,
         fit: BoxFit.contain,
-        alignment: Alignment.centerLeft,
+        alignment: Alignment.center,
         frameBuilder: (_, child, frame, __) => AnimatedOpacity(
           opacity: frame == null ? 0 : 1,
           duration: const Duration(milliseconds: 180),
@@ -148,7 +149,7 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
       child: SizedBox(
         height: 44,
-        child: Align(alignment: Alignment.centerLeft, child: content),
+        child: Align(alignment: Alignment.center, child: content),
       ),
     );
   }
