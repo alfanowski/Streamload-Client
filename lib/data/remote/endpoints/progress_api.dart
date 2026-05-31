@@ -28,4 +28,13 @@ class ProgressApi {
   Future<Map<String, dynamic>> continueWatching() async {
     return _client.getJson('/api/progress/continue-watching');
   }
+
+  /// DELETE /api/progress/continue-watching/{tmdb_id}?media_type=
+  /// Removes a title from the "Continua a guardare" row.
+  Future<void> removeContinueWatching(int tmdbId, String mediaType) async {
+    await _client.delete(
+      '/api/progress/continue-watching/$tmdbId',
+      query: {'media_type': mediaType},
+    );
+  }
 }

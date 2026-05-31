@@ -22,6 +22,7 @@ import '../theme/motion.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import 'press_feedback.dart';
+import 'title_actions_sheet.dart';
 
 class PosterCard extends StatelessWidget {
   const PosterCard({
@@ -128,6 +129,7 @@ class PosterCard extends StatelessWidget {
         enabled: hoverable,
         child: InkWell(
           onTap: onTap,
+          onLongPress: () => showTitleActions(context, summary),
           borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
           child: SizedBox(width: width, child: content),
         ),
