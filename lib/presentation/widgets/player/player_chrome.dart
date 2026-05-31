@@ -105,6 +105,21 @@ class _PlayerChromeState extends ConsumerState<PlayerChrome>
   }
 
   @override
+  void didUpdateWidget(covariant PlayerChrome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The WatchPage/PlayerChrome State persists across episode switches (same
+    // route, new request). Reset the per-episode latches so auto-advance and
+    // the "Prossimo episodio" card work for EVERY episode, not just the first.
+    final o = oldWidget.request, n = widget.request;
+    if (o.tmdbId != n.tmdbId ||
+        o.season != n.season ||
+        o.episode != n.episode) {
+      _autoAdvanced = false;
+      _nextEpDismissed = false;
+    }
+  }
+
+  @override
   void dispose() {
     _hideTimer?.cancel();
     _ripple.dispose();

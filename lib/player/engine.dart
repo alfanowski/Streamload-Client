@@ -12,6 +12,10 @@ class PlayerEngine {
   PlayerEngine() : _player = Player() {
     _configureMpv();
     _wirePreferredAudio();
+    // Ensure full volume ONCE at construction (insurance against a 0/low
+    // default leaving playback silent). NOT per-open — that clobbered any
+    // volume the user set, resetting it on every episode advance.
+    _player.setVolume(100);
   }
 
   static void ensureInitialized() {
@@ -201,8 +205,6 @@ class PlayerEngine {
     // why "Riprendi" used to restart from 0. Passing it to the demuxer is
     // reliable for both movies and episodes.
     _player.open(Media(uri, httpHeaders: headers, start: startAt));
-    // Insurance against a 0/low volume leaving playback silent.
-    _player.setVolume(100);
   }
 
   Future<void> play() => _player.play();

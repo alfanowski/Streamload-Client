@@ -50,6 +50,19 @@ class _ProgressApiMock extends Mock implements ProgressApi {}
       .thenAnswer((_) => const Stream<Track>.empty());
   when(() => engine.tracks).thenReturn(Tracks());
   when(() => engine.track).thenReturn(Track());
+  // PlayerChrome (the new player UI) subscribes to these + reads the sync
+  // snapshots. Stub them so the widget can build in tests.
+  when(() => engine.bufferingStream)
+      .thenAnswer((_) => const Stream<bool>.empty());
+  when(() => engine.completedStream)
+      .thenAnswer((_) => const Stream<bool>.empty());
+  when(() => engine.bufferStream)
+      .thenAnswer((_) => const Stream<Duration>.empty());
+  when(() => engine.playing).thenReturn(false);
+  when(() => engine.buffering).thenReturn(false);
+  when(() => engine.position).thenReturn(Duration.zero);
+  when(() => engine.duration).thenReturn(Duration.zero);
+  when(() => engine.buffer).thenReturn(Duration.zero);
 
   // progress api may be called (but we don't assert it in lifecycle tests).
   when(

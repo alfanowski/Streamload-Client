@@ -60,6 +60,11 @@ class _WatchPageState extends ConsumerState<WatchPage> {
   ProgressTracker? _tracker;
   final _engineSubs = <StreamSubscription<dynamic>>[];
 
+  /// Bumped on every (re)start. Async callbacks captured during one start
+  /// ignore their results if a newer start has begun — so a late error event
+  /// from the PREVIOUS media can't latch the new episode onto the error state.
+  int _startAttempt = 0;
+
   /// Pinch-to-zoom: contain (original letterbox) ↔ cover (fill the screen).
   BoxFit _videoFit = BoxFit.contain;
 
@@ -153,6 +158,14 @@ class _WatchPageState extends ConsumerState<WatchPage> {
       'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_ts/master.m3u8';
 
   Future<void> _start() async {
+    final attempt = ++_startAttempt;
+    // Resolve the effective episode ONCE (s1e1 default for TV opened without
+    // an explicit episode) and use it for the stream URL, the resume lookup,
+    // AND the progress tracker — so the write key and the read key always
+    // agree (otherwise "Riprendi" saves under (null,null) but reads (1,1)).
+    final isTv = widget.request.mediaType == 'tv';
+    final effSeason = isTv ? (widget.request.season ?? 1) : null;
+    final effEpisode = isTv ? (widget.request.episode ?? 1) : null;
     try {
       final String url;
       if (widget.debugBypassProxy) {
@@ -166,12 +179,11 @@ class _WatchPageState extends ConsumerState<WatchPage> {
         // playable stream rather than falling through to startMovie and
         // matching against the wrong catalog half (Pokemon series tapped →
         // startMovie used to pick "Pokemon Detective Pikachu").
-        final isTv = widget.request.mediaType == 'tv';
         if (isTv) {
           url = await controller.startEpisode(
             tmdbId: widget.request.tmdbId,
-            season: widget.request.season ?? 1,
-            episode: widget.request.episode ?? 1,
+            season: effSeason!,
+            episode: effEpisode!,
           );
         } else {
           url = await controller.startMovie(tmdbId: widget.request.tmdbId);
@@ -194,6 +206,8 @@ class _WatchPageState extends ConsumerState<WatchPage> {
         // startup tries to set mpv properties like "osc" that don't exist
         // on newer libmpv (warning: 'property not found _setProperty...').
         // Only the patterns below are actual playback failures.
+        // Ignore late errors from a superseded start (episode switch).
+        if (attempt != _startAttempt) return;
         if (_phase == _Phase.error) return;
         final isFatal = msg.contains('avformat_open_input') ||
             msg.contains('Failed to recognize file format') ||
@@ -225,8 +239,9 @@ class _WatchPageState extends ConsumerState<WatchPage> {
         api: progressApi,
         tmdbId: widget.request.tmdbId,
         mediaType: widget.request.mediaType,
-        seasonNumber: widget.request.season,
-        episodeNumber: widget.request.episode,
+        // Same resolved key as the resume lookup — see effSeason/effEpisode.
+        seasonNumber: effSeason,
+        episodeNumber: effEpisode,
         positionStream: engine.positionStream,
         durationStream: engine.durationStream,
       )..start();
