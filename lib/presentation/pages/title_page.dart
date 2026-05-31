@@ -27,7 +27,9 @@ import '../widgets/cast/cast_card.dart';
 import '../widgets/cast/cast_row.dart';
 import '../widgets/hero/hero_backdrop.dart';
 import '../widgets/hero/hero_cta_button.dart';
-import '../widgets/primitives/glass_surface.dart';
+import '../widgets/modal/modal_shell.dart';
+import '../widgets/modal/section_widgets.dart';
+import '../widgets/modal/stretchy_hero_scroll_view.dart';
 import '../widgets/title/season_episodes.dart';
 import '../widgets/title/similar_grid.dart';
 
@@ -51,7 +53,7 @@ class TitlePage extends ConsumerWidget {
     final async = ref.watch(
       titleProvider(TitleKey(tmdbId: tmdbId, mediaType: mediaType)),
     );
-    return _TitleModal(
+    return ModalShell(
       child: async.when(
         loading: () => const ColoredBox(
           color: Colors.black,
@@ -77,169 +79,33 @@ class TitlePage extends ConsumerWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Dismissible modal shell — pull the hero down past a threshold, or tap ✕.
+// Content — a stretchy hero scroll view (zoom on overscroll, natural scroll)
+// hosting the cinematic hero, trama, cast, info and similar/episodes.
 // ──────────────────────────────────────────────────────────────────────────
 
-class _TitleModal extends StatefulWidget {
-  const _TitleModal({required this.child});
-  final Widget child;
-
-  @override
-  State<_TitleModal> createState() => _TitleModalState();
-}
-
-class _TitleModalState extends State<_TitleModal> {
-  bool _dismissing = false;
-  static const double _closeThreshold = 130;
-
-  void _dismiss() {
-    if (_dismissing) return;
-    _dismissing = true;
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else {
-      context.go('/home');
-    }
-  }
-
-  bool _onScroll(ScrollNotification n) {
-    // Close only on a DELIBERATE downward drag at the very top — i.e. the
-    // user's finger is down (dragDetails != null) and they've pulled past
-    // the threshold. We must NOT close on the ballistic overscroll a fast
-    // flick-up-to-top produces (dragDetails == null), which was dismissing
-    // the panel involuntarily.
-    final DragUpdateDetails? drag = n is ScrollUpdateNotification
-        ? n.dragDetails
-        : n is OverscrollNotification
-            ? n.dragDetails
-            : null;
-    if (drag == null || _dismissing) return false;
-    final pull = n.metrics.minScrollExtent - n.metrics.pixels;
-    if (pull > _closeThreshold) _dismiss();
-    return false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final topPad = MediaQuery.of(context).padding.top;
-    return Material(
-      type: MaterialType.transparency,
-      child: ColoredBox(
-        color: Colors.black,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: NotificationListener<ScrollNotification>(
-                onNotification: _onScroll,
-                child: widget.child,
-              ),
-            ),
-            // Native iOS Liquid Glass close button.
-            Positioned(
-              top: topPad + 8,
-              right: 14,
-              child: _GlassClose(onTap: _dismiss),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _GlassClose extends StatelessWidget {
-  const _GlassClose({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: const GlassSurface(
-        capsule: true,
-        borderRadius: 19,
-        blur: 14,
-        thickness: 14,
-        child: SizedBox(
-          width: 38,
-          height: 38,
-          child: Icon(Icons.close_rounded, color: Colors.white, size: 22),
-        ),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// Content — CustomScrollView. The hero is a plain fixed-height sliver so it
-// scrolls away naturally (no SliverAppBar parallax / pin / overlap). On a
-// downward overscroll at the top it ZOOMS like the Home hero: we paint it
-// scaled into the overscroll gap (paint-only, its layout height never changes,
-// so normal scrolling stays 1:1). The pull-to-dismiss lives in _TitleModal.
-// ──────────────────────────────────────────────────────────────────────────
-
-class _TitleContent extends StatefulWidget {
+class _TitleContent extends StatelessWidget {
   const _TitleContent({required this.item, this.heroTag});
   final CatalogItemResponse item;
   final Object? heroTag;
 
   @override
-  State<_TitleContent> createState() => _TitleContentState();
-}
-
-class _TitleContentState extends State<_TitleContent> {
-  // Current top overscroll (px), clamped. Drives the hero stretch/zoom.
-  double _overscroll = 0;
-
-  bool _onScroll(ScrollNotification n) {
-    if (n is ScrollUpdateNotification || n is OverscrollNotification) {
-      final o = (n.metrics.minScrollExtent - n.metrics.pixels)
-          .clamp(0.0, 220.0)
-          .toDouble();
-      if ((o - _overscroll).abs() > 0.5) setState(() => _overscroll = o);
-    }
-    return false;
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final item = widget.item;
     final isPhone = Responsive.isPhone(context);
     final pad = isPhone
         ? StreamloadSpacing.pagePaddingPhone
         : StreamloadSpacing.pagePaddingDesktop;
     final heroHeight = MediaQuery.sizeOf(context).height * (isPhone ? 0.6 : 0.7);
 
-    return NotificationListener<ScrollNotification>(
-      onNotification: _onScroll,
-      child: CustomScrollView(
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
-        slivers: [
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: heroHeight,
-              // Paint-only stretch: cancel the overscroll shift (-_overscroll)
-              // and grow the hero downward so it fills the gap and zooms. At
-              // rest (_overscroll == 0) this is the identity transform.
-              child: Transform.translate(
-                offset: Offset(0, -_overscroll),
-                child: Transform.scale(
-                  scale: (heroHeight + _overscroll) / heroHeight,
-                  alignment: Alignment.topCenter,
-                  child: _TitleHeroSection(item: item, heroTag: widget.heroTag),
-                ),
-              ),
-            ),
-          ),
-          SliverList(
+    return StretchyHeroScrollView(
+      heroHeight: heroHeight,
+      hero: _TitleHeroSection(item: item, heroTag: heroTag),
+      slivers: [
+        SliverList(
           delegate: SliverChildListDelegate([
             const SizedBox(height: 16),
             // Trama — justified body, no header.
             if ((item.overview ?? '').isNotEmpty)
-              Padding(padding: pad, child: _ExpandableText(item.overview!)),
+              Padding(padding: pad, child: ExpandableText(item.overview!)),
             const SizedBox(height: 28),
             _CastSection(item: item),
             const SizedBox(height: 28),
@@ -259,67 +125,6 @@ class _TitleContentState extends State<_TitleContent> {
             ),
             const SizedBox(height: 56),
           ]),
-        ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Shared bits ──────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      text,
-      style: StreamloadTypography.display(fontSize: 22, italic: false)
-          .copyWith(color: StreamloadColors.v3TextPrimary),
-    );
-  }
-}
-
-class _ExpandableText extends StatefulWidget {
-  const _ExpandableText(this.text);
-  final String text;
-  @override
-  State<_ExpandableText> createState() => _ExpandableTextState();
-}
-
-class _ExpandableTextState extends State<_ExpandableText> {
-  bool _expanded = false;
-  @override
-  Widget build(BuildContext context) {
-    final style =
-        StreamloadTypography.v3Body(fontSize: 16).copyWith(height: 1.6);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AnimatedSize(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.topCenter,
-          child: Text(
-            widget.text,
-            style: style,
-            textAlign: TextAlign.justify,
-            maxLines: _expanded ? null : 5,
-            overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
-          ),
-        ),
-        const SizedBox(height: 6),
-        GestureDetector(
-          onTap: () => setState(() => _expanded = !_expanded),
-          behavior: HitTestBehavior.opaque,
-          child: Text(
-            _expanded ? 'Riduci' : 'Altro',
-            style: StreamloadTypography.v3Body(
-              fontSize: 14,
-              color: StreamloadColors.v3TextSecondary,
-            ).copyWith(fontWeight: FontWeight.w600),
-          ),
         ),
       ],
     );
@@ -588,7 +393,7 @@ class _InfoBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader('Info'),
+        const SectionHeader('Info'),
         const SizedBox(height: 16),
         if (item.genres.isNotEmpty)
           Wrap(

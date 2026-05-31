@@ -57,9 +57,11 @@ class CastCard extends StatelessWidget {
             ? _widthTablet
             : _widthDesktop;
 
+    // Shared-element tag so the person page opens FROM this avatar.
+    final tag = 'cast_${data.tmdbId}';
     return PressFeedback(
       child: InkWell(
-        onTap: () => context.go('/person/${data.tmdbId}'),
+        onTap: () => context.push('/person/${data.tmdbId}', extra: tag),
         borderRadius: BorderRadius.circular(radius),
         child: SizedBox(
           width: width,
@@ -67,7 +69,7 @@ class CastCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _Avatar(radius: radius, profileUrl: data.profileUrl),
+              _Avatar(radius: radius, profileUrl: data.profileUrl, heroTag: tag),
               const SizedBox(height: 12),
               Text(
                 data.name,
@@ -102,15 +104,16 @@ class CastCard extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.radius, required this.profileUrl});
+  const _Avatar({required this.radius, required this.profileUrl, this.heroTag});
 
   final double radius;
   final String? profileUrl;
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context) {
     final diameter = radius * 2;
-    return Container(
+    final avatar = Container(
       width: diameter,
       height: diameter,
       // Hairline warm border at 8% — same border discipline as PosterCard
@@ -134,6 +137,7 @@ class _Avatar extends StatelessWidget {
             : const _PortraitFallback(),
       ),
     );
+    return heroTag != null ? Hero(tag: heroTag!, child: avatar) : avatar;
   }
 }
 

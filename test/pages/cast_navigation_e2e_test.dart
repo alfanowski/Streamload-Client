@@ -92,14 +92,21 @@ void main() {
     await tester.pumpAndSettle();
 
     // Step 2: we're on the PersonPage — Brad Pitt + Filmografia visible.
-    // Rows are covers-only now (no title text under the poster), so assert
-    // the filmography card is present by type rather than by title text.
+    // Filmography is a covers-only grid now (no title text under the poster),
+    // so assert the card is present by type rather than by title text.
     expect(find.text('Brad Pitt'), findsOneWidget);
     expect(find.text('Filmografia'), findsOneWidget);
     expect(find.byType(PosterCard), findsWidgets);
 
-    // Step 3: tap the filmography card — fires PosterRow's default
-    // onItemTap which navigates to /title/<id>?media_type=<mt>.
+    // Step 3: scroll the filmography card into view (the hero is tall), then
+    // tap it — fires the grid's onTap → /title/<id>?media_type=<mt>.
+    await tester.scrollUntilVisible(
+      find.byType(PosterCard).first,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.byType(PosterCard).first);
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(PosterCard).first);
     await tester.pumpAndSettle();
 

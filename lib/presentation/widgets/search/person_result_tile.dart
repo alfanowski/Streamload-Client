@@ -23,7 +23,7 @@ class PersonResultTile extends StatelessWidget {
 
   final SearchPersonResult person;
 
-  /// Optional tap override. Defaults to `context.go('/person/<id>')`.
+  /// Optional tap override. Defaults to `context.push('/person/<id>')`.
   /// The search overlay passes a handler that ALSO pops the overlay
   /// before navigating.
   final VoidCallback? onTap;
@@ -39,7 +39,7 @@ class PersonResultTile extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap ?? () => context.go('/person/${person.tmdbId}'),
+          onTap: onTap ?? () => context.push('/person/${person.tmdbId}'),
           borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 72),

@@ -1,290 +1,228 @@
 // lib/presentation/pages/person_page.dart
 //
-// Pass 3 CAST-5 — editorial actor / director page. Magazine hero (rounded
-// portrait + Fraunces italic name + monospace birth line + Italian
-// eyebrow label) over a centered biography and the popularity-sorted
-// PosterRow of every title in the person's filmography.
+// Actor / director page — a full-screen, Netflix-style MODAL built exactly
+// like the title page: a cinematic hero (the portrait, full-bleed, fading to
+// black) that ZOOMS on a downward overscroll, a glass ✕ + pull-to-dismiss,
+// then an expandable biography and the popularity-sorted filmography as a
+// 3-column covers grid. Opens FROM the tapped cast avatar via a shared Hero.
 //
 // State:
-//   - personProvider(tmdbId) → Person bio
+//   - personProvider(tmdbId) → Person bio/identity
 //   - personCreditsProvider(tmdbId) → List<MediaSummary> filmography
-// Both autoDispose so navigating between actors doesn't keep stale
-// futures in memory. Tap any title card → /title/<id>?media_type=<mt>
-// (default PosterRow handler).
-//
-// Editorial discipline notes:
-//   - portrait is a magazine-square (aspect 3:4), NOT circular — round
-//     avatars are for the small CastCard chips, not the page hero
-//   - typography uses display(italic) for the name, v3MetaMono for the
-//     birth line, v3LabelMono for the eyebrow, v3Body 16 for the bio
-//   - biography is constrained to maxWidth 720 like the title page
-//     synopsis so the line length stays magazine-readable
-//   - no animations beyond the global page fade route — no Ken Burns,
-//     no parallax, no spring physics
-import 'package:cached_network_image/cached_network_image.dart';
+// Both autoDispose. Tap a filmography card → /title/<id> (opens from poster).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../domain/models/person.dart';
 import '../../state/person_provider.dart';
 import '../responsive.dart';
-import '../widgets/top_nav_bar.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
-import '../widgets/rows/poster_row.dart';
+import '../widgets/hero/hero_backdrop.dart';
+import '../widgets/modal/modal_shell.dart';
+import '../widgets/modal/section_widgets.dart';
+import '../widgets/modal/stretchy_hero_scroll_view.dart';
+import '../widgets/poster_card.dart';
 
 class PersonPage extends ConsumerWidget {
-  const PersonPage({super.key, required this.tmdbId});
+  const PersonPage({super.key, required this.tmdbId, this.heroTag});
 
   final int tmdbId;
+
+  /// Shared-element tag of the avatar the user tapped — the hero opens FROM
+  /// that avatar (and back to it on close). Null → plain fade.
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final personAsync = ref.watch(personProvider(tmdbId));
-    return Scaffold(
-      backgroundColor: StreamloadColors.v3BgBase,
-      body: personAsync.when(
+    return ModalShell(
+      child: personAsync.when(
         loading: () => const _Skeleton(),
         error: (e, _) => _ErrorState(
           message: '$e',
           onRetry: () => ref.invalidate(personProvider(tmdbId)),
         ),
-        data: (person) => _PersonBody(person: person),
+        data: (person) => _PersonContent(person: person, heroTag: heroTag),
       ),
     );
   }
 }
 
-class _PersonBody extends ConsumerWidget {
-  const _PersonBody({required this.person});
+class _PersonContent extends ConsumerWidget {
+  const _PersonContent({required this.person, this.heroTag});
   final Person person;
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isPhone = Responsive.isPhone(context);
+    final pad = isPhone
+        ? StreamloadSpacing.pagePaddingPhone
+        : StreamloadSpacing.pagePaddingDesktop;
+    final heroHeight = MediaQuery.sizeOf(context).height * (isPhone ? 0.6 : 0.7);
     final creditsAsync = ref.watch(personCreditsProvider(person.tmdbId));
-    // Phone: just clear the status bar / Dynamic Island. Desktop: clear the
-    // floating top nav bar.
-    final topInset = Responsive.isPhone(context)
-        ? MediaQuery.of(context).padding.top + 8
-        : TopNavBar.height + MediaQuery.of(context).padding.top;
-    return ListView(
-      padding: EdgeInsets.only(top: topInset),
-      children: [
-        _Hero(person: person),
-        if ((person.biography ?? '').isNotEmpty) ...[
-          const SizedBox(height: 40),
-          _Biography(body: person.biography!),
-        ],
-        const SizedBox(height: 40),
-        creditsAsync.when(
-          loading: () => const PosterRow(
-            title: 'Filmografia',
-            items: [],
-            isLoading: true,
-          ),
-          error: (_, __) => const _FilmographyEmpty(),
-          data: (items) => items.isEmpty
-              ? const _FilmographyEmpty()
-              : PosterRow(title: 'Filmografia', items: items),
+
+    final hasBio = (person.biography ?? '').isNotEmpty;
+    final aka = person.alsoKnownAs.isNotEmpty
+        ? person.alsoKnownAs.take(4).join(' · ')
+        : null;
+
+    return StretchyHeroScrollView(
+      heroHeight: heroHeight,
+      hero: _PersonHero(person: person, heroTag: heroTag),
+      slivers: [
+        SliverList(
+          delegate: SliverChildListDelegate([
+            const SizedBox(height: 18),
+            if (hasBio) ...[
+              Padding(padding: pad, child: ExpandableText(person.biography!)),
+              const SizedBox(height: 18),
+            ],
+            if (aka != null) ...[
+              Padding(
+                padding: pad,
+                child: Text(
+                  'Anche noto come · $aka',
+                  style: StreamloadTypography.v3Body(
+                    fontSize: 12.5,
+                    color: StreamloadColors.v3TextMuted,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 26),
+            ] else if (hasBio)
+              const SizedBox(height: 10),
+            Padding(padding: pad, child: const SectionHeader('Filmografia')),
+            const SizedBox(height: 16),
+          ]),
         ),
-        const SizedBox(height: 40),
+        creditsAsync.when(
+          loading: () => const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 1.5)),
+            ),
+          ),
+          error: (_, __) => const SliverToBoxAdapter(child: _FilmographyEmpty()),
+          data: (items) => items.isEmpty
+              ? const SliverToBoxAdapter(child: _FilmographyEmpty())
+              : SliverPadding(
+                  padding: pad,
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 2 / 3,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) {
+                        final m = items[i];
+                        final tag = 'pf_${m.tmdbId}_$i';
+                        return PosterCard(
+                          summary: m,
+                          width: 120,
+                          showLabel: false,
+                          heroTag: tag,
+                          onTap: () => context.push(
+                            '/title/${m.tmdbId}?media_type=${m.mediaType}',
+                            extra: tag,
+                          ),
+                        );
+                      },
+                      childCount: items.length,
+                    ),
+                  ),
+                ),
+        ),
+        const SliverToBoxAdapter(child: SizedBox(height: 56)),
       ],
     );
   }
 }
 
-class _Hero extends StatelessWidget {
-  const _Hero({required this.person});
-  final Person person;
+// ── Hero ───────────────────────────────────────────────────────────────────
 
-  // Portrait sizing for desktop / tablet. Phone uses a centered constrained
-  // copy. Capped at 380 px wide to keep the hero from swallowing wide
-  // viewports.
-  static const double _portraitMaxWidth = 380;
-  static const double _portraitTabletWidth = 280;
-  static const double _portraitPhoneWidth = 240;
+class _PersonHero extends StatelessWidget {
+  const _PersonHero({required this.person, this.heroTag});
+  final Person person;
+  final Object? heroTag;
 
   @override
   Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
     final isTablet = Responsive.isTablet(context);
-    final pagePad = isPhone
-        ? StreamloadSpacing.pagePaddingPhone
-        : isTablet
-            ? StreamloadSpacing.pagePaddingTablet
-            : StreamloadSpacing.pagePaddingDesktop;
-    final nameSize = isPhone ? 36.0 : (isTablet ? 48.0 : 64.0);
+    final hPad = isPhone ? 16.0 : 64.0;
+    final nameSize = isPhone ? 40.0 : (isTablet ? 52.0 : 64.0);
 
-    final portrait = _Portrait(profileUrl: person.profileUrl);
-    final stack = _IdentityStack(person: person, nameSize: nameSize);
-
-    if (isPhone) {
-      // Stacked layout — portrait centered above the identity stack.
-      // Height collapses to content (no fixed SizedBox) so the ListView
-      // never overflows on short viewports.
-      return Padding(
-        padding: pagePad,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-            Center(
-              child: SizedBox(
-                width: _portraitPhoneWidth,
-                child: portrait,
-              ),
-            ),
-            const SizedBox(height: 24),
-            stack,
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: pagePad,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: isTablet
-                  ? _portraitTabletWidth
-                  : _portraitMaxWidth,
-              child: portrait,
-            ),
-            const SizedBox(width: 40),
-            Expanded(child: stack),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Portrait extends StatelessWidget {
-  const _Portrait({required this.profileUrl});
-  final String? profileUrl;
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 3 / 4,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius:
-              BorderRadius.circular(StreamloadSpacing.cardRadiusLarge),
-          border: Border.all(
-            color: StreamloadColors.v3BorderGlass,
-            width: 1,
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius:
-              BorderRadius.circular(StreamloadSpacing.cardRadiusLarge),
-          child: profileUrl != null
-              ? CachedNetworkImage(
-                  imageUrl: profileUrl!,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) =>
-                      Container(color: StreamloadColors.v3SurfaceGlass),
-                  errorWidget: (_, __, ___) => const _PortraitFallback(),
-                )
-              : const _PortraitFallback(),
-        ),
-      ),
-    );
-  }
-}
-
-class _PortraitFallback extends StatelessWidget {
-  const _PortraitFallback();
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            StreamloadColors.v3SurfaceGlassHi,
-            StreamloadColors.v3SurfaceGlass,
-          ],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.person_outline,
-          color: StreamloadColors.v3TextMuted,
-          size: 56,
-        ),
-      ),
-    );
-  }
-}
-
-class _IdentityStack extends StatelessWidget {
-  const _IdentityStack({required this.person, required this.nameSize});
-  final Person person;
-  final double nameSize;
-
-  @override
-  Widget build(BuildContext context) {
     final eyebrow = _italianDepartment(person.knownForDepartment);
     final birthLine = _formatBirthLine(person);
-    final aka = person.alsoKnownAs.isNotEmpty
-        ? person.alsoKnownAs.join(', ')
-        : null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
+
+    // Full-bleed portrait as the hero backdrop, fading to black — same chrome
+    // as the title hero. Aligned to the top so faces (usually upper-frame)
+    // stay visible when the wide hero crops the 2:3 portrait.
+    final backdrop = HeroBackdrop(backdropUrl: person.profileUrl);
+    return Stack(
+      fit: StackFit.expand,
       children: [
-        if (eyebrow != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Text(eyebrow, style: StreamloadTypography.v3LabelMono()),
-          ),
-        Text(
-          person.name,
-          style: StreamloadTypography.display(
-            fontSize: nameSize,
-            italic: true,
+        if (heroTag != null) Hero(tag: heroTag!, child: backdrop) else backdrop,
+        Positioned.fill(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(hPad, 0, hPad, isPhone ? 24 : 56),
+            child: Align(
+              alignment:
+                  isPhone ? Alignment.bottomCenter : Alignment.bottomLeft,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: isPhone ? 540 : 780),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: isPhone
+                      ? CrossAxisAlignment.center
+                      : CrossAxisAlignment.start,
+                  children: [
+                    if (eyebrow != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(eyebrow,
+                            style: StreamloadTypography.v3LabelMono()),
+                      ),
+                    Text(
+                      person.name,
+                      textAlign: isPhone ? TextAlign.center : TextAlign.start,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: StreamloadTypography.v3DisplayHero()
+                          .copyWith(fontSize: nameSize),
+                    ),
+                    if (birthLine != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 14),
+                        child: Text(
+                          birthLine,
+                          textAlign:
+                              isPhone ? TextAlign.center : TextAlign.start,
+                          style: StreamloadTypography.v3Body(
+                            fontSize: 13,
+                            color: StreamloadColors.v3TextSecondary,
+                          ).copyWith(fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
-        if (birthLine != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 16),
-            child: Text(
-              birthLine,
-              style: StreamloadTypography.v3MetaMono(
-                fontSize: 13,
-              ),
-            ),
-          ),
-        if (aka != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              aka,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: StreamloadTypography.v3MetaMono(
-                fontSize: 11,
-                color: StreamloadColors.v3TextMuted,
-              ),
-            ),
-          ),
       ],
     );
   }
 }
 
-/// Pass 3 visual decision: we keep the eyebrow English-mapping local to
-/// the page since this is the only consumer. If a future Person UI needs
-/// the same mapping it'll be cheap to lift this into a utility.
+/// Maps TMDB's English department to the Italian eyebrow label.
 String? _italianDepartment(String? dept) {
   if (dept == null || dept.isEmpty) return null;
   switch (dept) {
@@ -306,9 +244,8 @@ const _itMonths = [
   'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
 ];
 
-/// Returns null when there's no birthday to render. Handles the three
-/// shapes TMDB sends: full ISO, year-only, and (rarely) day-only — we
-/// fall back to "n. YYYY" for anything we can parse.
+/// Returns null when there's no birthday to render. Handles the three shapes
+/// TMDB sends: full ISO, year-only, and (rarely) day-only.
 String? _formatBirthLine(Person p) {
   final birth = p.birthday;
   final death = p.deathday;
@@ -331,8 +268,6 @@ String? _formatBirthLine(Person p) {
         leading = 'n. $year';
       }
     } else {
-      // Year-only or unparseable — surface as "n. <birth>" so the page
-      // doesn't render a half-broken date.
       final year = RegExp(r'^(\d{4})').firstMatch(birth)?.group(1);
       if (year != null) leading = 'n. $year';
     }
@@ -347,35 +282,7 @@ String? _formatBirthLine(Person p) {
   return leading;
 }
 
-class _Biography extends StatelessWidget {
-  const _Biography({required this.body});
-  final String body;
-
-  @override
-  Widget build(BuildContext context) {
-    final isPhone = Responsive.isPhone(context);
-    final isTablet = Responsive.isTablet(context);
-    final pagePad = isPhone
-        ? StreamloadSpacing.pagePaddingPhone
-        : isTablet
-            ? StreamloadSpacing.pagePaddingTablet
-            : StreamloadSpacing.pagePaddingDesktop;
-    return Padding(
-      padding: pagePad,
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 720),
-          child: Text(
-            body,
-            style: StreamloadTypography.v3Body(fontSize: 16).copyWith(
-              height: 1.6,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+// ── States ───────────────────────────────────────────────────────────────
 
 class _FilmographyEmpty extends StatelessWidget {
   const _FilmographyEmpty();
@@ -383,7 +290,7 @@ class _FilmographyEmpty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
       child: Center(
         child: Text(
           'Nessun titolo disponibile',
@@ -402,42 +309,26 @@ class _Skeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Skeleton uses a ListView so it doesn't fight the bounded viewport
-    // during the brief loading frame that precedes data resolution in
-    // both real use and widget tests.
     return ListView(
       key: const Key('person-page-skeleton'),
       padding: const EdgeInsets.all(32),
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 280,
-              height: 380,
-              decoration: BoxDecoration(
-                color: StreamloadColors.v3SurfaceGlass,
-                borderRadius:
-                    BorderRadius.circular(StreamloadSpacing.cardRadiusLarge),
-              ),
-            ),
-            const SizedBox(width: 40),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _SkelBar(widthFactor: 0.4, height: 14),
-                  SizedBox(height: 24),
-                  _SkelBar(widthFactor: 0.7, height: 48),
-                  SizedBox(height: 24),
-                  _SkelBar(widthFactor: 0.55, height: 14),
-                ],
-              ),
-            ),
-          ],
+        Container(
+          height: 360,
+          decoration: BoxDecoration(
+            color: StreamloadColors.v3SurfaceGlass,
+            borderRadius:
+                BorderRadius.circular(StreamloadSpacing.cardRadiusLarge),
+          ),
         ),
-        const SizedBox(height: 48),
-        const _SkelBar(widthFactor: 1.0, height: 200),
+        const SizedBox(height: 28),
+        const _SkelBar(widthFactor: 0.5, height: 28),
+        const SizedBox(height: 16),
+        const _SkelBar(widthFactor: 0.9, height: 14),
+        const SizedBox(height: 8),
+        const _SkelBar(widthFactor: 0.8, height: 14),
+        const SizedBox(height: 40),
+        const _SkelBar(widthFactor: 0.35, height: 22),
       ],
     );
   }

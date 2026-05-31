@@ -135,7 +135,7 @@ class _SearchOverlayState extends ConsumerState<SearchOverlay> {
 
   void _onSelectPerson(SearchPersonResult p) {
     _close();
-    context.go('/person/${p.tmdbId}');
+    context.push('/person/${p.tmdbId}');
   }
 
   void _onShowAll() {

@@ -82,11 +82,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               )),
           _fadeRoute('/profile', (_, __) => const ProfilePage()),
           _fadeRoute('/settings', (_, __) => const SettingsPage()),
-          // Pass 3 CAST-5 — actor / director dedicated page. CastCard
-          // taps and any future "person link" land here.
-          _fadeRoute('/person/:tmdbId', (ctx, state) => PersonPage(
-                tmdbId: int.parse(state.pathParameters['tmdbId']!),
-              )),
           _fadeRoute('/watch/:tmdbId', (ctx, state) => WatchPage(
                 request: PlaybackRequest(
                   tmdbId: int.parse(state.pathParameters['tmdbId']!),
@@ -108,6 +103,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       _modalRoute('/title/:tmdbId', (ctx, state) => TitlePage(
             tmdbId: int.parse(state.pathParameters['tmdbId']!),
             mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+            heroTag: state.extra,
+          )),
+      // Pass 3 CAST-5 — actor / director page. Also a top-level full-screen
+      // modal (no bottom bar); opens FROM the tapped cast avatar via a Hero
+      // tag passed through `extra`, dismissed by ✕ / drag-down.
+      _modalRoute('/person/:tmdbId', (ctx, state) => PersonPage(
+            tmdbId: int.parse(state.pathParameters['tmdbId']!),
             heroTag: state.extra,
           )),
     ],
