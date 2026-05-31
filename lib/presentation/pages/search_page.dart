@@ -104,6 +104,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   late final TextEditingController _controller;
   late final ScrollController _scrollController;
+  // Captured in initState so dispose() can write the session WITHOUT touching
+  // `ref` (which is invalid by dispose time).
+  late final StateController<_SearchSession?> _sessionNotifier;
   String _activeQuery = '';
 
   /// Debounce for real-time search — fires ~300ms after the user stops
@@ -125,6 +128,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.initState();
     _controller = TextEditingController(text: widget.initialQuery);
     _scrollController = ScrollController()..addListener(_onScroll);
+    _sessionNotifier = ref.read(_searchSessionProvider.notifier);
     _activeQuery = widget.initialQuery.trim();
 
     // Returning from a /title modal rebuilds this page from scratch (the modal
@@ -181,11 +185,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   void dispose() {
     _debounce?.cancel();
     // Snapshot the session BEFORE the controller is torn down, so re-entry
-    // (after a /title modal) restores scroll + results. Nothing watches this
-    // provider, so writing here triggers no rebuild.
+    // (after a /title modal) restores scroll + results. We must NOT touch
+    // `ref` in dispose() (it's already invalid → "Cannot use ref after the
+    // widget was disposed"); the notifier was captured in initState, and
+    // writing its state is safe here. Nothing watches it, so no rebuild.
     final offset =
         _scrollController.hasClients ? _scrollController.offset : 0.0;
-    ref.read(_searchSessionProvider.notifier).state = _SearchSession(
+    _sessionNotifier.state = _SearchSession(
       query: _activeQuery,
       items: List<MediaSummary>.of(_items),
       people: _people,

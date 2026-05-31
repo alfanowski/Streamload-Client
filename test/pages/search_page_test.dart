@@ -9,6 +9,7 @@
 //  - loading state renders the skeleton grid
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -172,14 +173,15 @@ void main() {
       ],
     );
     await t.pumpAndSettle();
-    // Glass-pill input is the headline affordance.
-    expect(find.byType(TextField), findsOneWidget);
+    // Native iOS search field (CupertinoSearchTextField wraps a
+    // CupertinoTextField) is the headline affordance.
+    expect(find.byType(CupertinoTextField), findsOneWidget);
     // No filter chips after Pass 2E.
     expect(find.text('Tutto'), findsNothing);
     expect(find.text('Film'), findsNothing);
-    // The "Suggeriti" header is rendered alongside the trending poster grid.
-    expect(find.text('Suggeriti'), findsOneWidget);
-    // Covers-only grid: assert the trending card by type.
+    // Covers-only grid: assert the trending card by type. (The "Suggeriti"
+    // header was dropped in the iOS26b redesign — suggestions render through
+    // the same grid as results.)
     expect(find.byType(PosterCard), findsOneWidget);
     verifyNever(() => api.search(any()));
   });
@@ -196,7 +198,7 @@ void main() {
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy, initial: '/search?q=dune');
     await t.pumpAndSettle();
-    expect(find.widgetWithText(TextField, 'dune'), findsOneWidget);
+    expect(find.widgetWithText(CupertinoTextField, 'dune'), findsOneWidget);
     expect(find.byType(PosterCard), findsOneWidget);
     verify(() => api.search('dune', page: 1)).called(1);
   });
@@ -208,7 +210,7 @@ void main() {
     final spy = _NavSpy();
     await pumpPage(t, api: api, spy: spy);
     await t.pumpAndSettle();
-    await t.enterText(find.byType(TextField), 'matrix');
+    await t.enterText(find.byType(CupertinoTextField), 'matrix');
     await t.testTextInput.receiveAction(TextInputAction.search);
     await t.pumpAndSettle();
     expect(spy.visited, contains('/search?q=matrix'));
