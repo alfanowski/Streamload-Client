@@ -66,5 +66,14 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Dev: allow plain-HTTP to the local-network dev backend (Mac LAN IP).
+	     Production uses HTTPS, which ATS permits regardless. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Streamload connects to your local development server on the same Wi-Fi network.</string>
 </dict>
 </plist>

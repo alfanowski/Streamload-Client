@@ -19,19 +19,29 @@
 // search field, not an iOS spotlight.
 //
 // iOS26 (2026-05-30): operator wanted the phone search to feel native to
-// iOS 26. The input is now a true "Liquid Glass" pill (full radius +
-// BackdropFilter blur + translucent fill), the "Streamload" wordmark is
-// replaced by an in-scroll large "Cerca" title (App Store / Settings
-// style), and the vertical rhythm was retuned — more air under the bar,
-// section headers pulled tight onto their grids.
+// iOS 26. The "Streamload" wordmark is replaced by an in-scroll large
+// "Cerca" title (App Store / Settings style).
+//
+// iOS26b (2026-05-31): follow-up pass on operator feedback —
+//   - The search field is now the REAL iOS component —
+//     CupertinoSearchTextField — not a hand-built box (the prior custom
+//     Container / BackdropFilter read as a black/grey rectangle and the
+//     autofocus popped iOS's "Incolla" callout). Colours tuned for dark,
+//     no autofocus.
+//   - "Suggeriti" header dropped; the trending suggestions now render
+//     through the SAME [_ResultsGridSliver] as typed results, at the same Y
+//     and padding, so the poster grid never shifts between empty/typed.
+//   - Scroll + results are cached in [_searchSessionProvider] and restored
+//     on re-entry, so returning from a title no longer snaps to the top
+//     (the /title modal tears the page down + rebuilds it).
 //
 // The URL is still the source of truth for the query (?q=<query>),
 // the input mirrors it on mount, and submitting writes back via
 // context.go so results stay shareable and survive back nav.
 import 'dart:async';
-import 'dart:ui' show ImageFilter;
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/cupertino.dart' show CupertinoSearchTextField;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -50,6 +60,29 @@ import '../widgets/poster_card.dart';
 import '../widgets/press_feedback.dart';
 import '../widgets/rows/poster_row.dart';
 import '../widgets/shimmer.dart';
+
+/// A snapshot of the search page's scroll + results, parked here so it
+/// survives the page being torn down and rebuilt when a `/title` modal is
+/// pushed over the shell. Re-entry restores it (see [_SearchPageState.initState]).
+class _SearchSession {
+  const _SearchSession({
+    required this.query,
+    required this.items,
+    required this.people,
+    required this.exhausted,
+    required this.pagesLoaded,
+    required this.offset,
+  });
+
+  final String query;
+  final List<MediaSummary> items;
+  final List<SearchPersonResult> people;
+  final bool exhausted;
+  final int pagesLoaded;
+  final double offset;
+}
+
+final _searchSessionProvider = StateProvider<_SearchSession?>((ref) => null);
 
 class SearchPage extends ConsumerStatefulWidget {
   const SearchPage({super.key, this.initialQuery = ''});
@@ -93,8 +126,36 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _controller = TextEditingController(text: widget.initialQuery);
     _scrollController = ScrollController()..addListener(_onScroll);
     _activeQuery = widget.initialQuery.trim();
-    if (_activeQuery.isNotEmpty) {
+
+    // Returning from a /title modal rebuilds this page from scratch (the modal
+    // is a top-level route, so go_router tears down the shell subtree). If we
+    // have a cached session for the SAME query, restore results + scroll
+    // instead of snapping to the top and refetching.
+    final cached = ref.read(_searchSessionProvider);
+    final sameQuery = cached != null && cached.query == _activeQuery;
+    final hasCachedResults =
+        sameQuery && (cached.items.isNotEmpty || cached.people.isNotEmpty);
+
+    if (hasCachedResults) {
+      _items.addAll(cached.items);
+      _people = cached.people;
+      _exhausted = cached.exhausted;
+      _pagesLoaded = cached.pagesLoaded;
+    } else if (_activeQuery.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _runFirstPage());
+    }
+
+    // Restore scroll for ANY same-query return — typed results OR the empty
+    // trending grid (which reloads from the cached provider) — so opening a
+    // title from anywhere and coming back doesn't snap to the top.
+    if (sameQuery) {
+      final targetOffset = cached.offset;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.jumpTo(
+          targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
+        );
+      });
     }
   }
 
@@ -119,6 +180,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   @override
   void dispose() {
     _debounce?.cancel();
+    // Snapshot the session BEFORE the controller is torn down, so re-entry
+    // (after a /title modal) restores scroll + results. Nothing watches this
+    // provider, so writing here triggers no rebuild.
+    final offset =
+        _scrollController.hasClients ? _scrollController.offset : 0.0;
+    ref.read(_searchSessionProvider.notifier).state = _SearchSession(
+      query: _activeQuery,
+      items: List<MediaSummary>.of(_items),
+      people: _people,
+      exhausted: _exhausted,
+      pagesLoaded: _pagesLoaded,
+      offset: offset,
+    );
     _scrollController
       ..removeListener(_onScroll)
       ..dispose();
@@ -306,21 +380,26 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           horizontalPad, 0, horizontalPad, 16),
                       child: _MaxWidth(
                         maxWidth: maxWidth,
-                        child: _GlassSearchBar(
+                        child: _IosSearchBar(
                           controller: _controller,
                           onChanged: _onQueryChanged,
                           onSubmitted: _onSubmit,
                           onClear: _onClear,
+                          // No autofocus: focusing an empty field made iOS pop
+                          // its "Incolla / Scansiona testo" callout, which read
+                          // as a stray box floating under the bar. Tap to type
+                          // (App Store style).
+                          autofocus: false,
                         ),
                       ),
                     ),
                   ),
-                  // Results modes glue straight onto the bar otherwise — give
-                  // them the same ~24px breathing room the "Suggeriti" header
-                  // gets in empty mode (16 bar-pad + 8 here).
-                  if (_activeQuery.isNotEmpty)
-                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                  // Body branches: empty → "Suggeriti" grid;
+                  // Consistent breathing room below the bar in EVERY mode, so
+                  // the suggestions grid and the results grid begin at the
+                  // exact same Y — no jump/realignment between the empty and
+                  // typed states (16 bar-pad + 8 here ≈ 24).
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                  // Body branches: empty → suggestions grid;
                   // otherwise loading/error/no-results/grid.
                   if (_activeQuery.isEmpty)
                     _TopSearchesSection(padding: horizontalPad)
@@ -402,99 +481,48 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Search field — iOS 26 "Liquid Glass" capsule. A fully-rounded pill with a
-// live backdrop blur behind a translucent fill + hairline rim, so content
-// blurs through the bar as it scrolls under.
+// Search field — the REAL iOS search bar: Flutter's Cupertino
+// [CupertinoSearchTextField] (Apple's own design — rounded grey field,
+// centred magnifier + placeholder that slide left on focus, native clear
+// button). Only the colours are tuned for the dark page; the geometry,
+// icons and behaviour are the stock iOS component, not a hand-rolled box.
 // ──────────────────────────────────────────────────────────────────────────
 
-class _GlassSearchBar extends StatelessWidget {
-  const _GlassSearchBar({
+class _IosSearchBar extends StatelessWidget {
+  const _IosSearchBar({
     required this.controller,
     required this.onChanged,
     required this.onSubmitted,
     required this.onClear,
+    this.autofocus = false,
   });
 
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmitted;
   final VoidCallback onClear;
-
-  static const double _height = 52;
+  final bool autofocus;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      // Full pill: radius = height / 2.
-      borderRadius: BorderRadius.circular(_height / 2),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
-          height: _height,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          decoration: BoxDecoration(
-            color: StreamloadColors.v3SurfaceGlass,
-            borderRadius: BorderRadius.circular(_height / 2),
-            border: Border.all(color: StreamloadColors.v3BorderGlass, width: 1),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.search,
-                color: StreamloadColors.v3TextSecondary,
-                size: 22,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  cursorColor: StreamloadColors.v3TextPrimary,
-                  cursorWidth: 1.5,
-                  textInputAction: TextInputAction.search,
-                  onChanged: onChanged,
-                  onSubmitted: onSubmitted,
-                  style: const TextStyle(
-                    color: StreamloadColors.v3TextPrimary,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: 'Film, serie TV, attori e altro…',
-                    hintStyle: TextStyle(
-                      color: StreamloadColors.v3TextMuted,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w400,
-                    ),
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    enabledBorder: InputBorder.none,
-                    isCollapsed: true,
-                  ),
-                ),
-              ),
-              ValueListenableBuilder<TextEditingValue>(
-                valueListenable: controller,
-                builder: (context, value, _) {
-                  if (value.text.isEmpty) return const SizedBox.shrink();
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onClear,
-                    child: Padding(
-                      padding: const EdgeInsets.only(left: 8),
-                      child: Icon(
-                        Icons.close_rounded,
-                        color: StreamloadColors.v3TextSecondary,
-                        size: 20,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+    return CupertinoSearchTextField(
+      controller: controller,
+      autofocus: autofocus,
+      placeholder: 'Film, serie TV, attori e altro…',
+      onChanged: onChanged,
+      onSubmitted: onSubmitted,
+      onSuffixTap: onClear,
+      style: const TextStyle(
+        color: StreamloadColors.v3TextPrimary,
+        fontSize: 17,
       ),
+      placeholderStyle: TextStyle(
+        color: StreamloadColors.v3TextMuted,
+        fontSize: 17,
+      ),
+      itemColor: StreamloadColors.v3TextSecondary,
+      backgroundColor: StreamloadColors.v3SurfaceGlassMax,
+      borderRadius: BorderRadius.circular(12),
     );
   }
 }
@@ -521,7 +549,10 @@ class _MaxWidth extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Empty-query → "Ricerche di tendenza" (Pass 2E)
+// Empty-query → trending suggestions (no header). Renders through the SAME
+// [_ResultsGridSliver] the typed results use, so the poster grid sits in the
+// identical position/alignment whether the field is empty or you're typing —
+// nothing jumps when the query changes.
 // ──────────────────────────────────────────────────────────────────────────
 
 class _TopSearchesSection extends ConsumerWidget {
@@ -531,47 +562,37 @@ class _TopSearchesSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(trendingDayProvider);
-    return SliverToBoxAdapter(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(padding, 8, padding, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // A single clean "Suggeriti" header, same editorial style as the
-            // Home row headers — sits tight above its poster grid.
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'Suggeriti',
-                style: StreamloadTypography.v3SectionHeader(),
-              ),
+    return async.when(
+      loading: () => _SkeletonGridSliver(padding: padding),
+      error: (_, __) => SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: padding + 4),
+          child: Text(
+            'Errore nel caricamento delle tendenze',
+            style: StreamloadTypography.v3MetaMono(
+              color: StreamloadColors.v3TextMuted,
             ),
-            const SizedBox(height: 6),
-            async.when(
-              loading: () => const _SkeletonGrid(padding: 0, cells: 12),
-              error: (_, __) => Text(
-                'Errore nel caricamento delle tendenze',
-                style: StreamloadTypography.v3MetaMono(
-                  color: StreamloadColors.v3TextMuted,
-                ),
-              ),
-              data: (items) {
-                final top = items.take(12).toList(growable: false);
-                if (top.isEmpty) {
-                  return Text(
-                    'Cerca un titolo, una serie o un anime',
-                    style: StreamloadTypography.v3Body(
-                      color: StreamloadColors.v3TextMuted,
-                      fontSize: 16,
-                    ),
-                  );
-                }
-                return _Grid(items: top);
-              },
-            ),
-          ],
+          ),
         ),
       ),
+      data: (items) {
+        final top = items.take(12).toList(growable: false);
+        if (top.isEmpty) {
+          return SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: padding + 4),
+              child: Text(
+                'Cerca un titolo, una serie o un anime',
+                style: StreamloadTypography.v3Body(
+                  color: StreamloadColors.v3TextMuted,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          );
+        }
+        return _ResultsGridSliver(padding: padding, items: top);
+      },
     );
   }
 }
@@ -835,7 +856,7 @@ class _PersonCard extends StatelessWidget {
     return PressFeedback(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () => context.go('/person/${person.tmdbId}'),
+        onTap: () => context.push('/person/${person.tmdbId}'),
         child: SizedBox(
           width: 100,
           child: Column(

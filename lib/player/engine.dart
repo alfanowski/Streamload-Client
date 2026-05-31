@@ -41,6 +41,11 @@ class PlayerEngine {
       }
     }
 
+    // Audio output: iOS's libmpv default ao probe FAILS ("Could not
+    // open/initialize audio device -> no sound") — the working output on
+    // iOS/tvOS is AudioUnit. Pin the priority list so iOS picks `audiounit`
+    // while macOS (same engine) falls through to `coreaudio`.
+    safeSet('ao', 'audiounit,coreaudio');
     // load-unsafe-playlists: required for our HLS proxy to serve loopback
     // URLs inside .m3u8 playlists (libmpv anti-exploit hardening).
     safeSet('load-unsafe-playlists', 'yes');
@@ -145,6 +150,24 @@ class PlayerEngine {
   Stream<Duration> get durationStream => _player.stream.duration;
   Stream<bool> get playingStream => _player.stream.playing;
   Stream<String> get errorStream => _player.stream.error;
+
+  /// True while the player is waiting on data (spinner cue).
+  Stream<bool> get bufferingStream => _player.stream.buffering;
+
+  /// Fires `true` when the current media reaches its end (auto-advance cue).
+  Stream<bool> get completedStream => _player.stream.completed;
+
+  /// How far the media is buffered ahead — drives the lighter "loaded"
+  /// segment behind the scrub thumb.
+  Stream<Duration> get bufferStream => _player.stream.buffer;
+
+  // Synchronous snapshots for StreamBuilder initialData (avoids a 1-frame
+  // flash of zero before the first stream event).
+  Duration get position => _player.state.position;
+  Duration get duration => _player.state.duration;
+  Duration get buffer => _player.state.buffer;
+  bool get playing => _player.state.playing;
+  bool get buffering => _player.state.buffering;
   Stream<int?> get widthStream => _player.stream.width;
   Stream<int?> get heightStream => _player.stream.height;
   Stream<String> get logStream =>
@@ -160,17 +183,26 @@ class PlayerEngine {
   Tracks get tracks => _player.state.tracks;
   Track get track => _player.state.track;
 
-  Future<void> setAudioTrack(AudioTrack track) =>
-      _player.setAudioTrack(track);
+  Future<void> setAudioTrack(AudioTrack track) => _player.setAudioTrack(track);
   Future<void> setSubtitleTrack(SubtitleTrack track) =>
       _player.setSubtitleTrack(track);
 
-  void open(String uri, {required Map<String, String> headers}) {
+  void open(
+    String uri, {
+    required Map<String, String> headers,
+    Duration? startAt,
+  }) {
     // Reset the auto-pick latches so each new playback gets one shot at
     // selecting Italian audio / subtitles based on the loaded master.
     _autoPickedAudio = false;
     _autoPickedSubtitle = false;
-    _player.open(Media(uri, httpHeaders: headers));
+    // `start:` makes mpv BEGIN at that position (--start=) rather than us
+    // seeking after open — HLS ignores an immediate post-open seek, which is
+    // why "Riprendi" used to restart from 0. Passing it to the demuxer is
+    // reliable for both movies and episodes.
+    _player.open(Media(uri, httpHeaders: headers, start: startAt));
+    // Insurance against a 0/low volume leaving playback silent.
+    _player.setVolume(100);
   }
 
   Future<void> play() => _player.play();

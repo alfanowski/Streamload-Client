@@ -6,11 +6,14 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:streamload_client/data/local/database.dart';
 import 'package:streamload_client/data/remote/endpoints/catalog_api.dart';
 import 'package:streamload_client/data/remote/endpoints/favorites_api.dart';
 import 'package:streamload_client/data/remote/endpoints/watchlist_api.dart';
+import 'package:streamload_client/domain/models/library_category.dart';
+import 'package:streamload_client/presentation/pages/category_list_page.dart';
 import 'package:streamload_client/presentation/pages/library_page.dart';
 import 'package:streamload_client/state/api_client_provider.dart';
 import 'package:streamload_client/state/database_provider.dart';
@@ -91,7 +94,7 @@ void main() {
     expect(find.text('Vedi tutti →'), findsOneWidget);
   });
 
-  testWidgets('tap "Vedi tutti →" isola la categoria (chevron back appare)',
+  testWidgets('tap "Vedi tutti →" apre il modale categoria (✕ glass appare)',
       (tester) async {
     tester.view.physicalSize = const Size(420, 900);
     tester.view.devicePixelRatio = 1.0;
@@ -114,14 +117,38 @@ void main() {
       genresJson: Value(jsonEncode(['Azione'])),
     ));
 
-    await tester.pumpWidget(
-        _wrap(fav: fav, wl: wl, catalog: _CatalogApiMock(), db: db));
+    final router = GoRouter(
+      initialLocation: '/list',
+      routes: [
+        GoRoute(
+          path: '/list',
+          builder: (_, __) => const Scaffold(body: LibraryPage()),
+        ),
+        GoRoute(
+          path: '/category/:category',
+          builder: (_, state) => CategoryListPage(
+            category: LibraryCategory.values
+                .byName(state.pathParameters['category']!),
+          ),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        favoritesApiProvider.overrideWith((_) async => fav),
+        watchlistApiProvider.overrideWith((_) async => wl),
+        catalogApiProvider.overrideWith((_) async => _CatalogApiMock()),
+        databaseProvider.overrideWithValue(db),
+      ],
+      child: MaterialApp.router(routerConfig: router),
+    ));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Vedi tutti →'));
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.chevron_left), findsOneWidget);
-    expect(find.text('Vedi tutti →'), findsNothing);
+    // Il modale CategoryListPage monta ModalShell → ✕ glass (close_rounded).
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
   });
 }

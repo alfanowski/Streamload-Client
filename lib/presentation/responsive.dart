@@ -25,19 +25,27 @@ class Responsive {
   static double widthOf(BuildContext context) =>
       MediaQuery.sizeOf(context).width;
 
+  /// Device-class metric: the screen's SHORTEST side, not the current width.
+  /// Branching on this means rotating a phone into landscape (the video
+  /// player) does NOT flip the UI into the desktop layout — a phone stays a
+  /// phone in any orientation. (The old width-based check made the landscape
+  /// player render the desktop shell.)
+  static double _deviceWidth(BuildContext context) =>
+      MediaQuery.sizeOf(context).shortestSide;
+
   static bool isPhone(BuildContext context) =>
-      widthOf(context) < Breakpoints.phone;
+      _deviceWidth(context) < Breakpoints.phone;
 
   static bool isTablet(BuildContext context) {
-    final w = widthOf(context);
+    final w = _deviceWidth(context);
     return w >= Breakpoints.phone && w < Breakpoints.tablet;
   }
 
   static bool isDesktop(BuildContext context) =>
-      widthOf(context) >= Breakpoints.tablet;
+      _deviceWidth(context) >= Breakpoints.tablet;
 
   /// True for phone + tablet (any non-desktop). Useful for "no hover effects"
   /// branches that should also apply to small tablets in portrait.
   static bool isMobile(BuildContext context) =>
-      widthOf(context) < Breakpoints.tablet;
+      _deviceWidth(context) < Breakpoints.tablet;
 }

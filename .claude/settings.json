@@ -117,7 +117,13 @@
       "Bash(/usr/bin/grep -nE 'getStreams|manifest|_registerAndUrl|return ' /Users/alfanowski/Desktop/Projects/Streamload-Client/lib/domain/play_title.dart)",
       "Bash(/usr/bin/head -15)",
       "Bash(/usr/bin/grep -nE 'found = true|_resolveEntry' /Users/alfanowski/Desktop/Projects/Streamload-Client/lib/plugins/routing/router.dart)",
-      "Bash(perl -0pi -e 's/childAspectRatio: 0\\\\.62,/childAspectRatio: 2 \\\\/ 3,/g' lib/presentation/pages/search_page.dart)"
+      "Bash(perl -0pi -e 's/childAspectRatio: 0\\\\.62,/childAspectRatio: 2 \\\\/ 3,/g' lib/presentation/pages/search_page.dart)",
+      "Bash(grep -rn -B1 \"'/title/\\\\${\" lib/presentation/widgets/rows/poster_row.dart lib/presentation/pages/home_page.dart lib/presentation/pages/search_page.dart lib/presentation/pages/library_page.dart lib/presentation/widgets/search_overlay.dart)",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'title\\(tv\\): Episodi/Simili tabs, season sheet, rich episode list, 3-col similar; justified trama *)",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git commit -q -m 'title: revert interactive drag-shrink — back to the simple, working dismiss *)"
     ],
     "additionalDirectories": [
       "/private/tmp",
@@ -128,7 +134,11 @@
       "/Users/alfanowski/Desktop/Projects/Streamload-Client/lib/data/local",
       "/Users/alfanowski/Desktop/Projects/Streamload-Client/lib/data/remote",
       "/Users/alfanowski/Desktop/Projects/Streamload-Client/lib/domain/models",
-      "/Users/alfanowski/Desktop/Projects/Streamload-Client"
+      "/Users/alfanowski/Desktop/Projects/Streamload-Client",
+      "/Users/alfanowski/Desktop/Projects/Streamload/streamload/catalog",
+      "/Users/alfanowski/Desktop/Projects/Streamload/streamload/api/routes",
+      "/Users/alfanowski/Desktop/Projects/Streamload/tests/catalog",
+      "/Users/alfanowski/Desktop/Projects/Streamload/tests/api"
     ]
   }
 }

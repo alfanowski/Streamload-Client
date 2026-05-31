@@ -1,9 +1,13 @@
 // lib/presentation/widgets/library/glass_large_title_header.dart
 //
 // Nav Apple-style per "La mia lista": un titolo grande (Fraunces) che, scrollando,
-// collassa in una barra compatta in liquid glass nativo (GlassSurface → Apple
-// Liquid Glass su iOS). In modalità isolata mostra un chevron back + il nome
-// categoria.
+// scorre SOTTO una barra in liquid glass nativo (GlassSurface → Apple Liquid Glass
+// su iOS) e lascia il posto a un titolo piccolo centrato.
+//
+// La barra glass è SEMPRE renderizzata (niente Opacity animata sul platform-view
+// nativo, che su iOS produce flicker): a riposo, su sfondo nero e senza contenuto
+// sotto, è impercettibile; appena i poster scorrono sotto, il vetro li rifrange —
+// esattamente come una nav bar iOS. Solo i due TESTI fanno cross-fade.
 import 'package:flutter/material.dart';
 
 import '../../theme/colors.dart';
@@ -14,99 +18,81 @@ class GlassLargeTitleHeader extends SliverPersistentHeaderDelegate {
   GlassLargeTitleHeader({
     required this.title,
     required this.topPadding,
-    this.isolatedLabel,
-    this.onBack,
   });
 
   final String title;
   final double topPadding;
 
-  /// Quando non-null, la barra è in modalità "categoria isolata": chevron back
-  /// a sinistra + questo testo come titolo, niente large title.
-  final String? isolatedLabel;
-  final VoidCallback? onBack;
+  /// Altezza della barra compatta (contenuto, sotto la status bar).
+  static const double _barHeight = 44;
 
-  static const double _compactBar = 52;
-  static const double _largeBand = 60;
+  /// Banda extra del large title sotto la barra.
+  static const double _largeBand = 54;
 
   @override
-  double get maxExtent => topPadding + _compactBar + _largeBand;
+  double get maxExtent => topPadding + _barHeight + _largeBand;
 
   @override
-  double get minExtent => topPadding + _compactBar;
+  double get minExtent => topPadding + _barHeight;
 
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final isolated = isolatedLabel != null;
-    // t: 0 = espanso, 1 = collassato.
-    final t = (shrinkOffset / _largeBand).clamp(0.0, 1.0);
-    final glassOpacity = isolated ? 1.0 : t;
+    // 1 = espanso (large title pieno), 0 = collassato (solo barra + small title).
+    final largeT = (1 - shrinkOffset / _largeBand).clamp(0.0, 1.0);
 
     return SizedBox.expand(
       child: Stack(
         fit: StackFit.expand,
+        clipBehavior: Clip.hardEdge,
         children: [
-          // Barra glass compatta pinnata in alto (il vetro entra man mano che t→1).
+          // Large title — ancorato al fondo della banda (che si accorcia mentre
+          // collassa), così risale naturalmente e svanisce dietro la barra.
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 10,
+            child: Opacity(
+              opacity: largeT,
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: StreamloadTypography.display(fontSize: 30, italic: false)
+                    .copyWith(color: StreamloadColors.v3TextPrimary),
+              ),
+            ),
+          ),
+          // Barra glass sempre presente, disegnata SOPRA il large title così
+          // questo le scorre dietro.
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: topPadding + _compactBar,
-            child: Opacity(
-              opacity: glassOpacity,
-              child: const GlassSurface(
-                borderRadius: 0,
-                child: SizedBox.expand(),
-              ),
+            height: topPadding + _barHeight,
+            child: const GlassSurface(
+              borderRadius: 0,
+              child: SizedBox.expand(),
             ),
           ),
-          // Titolo piccolo centrato nella barra compatta.
+          // Titolo piccolo centrato nella barra — entra in cross-fade mentre il
+          // large title esce.
           Positioned(
             top: topPadding,
             left: 0,
             right: 0,
-            height: _compactBar,
+            height: _barHeight,
             child: Opacity(
-              opacity: isolated ? 1.0 : t,
+              opacity: 1 - largeT,
               child: Center(
                 child: Text(
-                  isolated ? isolatedLabel! : title,
+                  title,
                   style: StreamloadTypography.display(fontSize: 17, italic: false)
                       .copyWith(color: StreamloadColors.v3TextPrimary),
                 ),
               ),
             ),
           ),
-          // Chevron back (solo isolata).
-          if (isolated)
-            Positioned(
-              top: topPadding,
-              left: 4,
-              height: _compactBar,
-              child: IconButton(
-                icon: const Icon(Icons.chevron_left),
-                color: StreamloadColors.v3TextPrimary,
-                onPressed: onBack,
-              ),
-            ),
-          // Large title (solo overview, svanisce mentre t→1).
-          if (!isolated)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 8,
-              child: Opacity(
-                opacity: 1 - t,
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: StreamloadTypography.display(fontSize: 32, italic: false)
-                      .copyWith(color: StreamloadColors.v3TextPrimary),
-                ),
-              ),
-            ),
         ],
       ),
     );
@@ -114,8 +100,5 @@ class GlassLargeTitleHeader extends SliverPersistentHeaderDelegate {
 
   @override
   bool shouldRebuild(covariant GlassLargeTitleHeader old) =>
-      old.title != title ||
-      old.topPadding != topPadding ||
-      old.isolatedLabel != isolatedLabel ||
-      old.onBack != onBack;
+      old.title != title || old.topPadding != topPadding;
 }

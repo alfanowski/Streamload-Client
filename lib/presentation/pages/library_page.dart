@@ -4,8 +4,9 @@
 // la Home: full-bleed nera (lo scrim Dynamic Island di AppShell torna visibile),
 // nav in liquid glass nativo (GlassLargeTitleHeader), copertine/titoli identici
 // (PosterCard). I contenuti sono divisi in 4 categorie (Film · Serie TV · Show
-// televisivi · Anime): in overview ogni categoria è una PosterRow Home-style;
-// "Vedi tutti →" isola la categoria in una griglia a tutta pagina.
+// televisivi · Anime): ogni categoria è una PosterRow Home-style; "Vedi tutti →"
+// apre un modale full-screen (CategoryListPage) con la stessa fisica del popup
+// Title/Person.
 //
 // Routed da /list (primario) e /library (back-compat).
 import 'package:flutter/material.dart';
@@ -15,12 +16,10 @@ import 'package:go_router/go_router.dart';
 import '../../domain/models/library_category.dart';
 import '../../domain/models/media_summary.dart';
 import '../../state/my_list_items_provider.dart';
-import '../responsive.dart';
+import '../pages/category_list_page.dart' show categoryLabel;
 import '../theme/colors.dart';
-import '../theme/spacing.dart';
 import '../theme/typography.dart';
 import '../widgets/library/glass_large_title_header.dart';
-import '../widgets/poster_card.dart';
 import '../widgets/rows/poster_row.dart';
 
 const _categoryOrder = <LibraryCategory>[
@@ -30,31 +29,11 @@ const _categoryOrder = <LibraryCategory>[
   LibraryCategory.anime,
 ];
 
-String _labelFor(LibraryCategory c) {
-  switch (c) {
-    case LibraryCategory.film:
-      return 'Film';
-    case LibraryCategory.serieTv:
-      return 'Serie TV';
-    case LibraryCategory.show:
-      return 'Show televisivi';
-    case LibraryCategory.anime:
-      return 'Anime';
-  }
-}
-
-class LibraryPage extends ConsumerStatefulWidget {
+class LibraryPage extends ConsumerWidget {
   const LibraryPage({super.key});
 
   @override
-  ConsumerState<LibraryPage> createState() => _LibraryPageState();
-}
-
-class _LibraryPageState extends ConsumerState<LibraryPage> {
-  LibraryCategory? _isolated;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(myListItemsProvider);
     final topPad = MediaQuery.of(context).padding.top;
 
@@ -70,14 +49,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
             delegate: GlassLargeTitleHeader(
               title: 'La mia lista',
               topPadding: topPad,
-              isolatedLabel: _isolated == null ? null : _labelFor(_isolated!),
-              onBack: () => setState(() => _isolated = null),
             ),
           ),
           ...async.when(
             data: (items) => _dataSlivers(context, items),
             loading: _loadingSlivers,
-            error: (_, __) => _errorSlivers(),
+            error: (_, __) => _errorSlivers(ref),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 120)),
         ],
@@ -96,10 +73,6 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       (grouped[it.category] ??= <MediaSummary>[]).add(it.summary);
     }
 
-    if (_isolated != null) {
-      return [_grid(context, grouped[_isolated!] ?? const [], _isolated!)];
-    }
-
     final rows = <Widget>[];
     for (final cat in _categoryOrder) {
       final list = grouped[cat];
@@ -107,50 +80,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
       rows.add(Padding(
         padding: EdgeInsets.only(top: rows.isEmpty ? 8 : 24),
         child: PosterRow(
-          title: _labelFor(cat),
+          title: categoryLabel(cat),
           items: list,
-          onSeeAll: () => setState(() => _isolated = cat),
+          onSeeAll: () => context.push('/category/${cat.name}'),
         ),
       ));
     }
     return [SliverList(delegate: SliverChildListDelegate(rows))];
-  }
-
-  Widget _grid(
-      BuildContext context, List<MediaSummary> items, LibraryCategory cat) {
-    final columns = Responsive.isPhone(context)
-        ? 3
-        : Responsive.isTablet(context)
-            ? 4
-            : 6;
-    return SliverPadding(
-      padding: StreamloadSpacing.pagePaddingPhone.copyWith(top: 12, bottom: 24),
-      sliver: SliverGrid(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          mainAxisSpacing: 16,
-          crossAxisSpacing: 12,
-          childAspectRatio: 0.5,
-        ),
-        delegate: SliverChildBuilderDelegate(
-          (context, i) {
-            final m = items[i];
-            final tag = 'lib_${cat.name}_${m.tmdbId}_$i';
-            return PosterCard(
-              summary: m,
-              width: double.infinity,
-              showLabel: true,
-              heroTag: tag,
-              onTap: () => context.push(
-                '/title/${m.tmdbId}?media_type=${m.mediaType}',
-                extra: tag,
-              ),
-            );
-          },
-          childCount: items.length,
-        ),
-      ),
-    );
   }
 
   List<Widget> _loadingSlivers() {
@@ -170,7 +106,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage> {
     ];
   }
 
-  List<Widget> _errorSlivers() {
+  List<Widget> _errorSlivers(WidgetRef ref) {
     return [
       SliverFillRemaining(
         hasScrollBody: false,

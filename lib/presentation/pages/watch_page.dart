@@ -1,7 +1,9 @@
 // lib/presentation/pages/watch_page.dart
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -15,7 +17,7 @@ import '../../state/player_engine_provider.dart';
 import '../../state/progress_tracker.dart';
 import '../theme/colors.dart';
 import '../theme/typography.dart';
-import '../widgets/player_controls.dart';
+import '../widgets/player/player_chrome.dart';
 
 final _log = Logger('watch');
 
@@ -25,31 +27,20 @@ final _log = Logger('watch');
 /// shared [VideoController] without forcing tests to mock it.
 typedef VideoBuilder = Widget Function(PlayerEngine engine);
 
-Widget _defaultVideoBuilder(PlayerEngine e) => SizedBox.expand(
-      // Force the Video widget to use ALL available space. media_kit_video's
-      // Video has its own internal LayoutBuilder that occasionally measures
-      // to 0x0 inside a Stack — wrapping with SizedBox.expand pins it to
-      // the parent's constraints.
-      child: Video(
-        controller: e.videoController,
-        // Disable built-in controls — we render our own PlayerControls below,
-        // otherwise both render and the user sees two scrub bars + two
-        // play/pause buttons stacked.
-        controls: NoVideoControls,
-        fit: BoxFit.contain,
-      ),
-    );
-
 class WatchPage extends ConsumerStatefulWidget {
   const WatchPage({
     super.key,
     required this.request,
-    this.videoBuilder = _defaultVideoBuilder,
+    this.videoBuilder,
     this.debugBypassProxy = false,
   });
 
   final PlaybackRequest request;
-  final VideoBuilder videoBuilder;
+
+  /// Test seam: inject a no-op widget instead of the real media_kit [Video]
+  /// (which throws in headless tests). Null in the app → the real Video with
+  /// the pinch-zoom fit is used.
+  final VideoBuilder? videoBuilder;
 
   /// DIAGNOSTIC: when true, skip plugin + proxy + session and feed media_kit
   /// the raw Apple BipBop URL directly. Used to isolate whether playback
@@ -69,10 +60,93 @@ class _WatchPageState extends ConsumerState<WatchPage> {
   ProgressTracker? _tracker;
   final _engineSubs = <StreamSubscription<dynamic>>[];
 
+  /// Pinch-to-zoom: contain (original letterbox) ↔ cover (fill the screen).
+  BoxFit _videoFit = BoxFit.contain;
+
+  /// The real media_kit Video, sized to fill and honouring the current fit.
+  Widget _buildVideo(PlayerEngine e) => SizedBox.expand(
+        // media_kit_video's internal LayoutBuilder occasionally measures to
+        // 0x0 inside a Stack — SizedBox.expand pins it to the parent.
+        child: Video(
+          controller: e.videoController,
+          controls: NoVideoControls,
+          fit: _videoFit,
+        ),
+      );
+
   @override
   void initState() {
     super.initState();
+    // The player is the ONLY landscape surface. Force landscape + hide the
+    // status/home chrome for an immersive, cinema-style frame. dispose()
+    // restores the app-wide portrait lock.
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+  }
+
+  @override
+  void didUpdateWidget(covariant WatchPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Episode switch (same WatchPage, new season/episode in the route) →
+    // tear down the current session and resolve + open the new stream.
+    final a = oldWidget.request, b = widget.request;
+    if (a.tmdbId != b.tmdbId ||
+        a.season != b.season ||
+        a.episode != b.episode) {
+      _clearSession();
+      setState(() {
+        _phase = _Phase.loading;
+        _error = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _start());
+    }
+  }
+
+  /// Cancel listeners + progress tracker from the previous playback so a
+  /// restart (episode switch) doesn't accumulate duplicate subscriptions.
+  void _clearSession() {
+    for (final s in _engineSubs) {
+      unawaited(s.cancel());
+    }
+    _engineSubs.clear();
+    _tracker?.stop();
+    _tracker = null;
+  }
+
+  /// Ask the SERVER for the saved position for this exact title/episode. Read
+  /// fresh from the backend (not a cached list) so it's exact and the same
+  /// record across all the user's devices. Returned as the point to START
+  /// playback at — passed to mpv's `start` so it BEGINS there (a post-open
+  /// seek is ignored by HLS, which made "Riprendi" restart from 0). Null when
+  /// there's nothing meaningful to resume.
+  Future<Duration?> _savedResumePosition() async {
+    if (widget.debugBypassProxy) return null;
+    try {
+      final r = widget.request;
+      final isTv = r.mediaType == 'tv';
+      final api = await ref.read(progressApiProvider.future);
+      final saved = await api.resume(
+        tmdbId: r.tmdbId,
+        mediaType: r.mediaType,
+        seasonNumber: isTv ? (r.season ?? 1) : null,
+        episodeNumber: isTv ? (r.episode ?? 1) : null,
+      );
+      if (saved == null) return null;
+      final pos = (saved['position_seconds'] as num?)?.toInt() ?? 0;
+      final dur = (saved['duration_seconds'] as num?)?.toInt() ?? 0;
+      final completed = saved['completed'] == true;
+      // Don't resume the very start, or something already watched to the end.
+      if (completed || pos < 5) return null;
+      if (dur > 0 && pos >= dur - 10) return null;
+      return Duration(seconds: pos);
+    } catch (_) {
+      // Best-effort — a missing/failed lookup just means "start from 0".
+      return null;
+    }
   }
 
   static const _debugUrl =
@@ -134,11 +208,17 @@ class _WatchPageState extends ConsumerState<WatchPage> {
           });
         }
       }));
-      _engineSubs.add(engine.logStream.listen((msg) => _log.info('media_kit $msg')));
-      _engineSubs.add(engine.widthStream.listen((w) => _log.info('media_kit video width → $w')));
-      _engineSubs.add(engine.heightStream.listen((h) => _log.info('media_kit video height → $h')));
+      _engineSubs
+          .add(engine.logStream.listen((msg) => _log.info('media_kit $msg')));
+      _engineSubs.add(engine.widthStream
+          .listen((w) => _log.info('media_kit video width → $w')));
+      _engineSubs.add(engine.heightStream
+          .listen((h) => _log.info('media_kit video height → $h')));
 
-      engine.open(url, headers: const {});
+      // Resume exactly where the user left off (best-effort): mpv starts AT
+      // this position rather than seeking after load.
+      final resumeAt = await _savedResumePosition();
+      engine.open(url, headers: const {}, startAt: resumeAt);
       await engine.play();
       final progressApi = await ref.read(progressApiProvider.future);
       _tracker = ProgressTracker(
@@ -163,11 +243,11 @@ class _WatchPageState extends ConsumerState<WatchPage> {
 
   @override
   void dispose() {
-    for (final s in _engineSubs) {
-      unawaited(s.cancel());
-    }
-    _tracker?.stop();
+    _clearSession();
     if (_engine != null) unawaited(_engine!.pause());
+    // Leaving the player: restore the app-wide portrait lock + normal UI.
+    SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -175,7 +255,9 @@ class _WatchPageState extends ConsumerState<WatchPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SafeArea(
+      // No SafeArea: the video is full-bleed (cinema). PlayerChrome insets its
+      // own controls using MediaQuery.padding.
+      body: SizedBox.expand(
         child: Stack(
           // Default StackFit.loose left the Video widget with zero constraints
           // — media_kit then created a 0x0 texture and never started decoding
@@ -184,8 +266,12 @@ class _WatchPageState extends ConsumerState<WatchPage> {
           fit: StackFit.expand,
           children: [
             switch (_phase) {
-              _Phase.loading =>
-                const Center(child: CircularProgressIndicator()),
+              _Phase.loading => const Center(
+                  child: CupertinoActivityIndicator(
+                    radius: 18,
+                    color: Colors.white,
+                  ),
+                ),
               _Phase.error => Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
@@ -199,27 +285,37 @@ class _WatchPageState extends ConsumerState<WatchPage> {
                     ),
                   ),
                 ),
-              _Phase.playing => widget.videoBuilder(_engine!),
+              _Phase.playing =>
+                widget.videoBuilder?.call(_engine!) ?? _buildVideo(_engine!),
             },
-            // Always-visible top bar with close.
-            Positioned(
-              top: 8,
-              left: 8,
-              child: IconButton(
-                icon: const Icon(Icons.close, color: Colors.white),
-                // go_router uses .go (not .push), so the navigation stack
-                // is flat and there's nothing to pop. Send back to /home.
-                onPressed: () => context.go('/home'),
-                tooltip: 'Chiudi',
-              ),
-            ),
-            // Bottom controls overlay only when playing.
-            if (_phase == _Phase.playing)
-              const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: PlayerControls(),
+            // The full liquid-glass chrome (controls, gestures, series
+            // features) only once we're actually playing.
+            if (_phase == _Phase.playing && _engine != null)
+              PlayerChrome(
+                engine: _engine!,
+                request: widget.request,
+                onClose: () => context.go('/home'),
+                onPlayEpisode: (season, episode) => context.go(
+                  '/watch/${widget.request.tmdbId}'
+                  '?media_type=tv&season=$season&episode=$episode',
+                ),
+                zoomed: _videoFit == BoxFit.cover,
+                onZoom: (z) => setState(
+                  () => _videoFit = z ? BoxFit.cover : BoxFit.contain,
+                ),
+              )
+            else
+              // Loading / error states still need a way out.
+              Positioned(
+                top: 8,
+                left: 8,
+                child: SafeArea(
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => context.go('/home'),
+                    tooltip: 'Chiudi',
+                  ),
+                ),
               ),
           ],
         ),

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'domain/models/library_category.dart';
+import 'presentation/pages/category_list_page.dart';
 import 'presentation/pages/home_page.dart';
 import 'presentation/pages/library_page.dart';
 import 'presentation/pages/person_page.dart';
@@ -111,6 +113,14 @@ final routerProvider = Provider<GoRouter>((ref) {
       _modalRoute('/person/:tmdbId', (ctx, state) => PersonPage(
             tmdbId: int.parse(state.pathParameters['tmdbId']!),
             heroTag: state.extra,
+          )),
+      // "Vedi tutti" di una categoria de La mia lista — modale full-screen con
+      // la stessa fisica di Title/Person (✕ glass + pull-to-dismiss). Il param
+      // è il nome enum (film / serieTv / show / anime).
+      _modalRoute('/category/:category', (ctx, state) => CategoryListPage(
+            category: LibraryCategory.values.byName(
+              state.pathParameters['category']!,
+            ),
           )),
     ],
   );
