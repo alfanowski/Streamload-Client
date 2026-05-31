@@ -10,6 +10,7 @@
 // then Trama (expandable), Cast (bigger avatars), Info, Episodi (TV) and
 // Titoli simili.
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -95,19 +96,16 @@ class _TitleModalState extends State<_TitleModal> {
   /// sheet. 0 = full size. Drives the scale / corner-radius / scrim.
   double _drag = 0;
 
-  /// True only while the finger is actively dragging the sheet down FROM the
-  /// top (a genuine top-overscroll under the finger). A flick-up-to-top never
-  /// engages this — by the time the content overscrolls, the finger is gone.
-  bool _engaged = false;
-
-  /// True after release while we let the scroll's bounce settle `_drag` back
-  /// to 0, so a sub-threshold pull springs back smoothly.
-  bool _settling = false;
+  /// Whether the current scroll gesture BEGAN with the content already at the
+  /// top. Only then may a downward pull shrink + dismiss the sheet — a gesture
+  /// that started mid-page (e.g. a flick-up-to-top) can never close it, even
+  /// when its ballistic overshoots into the top overscroll.
+  bool _fromTop = false;
 
   // Distance that maps to "fully shrunk", and the release distance past which
   // we commit to closing.
-  static const double _maxDrag = 260;
-  static const double _dismissThreshold = 120;
+  static const double _maxDrag = 220;
+  static const double _dismissThreshold = 110;
 
   void _dismiss() {
     if (_dismissing) return;
@@ -125,33 +123,30 @@ class _TitleModalState extends State<_TitleModal> {
 
   bool _onScroll(ScrollNotification n) {
     if (_dismissing) return false;
-    // Sustained top overscroll (BouncingScrollPhysics keeps pixels < min while
-    // held) → how far the sheet is pulled down.
-    final overscroll =
-        (n.metrics.minScrollExtent - n.metrics.pixels).clamp(0.0, _maxDrag);
-    final bool fingerDown = (n is ScrollUpdateNotification &&
-            n.dragDetails != null) ||
-        (n is OverscrollNotification && n.dragDetails != null);
 
-    if (fingerDown && (overscroll > 0 || _engaged)) {
-      // Actively dragging the sheet. Follow the finger in real time — pull
-      // down to shrink, drag back up to grow again.
-      _engaged = true;
-      _settling = false;
+    if (n is ScrollStartNotification) {
+      _fromTop = n.metrics.pixels <= n.metrics.minScrollExtent + 1;
+      return false;
+    }
+    if (!_fromTop) return false; // gesture started mid-page → never dismiss
+
+    // Finger lifted (drag ended, before any ballistic): decide at the PEAK
+    // pull, then let the bounce drive _drag back to 0 for the spring-back.
+    if (n is UserScrollNotification && n.direction == ScrollDirection.idle) {
+      if (_drag > _dismissThreshold) _dismiss();
+      return false;
+    }
+
+    // Following the finger: sustained top overscroll → how far it's pulled.
+    if (n is ScrollUpdateNotification || n is OverscrollNotification) {
+      final overscroll =
+          (n.metrics.minScrollExtent - n.metrics.pixels).clamp(0.0, _maxDrag);
       _setDrag(overscroll);
-    } else if (_engaged && !fingerDown) {
-      // Finger lifted from a sheet-drag → commit or spring back.
-      _engaged = false;
-      if (_drag > _dismissThreshold) {
-        _dismiss();
-      } else {
-        _settling = true;
-        _setDrag(overscroll);
-      }
-    } else if (_settling) {
-      // Ride the physics bounce back down to 0.
-      _setDrag(overscroll);
-      if (overscroll <= 0.5) _settling = false;
+    }
+
+    if (n is ScrollEndNotification) {
+      _fromTop = false;
+      _setDrag(0);
     }
     return false;
   }
