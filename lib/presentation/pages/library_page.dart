@@ -1,40 +1,47 @@
 // lib/presentation/pages/library_page.dart
 //
-// "La mia lista" — the user's personal collection. Routed from both
-// /list (primary) and /library (kept for back-compat with any old
-// bookmark / deeplink).
+// "La mia lista" — la collezione personale (favorites ∪ watchlist). Coerente con
+// la Home: full-bleed nera (lo scrim Dynamic Island di AppShell torna visibile),
+// nav in liquid glass nativo (GlassLargeTitleHeader), copertine/titoli identici
+// (PosterCard). I contenuti sono divisi in 4 categorie (Film · Serie TV · Show
+// televisivi · Anime): in overview ogni categoria è una PosterRow Home-style;
+// "Vedi tutti →" isola la categoria in una griglia a tutta pagina.
 //
-// 2026-05-17 (P3 hotfix): the previous implementation queried
-// /api/library, which is the SERVER-SIDE catalog cache — that surfaced
-// random titles other users had opened, NOT the current user's saved
-// items. The operator reported "la mia lista al contrario mi fa vedere
-// film e serie a caso". This page now reads the union of:
-//   - favoritesProvider  (heart icon ON title pages)
-//   - watchlistProvider  (＋ La mia lista pill)
-// deduped by tmdbId, resolved against the local drift catalog cache for
-// poster + title metadata, and split into Film / Serie TV tabs.
-//
-// Empty state: a friendly call-to-action pointing the user at the ＋ pill
-// instead of just "Nessun risultato.". The page never falls back to the
-// backend library endpoint anymore — that's a separate "catalog cache"
-// concern and lives on the backend side only.
+// Routed da /list (primario) e /library (back-compat).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../domain/models/library_category.dart';
 import '../../domain/models/media_summary.dart';
-import '../../state/database_provider.dart';
-import '../../state/favorites_provider.dart';
-import '../../state/title_provider.dart';
-import '../../state/watchlist_provider.dart';
+import '../../state/my_list_items_provider.dart';
 import '../responsive.dart';
 import '../theme/colors.dart';
 import '../theme/spacing.dart';
 import '../theme/typography.dart';
-import '../view_models/media_card_vm.dart';
-import '../widgets/primitives/async_state_view.dart';
-import '../widgets/primitives/media_poster_card.dart';
-import '../widgets/primitives/responsive_grid.dart';
+import '../widgets/library/glass_large_title_header.dart';
+import '../widgets/poster_card.dart';
+import '../widgets/rows/poster_row.dart';
+
+const _categoryOrder = <LibraryCategory>[
+  LibraryCategory.film,
+  LibraryCategory.serieTv,
+  LibraryCategory.show,
+  LibraryCategory.anime,
+];
+
+String _labelFor(LibraryCategory c) {
+  switch (c) {
+    case LibraryCategory.film:
+      return 'Film';
+    case LibraryCategory.serieTv:
+      return 'Serie TV';
+    case LibraryCategory.show:
+      return 'Show televisivi';
+    case LibraryCategory.anime:
+      return 'Anime';
+  }
+}
 
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -43,81 +50,146 @@ class LibraryPage extends ConsumerStatefulWidget {
   ConsumerState<LibraryPage> createState() => _LibraryPageState();
 }
 
-class _LibraryPageState extends ConsumerState<LibraryPage>
-    with SingleTickerProviderStateMixin {
-  late final TabController _ctrl;
-
-  static const _types = ['movie', 'tv'];
-  static const _labels = ['Film', 'Serie TV'];
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TabController(length: _types.length, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+class _LibraryPageState extends ConsumerState<LibraryPage> {
+  LibraryCategory? _isolated;
 
   @override
   Widget build(BuildContext context) {
-    final favAsync = ref.watch(favoritesProvider);
-    final wlAsync = ref.watch(watchlistProvider);
+    final async = ref.watch(myListItemsProvider);
+    final topPad = MediaQuery.of(context).padding.top;
 
-    // Compose the deduped key set once per build; both providers carry
-    // their own AsyncValue so we treat them as a coupled async state.
-    final loading = favAsync.isLoading || wlAsync.isLoading;
-    final error = favAsync.error ?? wlAsync.error;
-    final fav = favAsync.value ?? const <TitleKey>{};
-    final wl = wlAsync.value ?? const <TitleKey>{};
-    final keys = <TitleKey>{...fav, ...wl}.toList(growable: false);
+    return ColoredBox(
+      color: Colors.black,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+        slivers: [
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: GlassLargeTitleHeader(
+              title: 'La mia lista',
+              topPadding: topPad,
+              isolatedLabel: _isolated == null ? null : _labelFor(_isolated!),
+              onBack: () => setState(() => _isolated = null),
+            ),
+          ),
+          ...async.when(
+            data: (items) => _dataSlivers(context, items),
+            loading: _loadingSlivers,
+            error: (_, __) => _errorSlivers(),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 120)),
+        ],
+      ),
+    );
+  }
 
-    return Scaffold(
-      backgroundColor: StreamloadColors.v3BgBase,
-      appBar: AppBar(
-        backgroundColor: StreamloadColors.v3BgScrolled,
-        title: const Text('La mia lista'),
-        bottom: TabBar(
-          controller: _ctrl,
-          labelColor: StreamloadColors.v3TextPrimary,
-          unselectedLabelColor: StreamloadColors.v3TextMuted,
-          indicatorColor: StreamloadColors.v3TextPrimary,
-          tabs: _labels.map((l) => Tab(text: l)).toList(),
+  List<Widget> _dataSlivers(BuildContext context, List<LibraryItem> items) {
+    if (items.isEmpty) {
+      return const [
+        SliverFillRemaining(hasScrollBody: false, child: _EmptyState()),
+      ];
+    }
+    final grouped = <LibraryCategory, List<MediaSummary>>{};
+    for (final it in items) {
+      (grouped[it.category] ??= <MediaSummary>[]).add(it.summary);
+    }
+
+    if (_isolated != null) {
+      return [_grid(context, grouped[_isolated!] ?? const [], _isolated!)];
+    }
+
+    final rows = <Widget>[];
+    for (final cat in _categoryOrder) {
+      final list = grouped[cat];
+      if (list == null || list.isEmpty) continue;
+      rows.add(Padding(
+        padding: EdgeInsets.only(top: rows.isEmpty ? 8 : 24),
+        child: PosterRow(
+          title: _labelFor(cat),
+          items: list,
+          onSeeAll: () => setState(() => _isolated = cat),
+        ),
+      ));
+    }
+    return [SliverList(delegate: SliverChildListDelegate(rows))];
+  }
+
+  Widget _grid(
+      BuildContext context, List<MediaSummary> items, LibraryCategory cat) {
+    final columns = Responsive.isPhone(context)
+        ? 3
+        : Responsive.isTablet(context)
+            ? 4
+            : 6;
+    return SliverPadding(
+      padding: StreamloadSpacing.pagePaddingPhone.copyWith(top: 12, bottom: 24),
+      sliver: SliverGrid(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          mainAxisSpacing: 16,
+          crossAxisSpacing: 12,
+          childAspectRatio: 0.5,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, i) {
+            final m = items[i];
+            final tag = 'lib_${cat.name}_${m.tmdbId}_$i';
+            return PosterCard(
+              summary: m,
+              width: double.infinity,
+              showLabel: true,
+              heroTag: tag,
+              onTap: () => context.push(
+                '/title/${m.tmdbId}?media_type=${m.mediaType}',
+                extra: tag,
+              ),
+            );
+          },
+          childCount: items.length,
         ),
       ),
-      body: () {
-        if (loading && keys.isEmpty) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (error != null) {
-          return StreamloadErrorState(
-            onRetry: () {
-              ref.invalidate(favoritesProvider);
-              ref.invalidate(watchlistProvider);
-            },
-          );
-        }
-        if (keys.isEmpty) {
-          return const _EmptyState();
-        }
-        return TabBarView(
-          controller: _ctrl,
-          children: _types.map((t) {
-            final keysForType =
-                keys.where((k) => k.mediaType == t).toList(growable: false);
-            return _ResolvedGrid(keys: keysForType);
-          }).toList(),
-        );
-      }(),
     );
+  }
+
+  List<Widget> _loadingSlivers() {
+    return const [
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.only(top: 8),
+          child: PosterRow(title: 'Film', items: [], isLoading: true),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.only(top: 24),
+          child: PosterRow(title: 'Serie TV', items: [], isLoading: true),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> _errorSlivers() {
+    return [
+      SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(
+          child: TextButton(
+            onPressed: () => ref.invalidate(myListItemsProvider),
+            child: Text(
+              'Errore di caricamento. Riprova',
+              style: StreamloadTypography.v3Body(
+                color: StreamloadColors.v3TextMuted,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
   }
 }
 
-/// Empty state — no favorites, no watchlist. Friendly CTA pointing the
-/// user at the ＋ pill on title pages.
 class _EmptyState extends StatelessWidget {
   const _EmptyState();
 
@@ -153,97 +225,5 @@ class _EmptyState extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-/// Resolves a list of TitleKey to MediaSummary records via the local
-/// drift catalog cache (populated by titleProvider on any title-page
-/// visit). Keys the user has never opened a title page for fall back to
-/// a placeholder card with just the tmdbId — tapping it loads the title
-/// page which populates the cache for next time.
-class _ResolvedGrid extends ConsumerWidget {
-  const _ResolvedGrid({required this.keys});
-  final List<TitleKey> keys;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (keys.isEmpty) {
-      return Center(
-        child: Text(
-          'Nessun titolo in questa sezione.',
-          style: StreamloadTypography.v3Body(
-            color: StreamloadColors.v3TextMuted,
-          ),
-        ),
-      );
-    }
-    return FutureBuilder<List<MediaSummary>>(
-      future: _resolve(ref),
-      builder: (context, snap) {
-        if (snap.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final items = snap.data ?? const <MediaSummary>[];
-        if (items.isEmpty) {
-          return Center(
-            child: Text(
-              'Nessun titolo in questa sezione.',
-              style: StreamloadTypography.v3Body(
-                color: StreamloadColors.v3TextMuted,
-              ),
-            ),
-          );
-        }
-        final pad = Responsive.isPhone(context)
-            ? StreamloadSpacing.pagePaddingPhone
-            : Responsive.isTablet(context)
-                ? StreamloadSpacing.pagePaddingTablet
-                : StreamloadSpacing.pagePaddingDesktop;
-        return SingleChildScrollView(
-          padding: pad.copyWith(top: 16, bottom: 32),
-          child: ResponsiveGrid(
-            itemCount: items.length,
-            itemAspectRatio: 0.55,
-            itemBuilder: (context, i) {
-              final vm = MediaCardVm.fromSummary(items[i]);
-              return MediaPosterCard(
-                item: vm,
-                onTap: () => context.push(
-                  '/title/${vm.tmdbId}?media_type=${vm.mediaType}',
-                ),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Future<List<MediaSummary>> _resolve(WidgetRef ref) async {
-    final db = ref.read(databaseProvider);
-    final out = <MediaSummary>[];
-    for (final k in keys) {
-      final row = await db.catalogDao.get(k.tmdbId, k.mediaType);
-      if (row != null) {
-        out.add(MediaSummary(
-          tmdbId: row.tmdbId,
-          mediaType: row.mediaType,
-          title: row.title,
-          year: row.year,
-          posterUrl: row.posterUrl,
-          backdropUrl: row.backdropUrl,
-        ));
-      } else {
-        // Local cache miss — render a minimal card. Tapping it opens the
-        // title page which populates the cache, so next visit fills in
-        // the poster / year.
-        out.add(MediaSummary(
-          tmdbId: k.tmdbId,
-          mediaType: k.mediaType,
-          title: '#${k.tmdbId}',
-        ));
-      }
-    }
-    return out;
   }
 }
