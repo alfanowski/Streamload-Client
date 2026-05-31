@@ -1,18 +1,15 @@
 // lib/presentation/widgets/library/glass_large_title_header.dart
 //
-// Nav Apple-style per "La mia lista": un titolo grande (Fraunces) che, scrollando,
-// scorre SOTTO una barra in liquid glass nativo (GlassSurface → Apple Liquid Glass
-// su iOS) e lascia il posto a un titolo piccolo centrato.
-//
-// La barra glass è SEMPRE renderizzata (niente Opacity animata sul platform-view
-// nativo, che su iOS produce flicker): a riposo, su sfondo nero e senza contenuto
-// sotto, è impercettibile; appena i poster scorrono sotto, il vetro li rifrange —
-// esattamente come una nav bar iOS. Solo i due TESTI fanno cross-fade.
+// Header di "La mia lista" coerente con la Home: NESSUNA barra/box (la Home non
+// ne ha — solo il wordmark che svanisce + lo scrim Dynamic Island di AppShell).
+// Un large title Fraunces che, scrollando, fa cross-fade in un titolo piccolo
+// centrato. La leggibilità sui poster che scorrono sotto è data da un'ombra sul
+// testo, esattamente come il wordmark della Home — non da un pannello glass, che
+// a tutta larghezza renderizzava come un brutto rettangolo opaco.
 import 'package:flutter/material.dart';
 
 import '../../theme/colors.dart';
 import '../../theme/typography.dart';
-import '../primitives/glass_surface.dart';
 
 class GlassLargeTitleHeader extends SliverPersistentHeaderDelegate {
   GlassLargeTitleHeader({
@@ -23,11 +20,18 @@ class GlassLargeTitleHeader extends SliverPersistentHeaderDelegate {
   final String title;
   final double topPadding;
 
-  /// Altezza della barra compatta (contenuto, sotto la status bar).
+  /// Banda della status bar / area titolo compatto.
   static const double _barHeight = 44;
 
   /// Banda extra del large title sotto la barra.
   static const double _largeBand = 54;
+
+  /// Ombra morbida che rende i titoli leggibili sui poster che scorrono sotto —
+  /// stessa idea del wordmark della Home.
+  static const List<Shadow> _legibilityShadow = [
+    Shadow(color: Colors.black, blurRadius: 14),
+    Shadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 1)),
+  ];
 
   @override
   double get maxExtent => topPadding + _barHeight + _largeBand;
@@ -38,7 +42,7 @@ class GlassLargeTitleHeader extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    // 1 = espanso (large title pieno), 0 = collassato (solo barra + small title).
+    // 1 = espanso (large title pieno), 0 = collassato (solo small title).
     final largeT = (1 - shrinkOffset / _largeBand).clamp(0.0, 1.0);
 
     return SizedBox.expand(
@@ -47,7 +51,7 @@ class GlassLargeTitleHeader extends SliverPersistentHeaderDelegate {
         clipBehavior: Clip.hardEdge,
         children: [
           // Large title — ancorato al fondo della banda (che si accorcia mentre
-          // collassa), così risale naturalmente e svanisce dietro la barra.
+          // collassa), così risale e svanisce.
           Positioned(
             left: 20,
             right: 20,
@@ -59,36 +63,33 @@ class GlassLargeTitleHeader extends SliverPersistentHeaderDelegate {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: StreamloadTypography.display(fontSize: 30, italic: false)
-                    .copyWith(color: StreamloadColors.v3TextPrimary),
+                    .copyWith(
+                  color: StreamloadColors.v3TextPrimary,
+                  shadows: _legibilityShadow,
+                ),
               ),
             ),
           ),
-          // Barra glass sempre presente, disegnata SOPRA il large title così
-          // questo le scorre dietro.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: topPadding + _barHeight,
-            child: const GlassSurface(
-              borderRadius: 0,
-              child: SizedBox.expand(),
-            ),
-          ),
-          // Titolo piccolo centrato nella barra — entra in cross-fade mentre il
-          // large title esce.
+          // Titolo piccolo centrato — entra in cross-fade mentre il large esce.
           Positioned(
             top: topPadding,
             left: 0,
             right: 0,
             height: _barHeight,
-            child: Opacity(
-              opacity: 1 - largeT,
-              child: Center(
-                child: Text(
-                  title,
-                  style: StreamloadTypography.display(fontSize: 17, italic: false)
-                      .copyWith(color: StreamloadColors.v3TextPrimary),
+            child: IgnorePointer(
+              ignoring: largeT > 0.5,
+              child: Opacity(
+                opacity: 1 - largeT,
+                child: Center(
+                  child: Text(
+                    title,
+                    style: StreamloadTypography.display(
+                            fontSize: 17, italic: false)
+                        .copyWith(
+                      color: StreamloadColors.v3TextPrimary,
+                      shadows: _legibilityShadow,
+                    ),
+                  ),
                 ),
               ),
             ),
