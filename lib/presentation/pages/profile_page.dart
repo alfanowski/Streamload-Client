@@ -32,40 +32,41 @@ class ProfilePage extends ConsumerWidget {
     final pad = Responsive.isPhone(context)
         ? StreamloadSpacing.pagePaddingPhone
         : StreamloadSpacing.pagePaddingDesktop;
+    // Full-bleed like the other tabs: the page draws edge-to-edge and the
+    // shell's top scrim darkens the Dynamic Island area over the content. We
+    // pad our own top by the system inset so the title clears the island.
+    final topInset = MediaQuery.of(context).padding.top;
 
     return Scaffold(
       backgroundColor: StreamloadColors.v3BgBase,
-      body: SafeArea(
-        bottom: false,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
-            child: ListView(
-              padding: EdgeInsets.fromLTRB(pad.left, 8, pad.right, 120),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, bottom: 14),
-                  child: Text(
-                    'Profilo',
-                    style: StreamloadTypography.display(
-                            fontSize: 30, italic: false)
-                        .copyWith(color: StreamloadColors.v3TextPrimary),
-                  ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 620),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(pad.left, topInset + 10, pad.right, 120),
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 14),
+                child: Text(
+                  'Profilo',
+                  style: StreamloadTypography.display(
+                          fontSize: 30, italic: false)
+                      .copyWith(color: StreamloadColors.v3TextPrimary),
                 ),
-                _ProfileHero(user: user),
-                const SizedBox(height: 34),
-                _AccountSection(user: user),
-                const SizedBox(height: 36),
-                const _SettingsSection(),
-                const SizedBox(height: 36),
-                _LogoutButton(
-                  onTap: () async {
-                    await ref.read(authProvider.notifier).logout();
-                    if (context.mounted) context.go('/onboarding/github');
-                  },
-                ),
-              ],
-            ),
+              ),
+              _ProfileHero(user: user),
+              const SizedBox(height: 34),
+              _AccountSection(user: user),
+              const SizedBox(height: 36),
+              const _SettingsSection(),
+              const SizedBox(height: 36),
+              _LogoutButton(
+                onTap: () async {
+                  await ref.read(authProvider.notifier).logout();
+                  if (context.mounted) context.go('/onboarding/github');
+                },
+              ),
+            ],
           ),
         ),
       ),
