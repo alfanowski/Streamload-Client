@@ -85,16 +85,35 @@ class TmdbKey {
 // Row providers
 // ──────────────────────────────────────────────────────────────────────────
 
+/// Retry a catalog fetch a few times with backoff. At cold start the API
+/// client / session can still be settling, so the FIRST request occasionally
+/// fails — without this the hero ("in evidenza") and search "Suggeriti" would
+/// just stay empty until a manual retry.
+Future<T> _retry<T>(Future<T> Function() op, {int attempts = 3}) async {
+  Object lastError = StateError('retry failed');
+  for (var i = 0; i < attempts; i++) {
+    try {
+      return await op();
+    } catch (e) {
+      lastError = e;
+      if (i < attempts - 1) {
+        await Future<void>.delayed(Duration(milliseconds: 350 * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 final trendingDayProvider =
     FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
   final api = await ref.watch(catalogRowsApiProvider.future);
-  return api.trending(period: 'day');
+  return _retry(() => api.trending(period: 'day'));
 });
 
 final trendingWeekProvider =
     FutureProvider.autoDispose<List<MediaSummary>>((ref) async {
   final api = await ref.watch(catalogRowsApiProvider.future);
-  return api.trending(period: 'week');
+  return _retry(() => api.trending(period: 'week'));
 });
 
 /// Trending today, narrowed to movies — feeds the /film page top row.

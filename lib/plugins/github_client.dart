@@ -27,10 +27,33 @@ class GithubClient {
   final String token;
   final Dio _dio;
 
+  /// Dio GET with retries on TRANSIENT failures (network errors / timeouts /
+  /// 5xx / 429 rate-limits). Plugins must never fail from a momentary blip, so
+  /// GitHub gets a few attempts with a short backoff before we give up.
+  /// Definitive statuses (200, 401/403/404) return immediately.
+  Future<Response<dynamic>> _getWithRetry(String path, {Options? options}) async {
+    const attempts = 3;
+    Object lastError = StateError('github: $path failed');
+    for (var i = 0; i < attempts; i++) {
+      try {
+        final resp = await _dio.get<dynamic>(path, options: options);
+        final sc = resp.statusCode ?? 0;
+        if (sc < 500 && sc != 429) return resp; // definitive → done
+        lastError = StateError('github: $path → $sc');
+      } on DioException catch (e) {
+        lastError = e; // connection / timeout → transient
+      }
+      if (i < attempts - 1) {
+        await Future<void>.delayed(Duration(milliseconds: 400 * (i + 1)));
+      }
+    }
+    throw lastError;
+  }
+
   /// GET /repos/{owner}/{repo}/contents/{path} — returns the parsed JSON body
   /// (which has `{ name, sha, content (base64), encoding, ... }` for files).
   Future<Map<String, dynamic>> getContents(String path) async {
-    final resp = await _dio.get<dynamic>('/repos/$owner/$repo/contents/$path');
+    final resp = await _getWithRetry('/repos/$owner/$repo/contents/$path');
     if (resp.statusCode != 200) {
       throw StateError(
         'github: GET contents/$path → ${resp.statusCode} ${resp.data}',
@@ -49,7 +72,7 @@ class GithubClient {
 
   /// Fetch a plugin .js file as raw text (uses `Accept: application/vnd.github.v3.raw`).
   Future<String> getPluginSource(String filePath) async {
-    final resp = await _dio.get<dynamic>(
+    final resp = await _getWithRetry(
       '/repos/$owner/$repo/contents/$filePath',
       options: Options(
         headers: {'Accept': 'application/vnd.github.v3.raw'},

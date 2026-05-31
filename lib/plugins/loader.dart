@@ -60,6 +60,27 @@ class PluginLoader {
   /// - [RefreshOutcome.noAccess] — HTTP 403/404 from the registry endpoint.
   /// - [RefreshOutcome.networkError] — any other network or unexpected error.
   Future<RefreshSummary> refresh() async {
+    // A registry fetch failure must NEVER take working plugins offline. If the
+    // runtime already has plugins mounted (a previous refresh this session),
+    // keep them and report success instead of dropping to no-plugins.
+    RefreshSummary keepOrFail(RefreshOutcome failOutcome) {
+      final live = runtime.all.map((p) => p.meta.shortName).toList();
+      if (live.isNotEmpty) {
+        return RefreshSummary(
+          outcome: RefreshOutcome.success,
+          mounted: live,
+          failed: const [],
+          removed: const [],
+        );
+      }
+      return RefreshSummary(
+        outcome: failOutcome,
+        mounted: const [],
+        failed: const [],
+        removed: const [],
+      );
+    }
+
     final Map<String, dynamic> remoteJson;
     try {
       remoteJson = await github.getRegistry();
@@ -67,28 +88,13 @@ class PluginLoader {
       if (e.response?.statusCode == 404 || e.response?.statusCode == 403) {
         _log.info(
             'plugin registry → ${e.response?.statusCode}; user has no access');
-        return RefreshSummary(
-          outcome: RefreshOutcome.noAccess,
-          mounted: const [],
-          failed: const [],
-          removed: const [],
-        );
+        return keepOrFail(RefreshOutcome.noAccess);
       }
       _log.warn('plugin registry network error: $e');
-      return RefreshSummary(
-        outcome: RefreshOutcome.networkError,
-        mounted: const [],
-        failed: const [],
-        removed: const [],
-      );
+      return keepOrFail(RefreshOutcome.networkError);
     } catch (e) {
       _log.warn('plugin registry unexpected error: $e');
-      return RefreshSummary(
-        outcome: RefreshOutcome.networkError,
-        mounted: const [],
-        failed: const [],
-        removed: const [],
-      );
+      return keepOrFail(RefreshOutcome.networkError);
     }
 
     final remote = (remoteJson['plugins'] as List)
