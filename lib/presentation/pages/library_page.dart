@@ -19,7 +19,7 @@ import '../../state/my_list_items_provider.dart';
 import '../pages/category_list_page.dart' show categoryLabel;
 import '../theme/colors.dart';
 import '../theme/typography.dart';
-import '../widgets/library/glass_large_title_header.dart';
+import '../widgets/library/glass_large_title_header.dart' show LibraryTitleHeader;
 import '../widgets/rows/poster_row.dart';
 
 const _categoryOrder = <LibraryCategory>[
@@ -44,9 +44,8 @@ class LibraryPage extends ConsumerWidget {
           parent: AlwaysScrollableScrollPhysics(),
         ),
         slivers: [
-          SliverPersistentHeader(
-            pinned: true,
-            delegate: GlassLargeTitleHeader(
+          SliverToBoxAdapter(
+            child: LibraryTitleHeader(
               title: 'La mia lista',
               topPadding: topPad,
             ),
