@@ -89,9 +89,9 @@ class PosterCard extends StatelessWidget {
     final Widget heroPoster = heroTag != null
         ? Hero(
             tag: heroTag!,
-            // Keep BoxFit covered during the flight so the poster reads the
-            // same as the destination hero while it expands.
-            flightShuttleBuilder: (_, __, ___, ____, _____) => poster,
+            // No custom shuttle: Flutter's default cross-fades this poster
+            // into the title hero as the rect expands — smooth, no hard
+            // swap/flash at the end of the flight.
             child: poster,
           )
         : poster;

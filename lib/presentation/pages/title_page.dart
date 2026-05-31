@@ -103,12 +103,19 @@ class _TitleModalState extends State<_TitleModal> {
   }
 
   bool _onScroll(ScrollNotification n) {
-    // Overscroll at the very top (pixels below the min extent) → the hero
-    // zooms via the SliverAppBar; pulling past the threshold closes the panel.
-    if (n is ScrollUpdateNotification || n is OverscrollNotification) {
-      final pull = n.metrics.minScrollExtent - n.metrics.pixels;
-      if (pull > _closeThreshold && !_dismissing) _dismiss();
-    }
+    // Close only on a DELIBERATE downward drag at the very top — i.e. the
+    // user's finger is down (dragDetails != null) and they've pulled past
+    // the threshold. We must NOT close on the ballistic overscroll a fast
+    // flick-up-to-top produces (dragDetails == null), which was dismissing
+    // the panel involuntarily.
+    final DragUpdateDetails? drag = n is ScrollUpdateNotification
+        ? n.dragDetails
+        : n is OverscrollNotification
+            ? n.dragDetails
+            : null;
+    if (drag == null || _dismissing) return false;
+    final pull = n.metrics.minScrollExtent - n.metrics.pixels;
+    if (pull > _closeThreshold) _dismiss();
     return false;
   }
 
@@ -165,7 +172,9 @@ class _GlassClose extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Content — CustomScrollView with a stretchy SliverAppBar hero.
+// Content — CustomScrollView. The hero is a plain fixed-height sliver so it
+// scrolls away naturally (no SliverAppBar parallax / pin / overlap). The
+// pull-to-dismiss lives in _TitleModal's NotificationListener.
 // ──────────────────────────────────────────────────────────────────────────
 
 class _TitleContent extends StatelessWidget {
@@ -186,24 +195,10 @@ class _TitleContent extends StatelessWidget {
         parent: AlwaysScrollableScrollPhysics(),
       ),
       slivers: [
-        SliverAppBar(
-          expandedHeight: heroHeight,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          toolbarHeight: 0,
-          collapsedHeight: 0,
-          pinned: false,
-          floating: false,
-          stretch: true,
-          stretchTriggerOffset: 40,
-          automaticallyImplyLeading: false,
-          flexibleSpace: FlexibleSpaceBar(
-            // No parallax: the hero scrolls 1:1 with the content (the operator
-            // wants normal scrolling, no lag). Stretch still zooms it on a
-            // downward overscroll (which also dismisses past the threshold).
-            collapseMode: CollapseMode.none,
-            stretchModes: const [StretchMode.zoomBackground],
-            background: _TitleHeroSection(item: item, heroTag: heroTag),
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: heroHeight,
+            child: _TitleHeroSection(item: item, heroTag: heroTag),
           ),
         ),
         SliverList(
