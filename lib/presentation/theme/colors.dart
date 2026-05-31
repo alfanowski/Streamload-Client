@@ -53,10 +53,13 @@ class StreamloadColors {
   static const Color textTertiary = Color(0x6BF5F2EC); // 42% alpha
   static const Color textMuted = Color(0x47F5F2EC); // 28% alpha
 
-  // Accents
-  static const Color accent = Color(0xFFD4A574);
-  static const Color accentHover = Color(0xFFE2B888);
-  static const Color gold = Color(0xFFF4D17C);
+  // Accents — DE-AMBER (2026-05-31): the platform is now fully monochrome,
+  // matching the Home / player (which use cream-white / Colors.white for every
+  // active marker). The former amber/gold accents collapse onto the cream
+  // off-white #F4F4F6, so nothing renders amber anymore.
+  static const Color accent = Color(0xFFF4F4F6);
+  static const Color accentHover = Color(0xFFF4F4F6);
+  static const Color gold = Color(0xFFF4F4F6);
   static const Color critical = Color(0xFFF26B5E);
   static const Color success = Color(0xFF7CC089);
 
@@ -114,23 +117,18 @@ class StreamloadColors {
   static Color v3TextMuted =
       const Color(0xFFF4F4F6).withValues(alpha: 0.42);
 
-  // Brand accent — Streamload yellow. Kept defined because PrimaryPill
-  // (onboarding submit) still uses it as an unmistakable "tap me" affordance
-  // — the editorial pivot only quiets *browse* surfaces, not form actions.
-  // No widget reads v3SurfaceGlassYellow anymore after CM-2 strips the
-  // hover-yellow tints; leaving it defined avoids breaking external
-  // refactors mid-flight.
-  static const Color v3AccentYellow = Color(0xFFFFC700);
-  static const Color v3AccentYellowHover = Color(0xFFFFDB4D);
+  // Brand accent — DE-AMBER (2026-05-31): the old "Streamload yellow" / amber
+  // tokens collapse onto the cream off-white so no surface renders amber or
+  // yellow. Kept defined (call sites still reference them) but neutral now.
+  static const Color v3AccentYellow = Color(0xFFF4F4F6);
+  static const Color v3AccentYellowHover = Color(0xFFF4F4F6);
   static Color v3SurfaceGlassYellow =
-      const Color(0xFFFFC700).withValues(alpha: 0.18);
+      const Color(0xFFF4F4F6).withValues(alpha: 0.18);
 
-  // CTAs — primary surface flips to the warm amber (#D4A574, v2 accent).
-  // Foreground goes to near-black so amber reads as a tactile editorial
-  // marker rather than a Netflix-y yellow shout. TextCta in CM-4 uses
-  // v3TextPrimary directly (typographic underline, no pill) so this fill
-  // mostly survives for PrimaryPill in onboarding now.
-  static const Color v3CtaPrimaryBg = Color(0xFFD4A574);
+  // CTAs — primary surface is the cream off-white #F4F4F6 (same as the Home
+  // "Play" pill), foreground near-black so the label reads on it. DE-AMBER
+  // (2026-05-31): was amber #D4A574; now monochrome like the rest.
+  static const Color v3CtaPrimaryBg = Color(0xFFF4F4F6);
   static const Color v3CtaPrimaryFg = Color(0xFF0E0E10);
   static Color v3CtaSecondaryBg =
       const Color(0xFFF4F4F6).withValues(alpha: 0.10);

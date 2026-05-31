@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/title_provider.dart';
 import '../../state/watchlist_provider.dart';
+import '../theme/colors.dart';
 
 class WatchlistButton extends ConsumerWidget {
   const WatchlistButton({super.key, required this.target});
@@ -19,7 +20,8 @@ class WatchlistButton extends ConsumerWidget {
     return IconButton(
       tooltip: isInWatchlist ? 'Rimuovi dalla watchlist' : 'Aggiungi alla watchlist',
       icon: Icon(isInWatchlist ? Icons.bookmark : Icons.bookmark_border),
-      color: isInWatchlist ? Colors.amber : null,
+      // DE-AMBER: active state uses the cream off-white, not amber.
+      color: isInWatchlist ? StreamloadColors.v3TextPrimary : null,
       onPressed: state.isLoading
           ? null
           : () async {

@@ -25,8 +25,10 @@ class StreamloadTokens {
   static final Color borderStrong =
       const Color(0xFFF4F4F6).withValues(alpha: 0.14);
 
-  static const Color accent = Color(0xFFD4A574); // discreet signature amber
-  static const Color accentHover = Color(0xFFE8C9A0);
+  // DE-AMBER (2026-05-31): accent collapses onto the cream off-white so nothing
+  // renders amber. Was the signature amber #D4A574.
+  static const Color accent = Color(0xFFF4F4F6);
+  static const Color accentHover = Color(0xFFF4F4F6);
 
   static const Color ctaPrimaryBg = Color(0xFFF4F4F6); // cream-white Play
   static const Color ctaPrimaryFg = Color(0xFF0E0E10);
