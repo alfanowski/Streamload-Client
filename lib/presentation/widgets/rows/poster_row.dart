@@ -34,6 +34,7 @@ class PosterRow extends StatelessWidget {
     required this.items,
     this.onItemTap,
     this.seeAllTo,
+    this.onSeeAll,
     this.isLoading = false,
     this.placeholderCount = 6,
     this.progressByTmdbId,
@@ -47,6 +48,10 @@ class PosterRow extends StatelessWidget {
   /// Optional GoRouter path the "Vedi tutti →" link navigates to. When
   /// null, the link is hidden.
   final String? seeAllTo;
+
+  /// Callback opzionale per "Vedi tutti →". Ha precedenza su [seeAllTo]: quando
+  /// impostato, il link chiama questo invece di navigare a una route.
+  final VoidCallback? onSeeAll;
 
   /// While loading, render shimmer placeholder cards instead of items.
   final bool isLoading;
@@ -85,6 +90,7 @@ class PosterRow extends StatelessWidget {
           child: _Header(
             title: title,
             seeAllTo: seeAllTo,
+            onSeeAll: onSeeAll,
           ),
         ),
         const SizedBox(height: 12),
@@ -141,12 +147,15 @@ class _Header extends StatelessWidget {
   const _Header({
     required this.title,
     this.seeAllTo,
+    this.onSeeAll,
   });
   final String title;
   final String? seeAllTo;
+  final VoidCallback? onSeeAll;
 
   @override
   Widget build(BuildContext context) {
+    final showLink = onSeeAll != null || seeAllTo != null;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
@@ -161,9 +170,15 @@ class _Header extends StatelessWidget {
           ),
         ),
         const Spacer(),
-        if (seeAllTo != null)
+        if (showLink)
           InkWell(
-            onTap: () => context.go(seeAllTo!),
+            onTap: () {
+              if (onSeeAll != null) {
+                onSeeAll!();
+              } else {
+                context.go(seeAllTo!);
+              }
+            },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               child: Text(
