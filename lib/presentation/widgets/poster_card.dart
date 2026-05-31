@@ -130,6 +130,9 @@ class PosterCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           onLongPress: () => showTitleActions(context, summary),
+          // No acoustic/haptic click — the long-press just opens the glass
+          // actions sheet, the system "tock" felt out of place.
+          enableFeedback: false,
           borderRadius: BorderRadius.circular(StreamloadSpacing.cardRadius),
           child: SizedBox(width: width, child: content),
         ),
