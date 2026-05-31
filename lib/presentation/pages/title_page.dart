@@ -361,10 +361,34 @@ class _HeroCtas extends ConsumerWidget {
       onTap: () => ref.read(favoritesProvider.notifier).toggle(key),
     );
 
+    // Resume detail: which episode + how far in, shown above the CTAs.
+    Widget? resumeDetail;
+    if (resume != null && canPlay) {
+      final dur = resume.durationSeconds;
+      final frac = dur > 0 ? (resume.positionSeconds / dur).clamp(0.0, 1.0) : 0.0;
+      final leftSec = dur - resume.positionSeconds;
+      final minLeft = leftSec > 0 ? (leftSec / 60).ceil() : null;
+      final parts = <String>[];
+      if (item.mediaType == 'tv' &&
+          resume.seasonNumber != null &&
+          resume.episodeNumber != null) {
+        parts.add(
+            'Stagione ${resume.seasonNumber} · Episodio ${resume.episodeNumber}');
+      }
+      if (minLeft != null) parts.add('$minLeft min rimasti');
+      if (frac > 0.01 && parts.isNotEmpty) {
+        resumeDetail = _ResumeDetail(
+          fraction: frac.toDouble(),
+          label: parts.join(' · '),
+          isPhone: isPhone,
+        );
+      }
+    }
+
     return LayoutBuilder(
       builder: (context, c) {
         final w = ((c.maxWidth - 12) / 2).clamp(0.0, 190.0);
-        return Row(
+        final buttons = Row(
           mainAxisAlignment:
               isPhone ? MainAxisAlignment.center : MainAxisAlignment.start,
           children: [
@@ -373,7 +397,68 @@ class _HeroCtas extends ConsumerWidget {
             SizedBox(width: w, child: add),
           ],
         );
+        if (resumeDetail == null) return buttons;
+        return Column(
+          crossAxisAlignment:
+              isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+          children: [
+            resumeDetail,
+            const SizedBox(height: 14),
+            buttons,
+          ],
+        );
       },
+    );
+  }
+}
+
+/// Thin watch-progress bar + "Stagione/Episodio · N min rimasti" line shown
+/// above the hero CTAs when the user has a saved resume point.
+class _ResumeDetail extends StatelessWidget {
+  const _ResumeDetail({
+    required this.fraction,
+    required this.label,
+    required this.isPhone,
+  });
+  final double fraction;
+  final String label;
+  final bool isPhone;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 392),
+      child: Column(
+        crossAxisAlignment:
+            isPhone ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: SizedBox(
+              height: 4,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  ColoredBox(color: Colors.white.withValues(alpha: 0.22)),
+                  FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: fraction,
+                    child: const ColoredBox(color: StreamloadColors.accent),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 7),
+          Text(
+            label,
+            style: StreamloadTypography.v3Body(
+              fontSize: 12.5,
+              color: StreamloadColors.v3TextSecondary,
+            ).copyWith(fontWeight: FontWeight.w500),
+          ),
+        ],
+      ),
     );
   }
 }

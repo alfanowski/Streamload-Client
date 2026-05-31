@@ -10,7 +10,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/episodes_response.dart';
 import '../../../state/episodes_provider.dart';
+import '../../../state/home_rows_provider.dart' show TmdbKey;
 import '../../../state/plugin_access_provider.dart';
+import '../../../state/title_progress_provider.dart';
 import '../../responsive.dart';
 import '../../theme/colors.dart';
 import '../../theme/typography.dart';
@@ -86,6 +88,12 @@ class _SeasonEpisodesState extends ConsumerState<SeasonEpisodes> {
     final async = ref.watch(episodesProvider(widget.tmdbId));
     final enabled =
         ref.watch(pluginAccessProvider) == PluginAccess.available;
+    // Watch memory: per-episode progress bars + "seen" ticks.
+    final progress = ref
+        .watch(titleProgressProvider(
+          TmdbKey(tmdbId: widget.tmdbId, mediaType: 'tv'),
+        ))
+        .maybeWhen(data: (p) => p, orElse: () => null);
     return async.when(
       loading: () => const Padding(
         padding: EdgeInsets.symmetric(vertical: 24),
@@ -122,6 +130,7 @@ class _SeasonEpisodesState extends ConsumerState<SeasonEpisodes> {
                   seasonNumber: season.number,
                   episode: ep,
                   enabled: enabled,
+                  watch: progress?.episode(season.number, ep.episode),
                 ),
           ],
         );
@@ -177,6 +186,7 @@ class _EpisodeTile extends StatelessWidget {
     required this.seasonNumber,
     required this.episode,
     required this.enabled,
+    this.watch,
   });
 
   final int tmdbId;
@@ -184,18 +194,29 @@ class _EpisodeTile extends StatelessWidget {
   final EpisodeInfo episode;
   final bool enabled;
 
+  /// Saved watch state for this episode (progress bar + "seen" tick), or null.
+  final EpisodeWatch? watch;
+
   @override
   Widget build(BuildContext context) {
     final thumbW = Responsive.isPhone(context) ? 116.0 : 150.0;
     final thumbH = thumbW * 9 / 16;
     final title = episode.title ?? 'Episodio ${episode.episode}';
+    final seen = watch?.completed ?? false;
+    final fraction = watch?.fraction ?? 0;
 
     final tile = Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Thumb(url: episode.stillUrl, width: thumbW, height: thumbH),
+          _Thumb(
+            url: episode.stillUrl,
+            width: thumbW,
+            height: thumbH,
+            progress: fraction,
+            seen: seen,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -210,7 +231,9 @@ class _EpisodeTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: StreamloadTypography.v3Body(fontSize: 15).copyWith(
                           fontWeight: FontWeight.w600,
-                          color: StreamloadColors.v3TextPrimary,
+                          color: seen
+                              ? StreamloadColors.v3TextMuted
+                              : StreamloadColors.v3TextPrimary,
                           height: 1.2,
                         ),
                       ),
@@ -218,7 +241,9 @@ class _EpisodeTile extends StatelessWidget {
                     if (episode.runtimeMinutes != null) ...[
                       const SizedBox(width: 10),
                       Text(
-                        '${episode.runtimeMinutes}min',
+                        watch != null && !seen && watch!.minutesRemaining != null
+                            ? '${watch!.minutesRemaining} min rimasti'
+                            : '${episode.runtimeMinutes}min',
                         style: StreamloadTypography.v3Body(
                           fontSize: 12,
                           color: StreamloadColors.v3TextMuted,
@@ -265,27 +290,69 @@ class _EpisodeTile extends StatelessWidget {
 }
 
 class _Thumb extends StatelessWidget {
-  const _Thumb({required this.url, required this.width, required this.height});
+  const _Thumb({
+    required this.url,
+    required this.width,
+    required this.height,
+    this.progress = 0,
+    this.seen = false,
+  });
   final String? url;
   final double width;
   final double height;
 
+  /// 0..1 watched fraction — drawn as a bar along the bottom edge.
+  final double progress;
+
+  /// Fully watched → a check badge + a dimming scrim.
+  final bool seen;
+
   @override
   Widget build(BuildContext context) {
+    final image = url != null && url!.isNotEmpty
+        ? CachedNetworkImage(
+            imageUrl: url!,
+            fit: BoxFit.cover,
+            placeholder: (_, __) =>
+                ColoredBox(color: StreamloadColors.v3SurfaceGlass),
+            errorWidget: (_, __, ___) => const _ThumbFallback(),
+          )
+        : const _ThumbFallback();
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: SizedBox(
         width: width,
         height: height,
-        child: url != null && url!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: url!,
-                fit: BoxFit.cover,
-                placeholder: (_, __) =>
-                    ColoredBox(color: StreamloadColors.v3SurfaceGlass),
-                errorWidget: (_, __, ___) => const _ThumbFallback(),
-              )
-            : const _ThumbFallback(),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            image,
+            if (seen)
+              ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
+            if (seen)
+              const Center(
+                child: Icon(Icons.check_circle_rounded,
+                    color: Colors.white, size: 24),
+              ),
+            // Watch progress bar along the bottom (skip when seen — the badge
+            // already says "done").
+            if (!seen && progress > 0.01)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  height: 3.5,
+                  color: Colors.white.withValues(alpha: 0.25),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: progress,
+                    child: const ColoredBox(color: StreamloadColors.accent),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
