@@ -56,11 +56,19 @@ class GlassSurface extends StatelessWidget {
     }
   }
 
-  /// Shader fallback uses FakeGlass on web / other platforms / under test.
+  /// Shader fallback uses FakeGlass on web / other platforms / under test —
+  /// AND on the iOS SIMULATOR, where the native objective_c framework that
+  /// `native_liquid_glass` links fails to load on new simruntimes
+  /// (`DOBJC_initializeApi` / "objective_c.framework: no such file"), which
+  /// would otherwise throw on every glass surface and block the app. Real
+  /// devices keep the official Apple Liquid Glass.
   static bool useFake() {
     if (kIsWeb) return true;
     try {
       if (Platform.environment.containsKey('FLUTTER_TEST')) return true;
+      // iOS Simulator exposes SIMULATOR_DEVICE_NAME; native glass is broken
+      // there → use the smooth shader/BackdropFilter recreation instead.
+      if (Platform.environment.containsKey('SIMULATOR_DEVICE_NAME')) return true;
       return !(Platform.isIOS || Platform.isAndroid || Platform.isMacOS);
     } catch (_) {
       return true;
@@ -75,8 +83,10 @@ class GlassSurface extends StatelessWidget {
     final stableBackdrop =
         backgroundColor ?? StreamloadTokens.bg.withValues(alpha: 0.55);
 
-    // ── Official Apple Liquid Glass on iOS ────────────────────────────────
-    if (_isIos) {
+    // ── Official Apple Liquid Glass on a REAL iOS device ──────────────────
+    // (Skipped on the simulator — see useFake() — where the native framework
+    // can't load and would throw on every surface.)
+    if (_isIos && !useFake()) {
       return native.LiquidGlassContainer(
         config: native.LiquidGlassConfig(
           effect: native.LiquidGlassEffect.regular,
