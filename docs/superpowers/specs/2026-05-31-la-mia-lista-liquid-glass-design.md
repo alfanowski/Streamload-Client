@@ -100,24 +100,34 @@ un titolo per aggiungerlo qui."), ridipinto su nero, centrato sotto lo scrim.
 
 ## 5. Classificazione in categorie
 
-Funzione pura, testabile in isolamento:
+> **Nota dati (verificata sul backend):** la cache drift salva `genresJson = jsonEncode(genres)`
+> dove `genres` è `List<String>` di **nomi generi localizzati it-IT** (es. "Animazione",
+> "Reality", "Dramma") — NON ID numerici. Il detail endpoint (`GET /api/catalog/{id}`)
+> popola solo i nomi. Inoltre il backend **filtra già** Talk (10767) e News (10763)
+> (`_EXCLUDED_TV_GENRES`), quindi tra gli "show" arrivano di fatto solo Reality e Soap.
 
-```
+Funzione pura, testabile in isolamento, basata sui **nomi** (normalizzati lowercase, con
+fallback EN per robustezza):
+
+```dart
 enum LibraryCategory { film, serieTv, show, anime }
 
-LibraryCategory categoryOf(String mediaType, List<int> genreIds) {
+LibraryCategory categoryFor(String mediaType, List<String> genres) {
   if (mediaType == 'movie') return LibraryCategory.film;
   // mediaType == 'tv'
-  if (genreIds.contains(16)) return LibraryCategory.anime;            // Animation
-  const showGenres = {10764, 10767, 10763, 10766};                   // Reality/Talk/News/Soap
-  if (genreIds.any(showGenres.contains)) return LibraryCategory.show;
+  final g = genres.map((s) => s.toLowerCase().trim()).toSet();
+  if (g.contains('animazione') || g.contains('animation')) {
+    return LibraryCategory.anime;
+  }
+  const show = {'reality', 'soap'};                 // it-IT == en per questi due
+  if (g.any(show.contains)) return LibraryCategory.show;
   return LibraryCategory.serieTv;
 }
 ```
 
 Etichette UI: Film / Serie TV / Show televisivi / Anime.
-Nota: l'euristica `tv + 16 = anime` è la stessa già usata dalla Home (`_buildAnimeRows`).
-I film d'animazione (movie + 16) restano in **Film**, coerente con la Home.
+Nota: `tv + Animazione = anime` è coerente con l'euristica della Home (`_buildAnimeRows`,
+genere 16). I film d'animazione (`movie` + Animazione) restano in **Film**.
 
 ## 6. Resolver + backfill (estratto dal widget)
 
@@ -132,8 +142,9 @@ class LibraryItem { MediaSummary summary; LibraryCategory category; }
 Algoritmo:
 
 1. `keys = favoritesProvider ∪ watchlistProvider` (deduplicate per `TitleKey`), come oggi.
-2. Per ogni key: leggi la riga drift (`catalogDao.get`). Parsing di `genresJson` → `List<int>`.
-3. **Backfill:** se la riga manca **oppure** `genresJson` è vuoto/`[]`:
+2. Per ogni key: leggi la riga drift (`catalogDao.get`). Parsing di `genresJson`
+   (`jsonDecode` → `List`, cast a `List<String>`).
+3. **Backfill:** se la riga manca **oppure** i generi sono vuoti (`[]`):
    `catalogApi.get(tmdbId, mediaType)` → `toCompanion()` → `catalogDao.upsert`
    (stesso flusso di `titleProvider`). Concorrenza limitata (~6 in volo) per non
    saturare la rete. Errori per-item: swallowed → l'item usa il bucket di default per
@@ -160,10 +171,11 @@ Cache-miss residui (titolo non risolvibile nemmeno dal backend): card placeholde
 
 ## 8. Testing
 
-- **Unit:** `categoryOf` — movie→film; tv+[16]→anime; tv+[10764]→show; tv+[18]→serieTv;
-  movie+[16]→film; tv+[] (vuoto)→serieTv.
+- **Unit:** `categoryFor` — movie→film; tv+["Animazione"]→anime; tv+["Reality"]→show;
+  tv+["Soap"]→show; tv+["Dramma"]→serieTv; movie+["Animazione"]→film; tv+[] (vuoto)→serieTv;
+  case-insensitive (tv+["animazione"]→anime).
 - **Unit/provider:** `myListItemsProvider` — unione fav∪watchlist con dedup; backfill
-  invocato solo per righe mancanti o `genresJson` vuoto; errore backend per-item ⇒ bucket
+  invocato solo per righe mancanti o generi vuoti; errore backend per-item ⇒ bucket
   default, nessuna eccezione propagata; concorrenza limitata.
 - **Widget:** overview mostra solo categorie non vuote nell'ordine atteso; tap "Vedi tutti →"
   entra in isolata e mostra solo quella categoria; back torna all'overview; empty-state quando
