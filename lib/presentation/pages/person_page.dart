@@ -3,8 +3,9 @@
 // Actor / director page — a full-screen, Netflix-style MODAL built exactly
 // like the title page: a cinematic hero (the portrait, full-bleed, fading to
 // black) that ZOOMS on a downward overscroll, a glass ✕ + pull-to-dismiss,
-// then an expandable biography and the popularity-sorted filmography as a
-// 3-column covers grid. Opens FROM the tapped cast avatar via a shared Hero.
+// an expandable biography, a structured "Info" block, and the filmography as
+// a sortable 3-column covers grid (popular / newest / oldest) that loads the
+// top 12 with a "Scopri di più" expander. Opens FROM the tapped cast avatar.
 //
 // State:
 //   - personProvider(tmdbId) → Person bio/identity
@@ -14,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../domain/models/media_summary.dart';
 import '../../domain/models/person.dart';
 import '../../state/person_provider.dart';
 import '../responsive.dart';
@@ -25,6 +27,7 @@ import '../widgets/modal/modal_shell.dart';
 import '../widgets/modal/section_widgets.dart';
 import '../widgets/modal/stretchy_hero_scroll_view.dart';
 import '../widgets/poster_card.dart';
+import '../widgets/press_feedback.dart';
 
 class PersonPage extends ConsumerWidget {
   const PersonPage({super.key, required this.tmdbId, this.heroTag});
@@ -51,24 +54,20 @@ class PersonPage extends ConsumerWidget {
   }
 }
 
-class _PersonContent extends ConsumerWidget {
+class _PersonContent extends StatelessWidget {
   const _PersonContent({required this.person, this.heroTag});
   final Person person;
   final Object? heroTag;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final isPhone = Responsive.isPhone(context);
     final pad = isPhone
         ? StreamloadSpacing.pagePaddingPhone
         : StreamloadSpacing.pagePaddingDesktop;
     final heroHeight = MediaQuery.sizeOf(context).height * (isPhone ? 0.6 : 0.7);
-    final creditsAsync = ref.watch(personCreditsProvider(person.tmdbId));
-
     final hasBio = (person.biography ?? '').isNotEmpty;
-    final aka = person.alsoKnownAs.isNotEmpty
-        ? person.alsoKnownAs.take(4).join(' · ')
-        : null;
+    final info = _PersonInfoBlock(person: person);
 
     return StretchyHeroScrollView(
       heroHeight: heroHeight,
@@ -78,68 +77,26 @@ class _PersonContent extends ConsumerWidget {
           delegate: SliverChildListDelegate([
             const SizedBox(height: 18),
             if (hasBio) ...[
-              Padding(padding: pad, child: ExpandableText(person.biography!)),
-              const SizedBox(height: 18),
-            ],
-            if (aka != null) ...[
               Padding(
                 padding: pad,
-                child: Text(
-                  'Anche noto come · $aka',
-                  style: StreamloadTypography.v3Body(
-                    fontSize: 12.5,
-                    color: StreamloadColors.v3TextMuted,
-                  ),
+                child: ExpandableText(
+                  person.biography!,
+                  textAlign: TextAlign.start,
                 ),
               ),
               const SizedBox(height: 26),
-            ] else if (hasBio)
-              const SizedBox(height: 10),
-            Padding(padding: pad, child: const SectionHeader('Filmografia')),
-            const SizedBox(height: 16),
+            ],
+            if (info.hasContent) ...[
+              Padding(padding: pad, child: info),
+              const SizedBox(height: 30),
+            ],
+            Padding(
+              padding: pad,
+              child: _FilmographySection(tmdbId: person.tmdbId),
+            ),
+            const SizedBox(height: 56),
           ]),
         ),
-        creditsAsync.when(
-          loading: () => const SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 28),
-              child: Center(child: CircularProgressIndicator(strokeWidth: 1.5)),
-            ),
-          ),
-          error: (_, __) => const SliverToBoxAdapter(child: _FilmographyEmpty()),
-          data: (items) => items.isEmpty
-              ? const SliverToBoxAdapter(child: _FilmographyEmpty())
-              : SliverPadding(
-                  padding: pad,
-                  sliver: SliverGrid(
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 2 / 3,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, i) {
-                        final m = items[i];
-                        final tag = 'pf_${m.tmdbId}_$i';
-                        return PosterCard(
-                          summary: m,
-                          width: 120,
-                          showLabel: false,
-                          heroTag: tag,
-                          onTap: () => context.push(
-                            '/title/${m.tmdbId}?media_type=${m.mediaType}',
-                            extra: tag,
-                          ),
-                        );
-                      },
-                      childCount: items.length,
-                    ),
-                  ),
-                ),
-        ),
-        const SliverToBoxAdapter(child: SizedBox(height: 56)),
       ],
     );
   }
@@ -160,11 +117,10 @@ class _PersonHero extends StatelessWidget {
     final nameSize = isPhone ? 40.0 : (isTablet ? 52.0 : 64.0);
 
     final eyebrow = _italianDepartment(person.knownForDepartment);
-    final birthLine = _formatBirthLine(person);
+    final lifespan = _lifespan(person);
 
     // Full-bleed portrait as the hero backdrop, fading to black — same chrome
-    // as the title hero. Aligned to the top so faces (usually upper-frame)
-    // stay visible when the wide hero crops the 2:3 portrait.
+    // as the title hero.
     final backdrop = HeroBackdrop(backdropUrl: person.profileUrl);
     return Stack(
       fit: StackFit.expand,
@@ -198,13 +154,11 @@ class _PersonHero extends StatelessWidget {
                       style: StreamloadTypography.v3DisplayHero()
                           .copyWith(fontSize: nameSize),
                     ),
-                    if (birthLine != null)
+                    if (lifespan != null)
                       Padding(
-                        padding: const EdgeInsets.only(top: 14),
+                        padding: const EdgeInsets.only(top: 12),
                         child: Text(
-                          birthLine,
-                          textAlign:
-                              isPhone ? TextAlign.center : TextAlign.start,
+                          lifespan,
                           style: StreamloadTypography.v3Body(
                             fontSize: 13,
                             color: StreamloadColors.v3TextSecondary,
@@ -222,7 +176,325 @@ class _PersonHero extends StatelessWidget {
   }
 }
 
-/// Maps TMDB's English department to the Italian eyebrow label.
+// ── Info ─────────────────────────────────────────────────────────────────
+
+class _PersonInfoBlock extends StatelessWidget {
+  const _PersonInfoBlock({required this.person});
+  final Person person;
+
+  /// The label/value pairs we actually have for this person.
+  List<MapEntry<String, String>> get _rows {
+    final rows = <MapEntry<String, String>>[];
+    final prof = _departmentFull(person.knownForDepartment);
+    if (prof != null) rows.add(MapEntry('Professione', prof));
+    final birth = _fullDate(person.birthday);
+    if (birth != null) rows.add(MapEntry('Data di nascita', birth));
+    final place = person.placeOfBirth;
+    if (place != null && place.isNotEmpty) {
+      rows.add(MapEntry('Luogo di nascita', place));
+    }
+    final death = _fullDate(person.deathday);
+    if (death != null) rows.add(MapEntry('Data di morte', death));
+    final aka = _latinAka(person.alsoKnownAs);
+    if (aka.isNotEmpty) {
+      rows.add(MapEntry('Anche noto come', aka.join(' · ')));
+    }
+    return rows;
+  }
+
+  bool get hasContent => _rows.isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = _rows;
+    if (rows.isEmpty) return const SizedBox.shrink();
+    final labelW = Responsive.isPhone(context) ? 120.0 : 150.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader('Info'),
+        const SizedBox(height: 14),
+        for (final r in rows)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 7),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: labelW,
+                  child: Text(
+                    r.key,
+                    style: StreamloadTypography.v3Body(
+                      fontSize: 13,
+                      color: StreamloadColors.v3TextMuted,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    r.value,
+                    style: StreamloadTypography.v3Body(
+                      fontSize: 14,
+                      color: StreamloadColors.v3TextPrimary,
+                    ).copyWith(height: 1.35),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+// ── Filmografia (sortable + paged) ─────────────────────────────────────────
+
+enum _Sort { popolari, recenti, menoRecenti }
+
+extension on _Sort {
+  String get label => switch (this) {
+        _Sort.popolari => 'Più popolari',
+        _Sort.recenti => 'Più recenti',
+        _Sort.menoRecenti => 'Meno recenti',
+      };
+}
+
+class _FilmographySection extends ConsumerStatefulWidget {
+  const _FilmographySection({required this.tmdbId});
+  final int tmdbId;
+
+  @override
+  ConsumerState<_FilmographySection> createState() =>
+      _FilmographySectionState();
+}
+
+class _FilmographySectionState extends ConsumerState<_FilmographySection> {
+  _Sort _sort = _Sort.popolari;
+  bool _expanded = false;
+  static const int _initial = 12;
+
+  List<MediaSummary> _applySort(List<MediaSummary> items) {
+    switch (_sort) {
+      case _Sort.popolari:
+        // Backend already ranks by popularity + rating, highest first.
+        return items;
+      case _Sort.recenti:
+        return [...items]
+          ..sort((a, b) => (b.year ?? -1).compareTo(a.year ?? -1));
+      case _Sort.menoRecenti:
+        return [...items]
+          ..sort((a, b) => (a.year ?? 1 << 30).compareTo(b.year ?? 1 << 30));
+    }
+  }
+
+  Future<void> _openSortSheet() async {
+    final picked = await showModalBottomSheet<_Sort>(
+      context: context,
+      backgroundColor: StreamloadColors.v3PopoverBg,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Text(
+                'Ordina per',
+                style: StreamloadTypography.display(fontSize: 20, italic: false)
+                    .copyWith(color: StreamloadColors.v3TextPrimary),
+              ),
+            ),
+            for (final s in _Sort.values)
+              ListTile(
+                onTap: () => Navigator.of(ctx).pop(s),
+                title: Text(
+                  s.label,
+                  style: StreamloadTypography.v3Body(fontSize: 16).copyWith(
+                    fontWeight: s == _sort ? FontWeight.w700 : FontWeight.w500,
+                    color: s == _sort
+                        ? StreamloadColors.v3TextPrimary
+                        : StreamloadColors.v3TextSecondary,
+                  ),
+                ),
+                trailing: s == _sort
+                    ? const Icon(Icons.check_rounded,
+                        color: StreamloadColors.accent, size: 20)
+                    : null,
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null && picked != _sort && mounted) {
+      setState(() => _sort = picked);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final creditsAsync = ref.watch(personCreditsProvider(widget.tmdbId));
+    return creditsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 28),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 1.5)),
+      ),
+      error: (_, __) => const _FilmographyEmpty(),
+      data: (items) {
+        if (items.isEmpty) return const _FilmographyEmpty();
+        final sorted = _applySort(items);
+        final shown =
+            _expanded ? sorted : sorted.take(_initial).toList(growable: false);
+        final hasMore = sorted.length > shown.length;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(child: SectionHeader('Filmografia')),
+                _SortPill(label: _sort.label, onTap: _openSortSheet),
+              ],
+            ),
+            const SizedBox(height: 16),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 12,
+                childAspectRatio: 2 / 3,
+              ),
+              itemCount: shown.length,
+              itemBuilder: (context, i) {
+                final m = shown[i];
+                final tag = 'pf_${m.tmdbId}_$i';
+                return PosterCard(
+                  summary: m,
+                  width: 120,
+                  showLabel: false,
+                  heroTag: tag,
+                  onTap: () => context.push(
+                    '/title/${m.tmdbId}?media_type=${m.mediaType}',
+                    extra: tag,
+                  ),
+                );
+              },
+            ),
+            if (hasMore || _expanded) ...[
+              const SizedBox(height: 18),
+              Center(
+                child: _MoreButton(
+                  expanded: _expanded,
+                  remaining: sorted.length - shown.length,
+                  onTap: () => setState(() => _expanded = !_expanded),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SortPill extends StatelessWidget {
+  const _SortPill({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return PressFeedback(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            color: StreamloadColors.v3SurfaceGlass,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: StreamloadColors.v3BorderGlass),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.swap_vert_rounded,
+                  size: 17, color: StreamloadColors.v3TextSecondary),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: StreamloadTypography.v3Body(fontSize: 13).copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: StreamloadColors.v3TextPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MoreButton extends StatelessWidget {
+  const _MoreButton({
+    required this.expanded,
+    required this.remaining,
+    required this.onTap,
+  });
+  final bool expanded;
+  final int remaining;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = expanded ? 'Mostra meno' : 'Scopri di più ($remaining)';
+    return PressFeedback(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+          decoration: BoxDecoration(
+            color: StreamloadColors.v3SurfaceGlass,
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(color: StreamloadColors.v3BorderGlass),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: StreamloadTypography.v3Body(fontSize: 14).copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: StreamloadColors.v3TextPrimary,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                expanded
+                    ? Icons.keyboard_arrow_up_rounded
+                    : Icons.keyboard_arrow_down_rounded,
+                size: 20,
+                color: StreamloadColors.v3TextSecondary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Identity helpers ───────────────────────────────────────────────────────
+
+/// Eyebrow label (uppercase) for the hero.
 String? _italianDepartment(String? dept) {
   if (dept == null || dept.isEmpty) return null;
   switch (dept) {
@@ -239,47 +511,72 @@ String? _italianDepartment(String? dept) {
   }
 }
 
+/// Sentence-case profession for the Info block.
+String? _departmentFull(String? dept) {
+  if (dept == null || dept.isEmpty) return null;
+  switch (dept) {
+    case 'Acting':
+      return 'Recitazione';
+    case 'Directing':
+      return 'Regia';
+    case 'Writing':
+      return 'Sceneggiatura';
+    case 'Production':
+      return 'Produzione';
+    case 'Sound':
+      return 'Sonoro';
+    case 'Camera':
+      return 'Fotografia';
+    default:
+      return dept;
+  }
+}
+
 const _itMonths = [
   '', 'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
   'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
 ];
 
-/// Returns null when there's no birthday to render. Handles the three shapes
-/// TMDB sends: full ISO, year-only, and (rarely) day-only.
-String? _formatBirthLine(Person p) {
-  final birth = p.birthday;
-  final death = p.deathday;
-  String? leading;
-  if (birth != null && birth.isNotEmpty) {
-    final iso = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$');
-    final m = iso.firstMatch(birth);
-    if (m != null) {
-      final year = int.parse(m.group(1)!);
-      final month = int.parse(m.group(2)!);
-      final day = int.parse(m.group(3)!);
-      final monthName = month >= 1 && month <= 12 ? _itMonths[month] : null;
-      if (monthName != null) {
-        leading = '$day $monthName $year';
-        final place = p.placeOfBirth;
-        if (place != null && place.isNotEmpty) {
-          leading = '$leading · $place';
-        }
-      } else {
-        leading = 'n. $year';
-      }
-    } else {
-      final year = RegExp(r'^(\d{4})').firstMatch(birth)?.group(1);
-      if (year != null) leading = 'n. $year';
-    }
+/// Full Italian date from a TMDB ISO string. Falls back to the bare year for
+/// year-only / partial values; null when there's nothing parseable.
+String? _fullDate(String? iso) {
+  if (iso == null || iso.isEmpty) return null;
+  final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(iso);
+  if (m != null) {
+    final year = int.parse(m.group(1)!);
+    final month = int.parse(m.group(2)!);
+    final day = int.parse(m.group(3)!);
+    if (month >= 1 && month <= 12) return '$day ${_itMonths[month]} $year';
+    return '$year';
   }
-  if (death != null && death.isNotEmpty) {
-    final year = RegExp(r'^(\d{4})').firstMatch(death)?.group(1);
-    if (year != null) {
-      final dagger = ' – † $year';
-      leading = leading == null ? '† $year' : '$leading$dagger';
-    }
+  return RegExp(r'^(\d{4})').firstMatch(iso)?.group(1);
+}
+
+/// "Also known as" is noisy — TMDB mixes in Greek/Cyrillic/Arabic/CJK
+/// transliterations that mean nothing to an Italian user. Keep only the
+/// Latin-script aliases (the real alternate names / stage names), drop
+/// duplicates of the person's own name handling to the caller, cap at 3.
+List<String> _latinAka(List<String> aka) {
+  final latin = RegExp(r"^[\p{Script=Latin}0-9 .,'()&/-]+$", unicode: true);
+  final out = <String>[];
+  for (final a in aka) {
+    final t = a.trim();
+    if (t.isEmpty || !latin.hasMatch(t)) continue;
+    out.add(t);
+    if (out.length == 3) break;
   }
-  return leading;
+  return out;
+}
+
+String? _yearOf(String? iso) =>
+    iso == null ? null : RegExp(r'^(\d{4})').firstMatch(iso)?.group(1);
+
+/// Compact life-span line for the hero: "1963", or "1934 – 2023".
+String? _lifespan(Person p) {
+  final b = _yearOf(p.birthday);
+  final d = _yearOf(p.deathday);
+  if (d != null) return '${b ?? '?'} – $d';
+  return b;
 }
 
 // ── States ───────────────────────────────────────────────────────────────
@@ -289,17 +586,19 @@ class _FilmographyEmpty extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 24),
-      child: Center(
-        child: Text(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader('Filmografia'),
+        const SizedBox(height: 16),
+        Text(
           'Nessun titolo disponibile',
           style: StreamloadTypography.v3Body(
             fontSize: 14,
             color: StreamloadColors.v3TextMuted,
           ),
         ),
-      ),
+      ],
     );
   }
 }

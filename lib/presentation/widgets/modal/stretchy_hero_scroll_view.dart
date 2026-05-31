@@ -39,6 +39,11 @@ class _StretchyHeroScrollViewState extends State<StretchyHeroScrollView> {
   double _overscroll = 0;
 
   bool _onScroll(ScrollNotification n) {
+    // Only the primary VERTICAL scroll stretches the hero. Nested scrollables
+    // (the horizontal cast row, etc.) bubble through here too — their
+    // horizontal overscroll must not distort the hero. depth == 0 is the main
+    // scroll; nested ones arrive at depth >= 1.
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
     if (n is ScrollUpdateNotification || n is OverscrollNotification) {
       final o = (n.metrics.minScrollExtent - n.metrics.pixels)
           .clamp(0.0, widget.maxStretch)

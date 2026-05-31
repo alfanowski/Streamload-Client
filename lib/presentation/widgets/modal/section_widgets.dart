@@ -23,9 +23,18 @@ class SectionHeader extends StatelessWidget {
 }
 
 class ExpandableText extends StatefulWidget {
-  const ExpandableText(this.text, {super.key, this.collapsedLines = 5});
+  const ExpandableText(
+    this.text, {
+    super.key,
+    this.collapsedLines = 5,
+    this.textAlign = TextAlign.justify,
+  });
   final String text;
   final int collapsedLines;
+
+  /// Justified reads well for a wide film synopsis; a narrower bio column
+  /// looks better left-aligned (no rivers of whitespace).
+  final TextAlign textAlign;
 
   @override
   State<ExpandableText> createState() => _ExpandableTextState();
@@ -48,7 +57,7 @@ class _ExpandableTextState extends State<ExpandableText> {
           child: Text(
             widget.text,
             style: style,
-            textAlign: TextAlign.justify,
+            textAlign: widget.textAlign,
             maxLines: _expanded ? null : widget.collapsedLines,
             overflow: _expanded ? TextOverflow.visible : TextOverflow.ellipsis,
           ),

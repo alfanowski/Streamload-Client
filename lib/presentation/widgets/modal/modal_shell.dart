@@ -39,6 +39,11 @@ class _ModalShellState extends State<ModalShell> {
   }
 
   bool _onScroll(ScrollNotification n) {
+    // Only the primary VERTICAL scroll may dismiss. Nested scrollables (the
+    // horizontal cast row, etc.) bubble notifications through here too — their
+    // left-edge overscroll must NOT be read as a downward pull. depth == 0 is
+    // the outermost (main) scroll; the cast row arrives at depth >= 1.
+    if (n.depth != 0 || n.metrics.axis != Axis.vertical) return false;
     // Close only on a DELIBERATE downward drag at the very top — the finger
     // is down (dragDetails != null) and pulled past the threshold. The
     // ballistic overscroll from a fast flick-up-to-top has no dragDetails,

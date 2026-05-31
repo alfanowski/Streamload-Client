@@ -152,8 +152,7 @@ void main() {
     expect(find.text('Riprova'), findsOneWidget);
   });
 
-  testWidgets('formats Italian birth line with full date + place',
-      (tester) async {
+  testWidgets('Info block shows full birth date + place rows', (tester) async {
     await _setupViewport(tester);
     await tester.pumpWidget(_host(
       setup: _Setup(
@@ -166,11 +165,13 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    expect(find.text('19 marzo 1989 · Roma, Italia'), findsOneWidget);
+    expect(find.text('Data di nascita'), findsOneWidget);
+    expect(find.text('19 marzo 1989'), findsOneWidget);
+    expect(find.text('Luogo di nascita'), findsOneWidget);
+    expect(find.text('Roma, Italia'), findsOneWidget);
   });
 
-  testWidgets('formats year-only birth line when day/month missing',
-      (tester) async {
+  testWidgets('year-only birthday renders the bare year', (tester) async {
     await _setupViewport(tester);
     await tester.pumpWidget(_host(
       setup: _Setup(
@@ -182,10 +183,12 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    expect(find.text('n. 1989'), findsOneWidget);
+    // Bare year appears both as the hero life-span and the Info row value.
+    expect(find.text('Data di nascita'), findsOneWidget);
+    expect(find.text('1989'), findsWidgets);
   });
 
-  testWidgets('appends † deathday when present', (tester) async {
+  testWidgets('hero shows the birth–death life-span', (tester) async {
     await tester.pumpWidget(_host(
       setup: _Setup(
         person: const Person(
@@ -197,7 +200,7 @@ void main() {
       ),
     ));
     await tester.pumpAndSettle();
-    expect(find.textContaining('† 2023'), findsOneWidget);
+    expect(find.text('1934 – 2023'), findsOneWidget);
   });
 
   testWidgets('maps known_for_department to Italian eyebrow label',
