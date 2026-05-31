@@ -11,6 +11,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
+  font_awesome_flutter: ^10.7.0
 
   # State management
   flutter_riverpod: ^2.5.1
@@ -75,6 +76,7 @@ dependencies:
   package_info_plus: ^8.0.0
   liquid_glass_renderer: 0.2.0-dev.4
   native_liquid_glass: ^0.2.7
+  path_drawing: ^1.0.1
 
 dev_dependencies:
   flutter_test:
@@ -90,3 +92,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    # Bundled login poster art — shipped with the app so the login wall is
+    # always populated, offline, with zero network calls.
+    - assets/login_posters/

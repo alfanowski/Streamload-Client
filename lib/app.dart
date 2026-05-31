@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'player/engine.dart';
 import 'plugins/updater.dart';
 import 'presentation/theme/theme.dart';
+import 'presentation/widgets/splash/splash_gate.dart';
 import 'router.dart';
 import 'state/auth_provider.dart';
 import 'state/local_proxy_provider.dart';
@@ -48,6 +49,10 @@ class _StreamloadAppState extends ConsumerState<StreamloadApp> {
       routerConfig: router,
       debugShowCheckedModeBanner: false,
       scrollBehavior: const _StreamloadScrollBehavior(),
+      // Cold-start splash: the "Streamload" wordmark draws itself, then
+      // dissolves smoothly to reveal the app (already mounted behind it).
+      builder: (context, child) =>
+          SplashGate(child: child ?? const SizedBox.shrink()),
     );
   }
 }

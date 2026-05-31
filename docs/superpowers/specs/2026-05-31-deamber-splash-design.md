@@ -51,12 +51,14 @@ risultato: schermo nero pulito. (Il branding lo fa la splash Flutter.)
 
 ### B.2 Animata — wordmark che si disegna
 
-**Asset/dep:**
-- `assets/fonts/Fraunces-Italic.ttf` — istanza **statica** di Fraunces Italic (per il
-  glifo→path; `google_fonts` non espone i byte del font). Dichiarato in `pubspec.yaml`
-  sotto `flutter: assets:` (NON come `fonts:` — il rendering dei testi resta su
-  `google_fonts`; il TTF serve solo a generare i path).
-- pacchetto `text_to_path_maker` — parsing TTF → `Path` per i glifi.
+**Asset/dep (revisione in fase di implementazione):** `text_to_path_maker` a runtime
+risultava inaffidabile su questo TTF (la sua cmap non mappava ~metà dei glifi →
+"Character not found" per e/a/l/d). Sostituito da un approccio **offline + parsing SVG**:
+- Il path SVG di "Streamload" (Fraunces Italic, advances reali via `hmtx`, Y già
+  ribaltata) è **pre-generato una volta con fontTools** e incorporato come costante Dart
+  in `lib/presentation/widgets/splash/streamload_wordmark_path.dart`. Nessun font/asset
+  a runtime, nessun glifo mancante.
+- pacchetto **`path_drawing`** (`parseSvgPathData`) per ottenere il `Path` a runtime.
 
 **Componente `SplashGate`** (`lib/presentation/widgets/splash/splash_gate.dart`):
 - Avvolge il `child` del `MaterialApp.router` tramite il `builder:` in `app.dart`
