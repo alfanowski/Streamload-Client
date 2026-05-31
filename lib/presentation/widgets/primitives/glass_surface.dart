@@ -27,6 +27,7 @@ class GlassSurface extends StatelessWidget {
     this.blur = 8,
     this.thickness = 14,
     this.tint,
+    this.backgroundColor,
     this.capsule = false,
   });
 
@@ -35,6 +36,12 @@ class GlassSurface extends StatelessWidget {
   final double blur;
   final double thickness;
   final Color? tint;
+
+  /// Solid backdrop drawn BEHIND the native glass. Without it, iOS 26 samples
+  /// the Flutter content underneath and adaptively inverts the glass tone for
+  /// legibility — which reads as the surface randomly flickering light over
+  /// bright content. A fixed dark backdrop keeps the glass reliably DARK.
+  final Color? backgroundColor;
 
   /// Fully-rounded pill shape (used by the floating mobile tab bar).
   final bool capsule;
@@ -63,6 +70,10 @@ class GlassSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final glassTint = tint ?? StreamloadTokens.bg.withValues(alpha: 0.42);
+    // Fixed dark backdrop → the glass refracts THIS instead of the live
+    // content behind it, so it stays reliably dark (no random light flicker).
+    final stableBackdrop =
+        backgroundColor ?? StreamloadTokens.bg.withValues(alpha: 0.55);
 
     // ── Official Apple Liquid Glass on iOS ────────────────────────────────
     if (_isIos) {
@@ -74,6 +85,7 @@ class GlassSurface extends StatelessWidget {
               : native.LiquidGlassEffectShape.rect,
           cornerRadius: capsule ? null : borderRadius,
           tint: glassTint,
+          backgroundColor: stableBackdrop,
         ),
         child: child,
       );

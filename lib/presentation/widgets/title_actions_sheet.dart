@@ -15,7 +15,6 @@ import '../../state/continue_watching_provider.dart';
 import '../../state/favorites_provider.dart';
 import '../../state/home_rows_provider.dart' show TmdbKey, titleLogoProvider;
 import '../../state/title_provider.dart';
-import '../theme/colors.dart';
 import '../theme/typography.dart';
 import 'primitives/glass_surface.dart';
 
@@ -81,7 +80,6 @@ class _TitleActionsSheet extends ConsumerWidget {
                   icon: isFav ? Icons.check_rounded : Icons.add_rounded,
                   label:
                       isFav ? 'Togli da La mia lista' : 'Aggiungi a La mia lista',
-                  tint: isFav ? StreamloadColors.accent : null,
                   onTap: () {
                     ref.read(favoritesProvider.notifier).toggle(key);
                     Navigator.of(context).pop();
