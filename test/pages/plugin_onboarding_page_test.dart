@@ -157,7 +157,7 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('onboarding.github_login')), findsOneWidget);
-    expect(find.text('Accedi con GitHub'), findsWidgets);
+    expect(find.text('Continua con GitHub'), findsWidgets);
   });
 
   testWidgets('tap login button shows user_code after requestDeviceCode',
@@ -215,9 +215,16 @@ void main() {
 
     await tester.runAsync(() async {
       await tester.tap(find.byKey(const Key('onboarding.github_login')));
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Let the mocked device-flow futures resolve (real time).
+      await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    await tester.pumpAndSettle();
+    // Advance the ~620ms success exit animation on the fake clock, then let the
+    // awaited forward() continuation fire context.go and build the new route.
+    // (Timed pumps, not pumpAndSettle — the poster wall animates forever.)
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    await tester.pump();
 
     verify(() => storage.setGithubToken('ghu_test_token')).called(1);
     // Should have navigated to /onboarding/profile (profile incomplete)
@@ -246,9 +253,16 @@ void main() {
 
     await tester.runAsync(() async {
       await tester.tap(find.byKey(const Key('onboarding.github_login')));
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // Let the mocked device-flow futures resolve (real time).
+      await Future<void>.delayed(const Duration(milliseconds: 100));
     });
-    await tester.pumpAndSettle();
+    // Advance the ~620ms success exit animation on the fake clock, then let the
+    // awaited forward() continuation fire context.go and build the new route.
+    // (Timed pumps, not pumpAndSettle — the poster wall animates forever.)
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    await tester.pump();
 
     verify(() => storage.setGithubToken('ghu_returning_token')).called(1);
     // Should have navigated to /home (profile complete)

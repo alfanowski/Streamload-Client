@@ -60,7 +60,29 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/onboarding/github',
-        builder: (_, __) => const PluginOnboardingPage(),
+        // Crossfade: the login fades OUT (driven by its secondaryAnimation as
+        // we navigate to /home) while /home fades IN — one continuous motion
+        // instead of two stacked transitions.
+        pageBuilder: (ctx, state) => CustomTransitionPage<void>(
+          key: state.pageKey,
+          transitionDuration: StreamloadTokens.page,
+          reverseTransitionDuration: StreamloadTokens.page,
+          child: const PluginOnboardingPage(),
+          transitionsBuilder: (_, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: animation, // fade in on entry
+              child: FadeTransition(
+                opacity: Tween<double>(begin: 1, end: 0).animate(
+                  CurvedAnimation(
+                    parent: secondaryAnimation,
+                    curve: Curves.easeInOut,
+                  ),
+                ),
+                child: child,
+              ),
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/onboarding/profile',
@@ -79,22 +101,26 @@ final routerProvider = Provider<GoRouter>((ref) {
           _fadeRoute('/anime', (_, __) => const HomePage(filter: 'anime')),
           _fadeRoute('/list', (_, __) => const LibraryPage()),
           _fadeRoute('/library', (_, __) => const LibraryPage()),
-          _fadeRoute('/search', (_, state) => SearchPage(
-                initialQuery: state.uri.queryParameters['q'] ?? '',
-              )),
+          _fadeRoute(
+              '/search',
+              (_, state) => SearchPage(
+                    initialQuery: state.uri.queryParameters['q'] ?? '',
+                  )),
           _fadeRoute('/profile', (_, __) => const ProfilePage()),
           _fadeRoute('/settings', (_, __) => const SettingsPage()),
-          _fadeRoute('/watch/:tmdbId', (ctx, state) => WatchPage(
-                request: PlaybackRequest(
-                  tmdbId: int.parse(state.pathParameters['tmdbId']!),
-                  mediaType:
-                      state.uri.queryParameters['media_type'] ?? 'movie',
-                  season: int.tryParse(
-                      state.uri.queryParameters['season'] ?? ''),
-                  episode: int.tryParse(
-                      state.uri.queryParameters['episode'] ?? ''),
-                ),
-              )),
+          _fadeRoute(
+              '/watch/:tmdbId',
+              (ctx, state) => WatchPage(
+                    request: PlaybackRequest(
+                      tmdbId: int.parse(state.pathParameters['tmdbId']!),
+                      mediaType:
+                          state.uri.queryParameters['media_type'] ?? 'movie',
+                      season: int.tryParse(
+                          state.uri.queryParameters['season'] ?? ''),
+                      episode: int.tryParse(
+                          state.uri.queryParameters['episode'] ?? ''),
+                    ),
+                  )),
         ],
       ),
       // The title page is a TOP-LEVEL full-screen modal (outside the shell →
@@ -102,26 +128,32 @@ final routerProvider = Provider<GoRouter>((ref) {
       // (the poster the user tapped passes its tag through `extra`), with a
       // plain fade behind it; dismissed by ✕ / drag-down (which flies the
       // hero back to the poster). Callers push() it so it can pop back.
-      _modalRoute('/title/:tmdbId', (ctx, state) => TitlePage(
-            tmdbId: int.parse(state.pathParameters['tmdbId']!),
-            mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
-            heroTag: state.extra,
-          )),
+      _modalRoute(
+          '/title/:tmdbId',
+          (ctx, state) => TitlePage(
+                tmdbId: int.parse(state.pathParameters['tmdbId']!),
+                mediaType: state.uri.queryParameters['media_type'] ?? 'movie',
+                heroTag: state.extra,
+              )),
       // Pass 3 CAST-5 — actor / director page. Also a top-level full-screen
       // modal (no bottom bar); opens FROM the tapped cast avatar via a Hero
       // tag passed through `extra`, dismissed by ✕ / drag-down.
-      _modalRoute('/person/:tmdbId', (ctx, state) => PersonPage(
-            tmdbId: int.parse(state.pathParameters['tmdbId']!),
-            heroTag: state.extra,
-          )),
+      _modalRoute(
+          '/person/:tmdbId',
+          (ctx, state) => PersonPage(
+                tmdbId: int.parse(state.pathParameters['tmdbId']!),
+                heroTag: state.extra,
+              )),
       // "Vedi tutti" di una categoria de La mia lista — modale full-screen con
       // la stessa fisica di Title/Person (✕ glass + pull-to-dismiss). Il param
       // è il nome enum (film / serieTv / show / anime).
-      _modalRoute('/category/:category', (ctx, state) => CategoryListPage(
-            category: LibraryCategory.values.byName(
-              state.pathParameters['category']!,
-            ),
-          )),
+      _modalRoute(
+          '/category/:category',
+          (ctx, state) => CategoryListPage(
+                category: LibraryCategory.values.byName(
+                  state.pathParameters['category']!,
+                ),
+              )),
     ],
   );
 });
