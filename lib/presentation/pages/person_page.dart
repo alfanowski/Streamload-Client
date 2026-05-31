@@ -275,7 +275,7 @@ class _FilmographySectionState extends ConsumerState<_FilmographySection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SectionHeader('Filmografia'),
-            const SizedBox(height: 12),
+            const SizedBox(height: 4),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
