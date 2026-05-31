@@ -112,10 +112,11 @@ class _SplashOverlayState extends State<_SplashOverlay>
     final settle = ((t - _holdEnd) / (1 - _holdEnd)).clamp(0.0, 1.0);
     final scale = 1.0 + 0.03 * Curves.easeInOut.transform(settle);
 
+    final Widget inner;
     if (_wordPath == null) {
       // Fallback (parse failed) — plain fading wordmark, never a black hole.
       final appear = Curves.easeOut.transform((t / _drawEnd).clamp(0.0, 1.0));
-      return Opacity(
+      inner = Opacity(
         opacity: appear,
         child: const Text(
           'Streamload',
@@ -127,20 +128,28 @@ class _SplashOverlayState extends State<_SplashOverlay>
           ),
         ),
       );
+    } else {
+      final draw = (t / _drawEnd).clamp(0.0, 1.0);
+      final fillT = ((draw - 0.75) / 0.25).clamp(0.0, 1.0);
+      inner = Transform.scale(
+        scale: scale,
+        child: CustomPaint(
+          size: _wordSize,
+          painter: _WordmarkPainter(
+            path: _wordPath,
+            draw: Curves.easeInOut.transform(draw),
+            fill: fillT,
+          ),
+        ),
+      );
     }
 
-    final draw = (t / _drawEnd).clamp(0.0, 1.0);
-    final fillT = ((draw - 0.75) / 0.25).clamp(0.0, 1.0);
-    return Transform.scale(
-      scale: scale,
-      child: CustomPaint(
-        size: _wordSize,
-        painter: _WordmarkPainter(
-          path: _wordPath,
-          draw: Curves.easeInOut.transform(draw),
-          fill: fillT,
-        ),
-      ),
+    // Never overflow the sides: scale the wordmark down to fit the available
+    // width (leaving comfortable side margins). On wide screens it stays at its
+    // natural size.
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 36),
+      child: FittedBox(fit: BoxFit.scaleDown, child: inner),
     );
   }
 }
