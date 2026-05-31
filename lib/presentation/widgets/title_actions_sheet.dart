@@ -1,10 +1,11 @@
 // lib/presentation/widgets/title_actions_sheet.dart
 //
 // Long-press quick actions for ANY title card: open, toggle "La mia lista",
-// and (when in "Continua a guardare") remove it from that row. Presented as a
-// floating native Liquid Glass card so it's coherent with the rest of the
-// platform's chrome. The header shows the official TITLE LOGO (metadata),
-// falling back to the title text.
+// and (when in "Continua a guardare") remove it from that row. Rendered with
+// the SAME native Liquid Glass as the navbar (GlassSurface), with a fixed dark
+// backdrop so it stays reliably dark. The header shows the official TITLE LOGO
+// (metadata); its box is a FIXED height so the logo loading mid-open doesn't
+// make the title jump.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,11 +45,9 @@ class _TitleActionsSheet extends ConsumerWidget {
               i.tmdbId == summary.tmdbId && i.mediaType == summary.mediaType),
           orElse: () => false,
         );
-    final logoUrl = ref
-        .watch(titleLogoProvider(
-          TmdbKey(tmdbId: summary.tmdbId, mediaType: summary.mediaType),
-        ))
-        .maybeWhen(data: (u) => u, orElse: () => null);
+    final logoAsync = ref.watch(titleLogoProvider(
+      TmdbKey(tmdbId: summary.tmdbId, mediaType: summary.mediaType),
+    ));
 
     return SafeArea(
       child: Padding(
@@ -63,7 +62,7 @@ class _TitleActionsSheet extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(summary: summary, logoUrl: logoUrl),
+                _Header(summary: summary, logoAsync: logoAsync),
                 const _GlassDivider(),
                 _ActionRow(
                   icon: Icons.open_in_full_rounded,
@@ -78,8 +77,9 @@ class _TitleActionsSheet extends ConsumerWidget {
                 ),
                 _ActionRow(
                   icon: isFav ? Icons.check_rounded : Icons.add_rounded,
-                  label:
-                      isFav ? 'Togli da La mia lista' : 'Aggiungi a La mia lista',
+                  label: isFav
+                      ? 'Togli da La mia lista'
+                      : 'Aggiungi a La mia lista',
                   onTap: () {
                     ref.read(favoritesProvider.notifier).toggle(key);
                     Navigator.of(context).pop();
@@ -111,32 +111,50 @@ class _TitleActionsSheet extends ConsumerWidget {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.summary, this.logoUrl});
+  const _Header({required this.summary, required this.logoAsync});
   final MediaSummary summary;
-  final String? logoUrl;
+  final AsyncValue<String?> logoAsync;
 
   @override
   Widget build(BuildContext context) {
+    final url = logoAsync.valueOrNull;
     final fallback = Text(
       summary.title,
-      maxLines: 2,
+      maxLines: 1,
       overflow: TextOverflow.ellipsis,
       style: StreamloadTypography.v3DisplayHero().copyWith(fontSize: 22),
     );
-    final Widget title = (logoUrl != null && logoUrl!.isNotEmpty)
-        ? SizedBox(
-            height: 40,
-            child: Image.network(
-              logoUrl!,
-              fit: BoxFit.contain,
-              alignment: Alignment.centerLeft,
-              errorBuilder: (_, __, ___) => fallback,
-            ),
-          )
-        : fallback;
+
+    Widget content;
+    if (url != null && url.isNotEmpty) {
+      content = Image.network(
+        url,
+        fit: BoxFit.contain,
+        alignment: Alignment.centerLeft,
+        // Fade the logo in once decoded so it never pops mid-open.
+        frameBuilder: (_, child, frame, __) => AnimatedOpacity(
+          opacity: frame == null ? 0 : 1,
+          duration: const Duration(milliseconds: 180),
+          child: child,
+        ),
+        errorBuilder: (_, __, ___) => fallback,
+      );
+    } else if (logoAsync.isLoading) {
+      // Still resolving — keep the (fixed-height) box empty rather than flash
+      // the text title and then swap to the logo (that swap was the "scatto").
+      content = const SizedBox.shrink();
+    } else {
+      content = fallback;
+    }
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-      child: Align(alignment: Alignment.centerLeft, child: title),
+      // Fixed height → the loading→logo / loading→text swap never changes the
+      // header's size, so nothing jumps while the sheet is animating in.
+      child: SizedBox(
+        height: 40,
+        child: Align(alignment: Alignment.centerLeft, child: content),
+      ),
     );
   }
 }
