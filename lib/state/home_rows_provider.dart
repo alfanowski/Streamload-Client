@@ -336,9 +336,24 @@ final titleTrailerProvider =
 /// supplies the callbacks at render time.
 final heroSlidesProvider =
     FutureProvider.autoDispose<List<HeroSlideData>>((ref) async {
-  // Use trending-of-the-DAY so the hero rotates fresh titles instead of the
-  // same stable weekly top-5.
-  final trending = await ref.watch(trendingDayProvider.future);
+  // The hero must NEVER end up empty just because trending-of-the-day was
+  // empty or hiccuped: fall back trending-day → trending-week → top-rated,
+  // tolerating errors at each step. As long as ANY source has titles, the
+  // hero shows.
+  final sources = <Future<List<MediaSummary>> Function()>[
+    () => ref.watch(trendingDayProvider.future),
+    () => ref.watch(trendingWeekProvider.future),
+    () => ref.watch(topRatedAllProvider.future),
+  ];
+  var trending = const <MediaSummary>[];
+  for (final fetch in sources) {
+    try {
+      trending = await fetch();
+      if (trending.isNotEmpty) break;
+    } catch (_) {
+      // try the next source
+    }
+  }
   if (trending.isEmpty) return const <HeroSlideData>[];
   final top = trending.take(5).toList(growable: false);
   final cache = ref.read(_videosCacheProvider);
