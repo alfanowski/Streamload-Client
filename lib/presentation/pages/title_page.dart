@@ -10,7 +10,6 @@
 // then Trama (expandable), Cast (bigger avatars), Info, Episodi (TV) and
 // Titoli simili.
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -91,21 +90,7 @@ class _TitleModal extends StatefulWidget {
 
 class _TitleModalState extends State<_TitleModal> {
   bool _dismissing = false;
-
-  /// Live pull distance (px) while the user is interactively shrinking the
-  /// sheet. 0 = full size. Drives the scale / corner-radius / scrim.
-  double _drag = 0;
-
-  /// Whether the current scroll gesture BEGAN with the content already at the
-  /// top. Only then may a downward pull shrink + dismiss the sheet — a gesture
-  /// that started mid-page (e.g. a flick-up-to-top) can never close it, even
-  /// when its ballistic overshoots into the top overscroll.
-  bool _fromTop = false;
-
-  // Distance that maps to "fully shrunk", and the release distance past which
-  // we commit to closing.
-  static const double _maxDrag = 220;
-  static const double _dismissThreshold = 110;
+  static const double _closeThreshold = 130;
 
   void _dismiss() {
     if (_dismissing) return;
@@ -117,86 +102,46 @@ class _TitleModalState extends State<_TitleModal> {
     }
   }
 
-  void _setDrag(double v) {
-    if ((_drag - v).abs() > 0.5) setState(() => _drag = v);
-  }
-
   bool _onScroll(ScrollNotification n) {
-    if (_dismissing) return false;
-
-    if (n is ScrollStartNotification) {
-      _fromTop = n.metrics.pixels <= n.metrics.minScrollExtent + 1;
-      return false;
-    }
-    if (!_fromTop) return false; // gesture started mid-page → never dismiss
-
-    // Finger lifted (drag ended, before any ballistic): decide at the PEAK
-    // pull, then let the bounce drive _drag back to 0 for the spring-back.
-    if (n is UserScrollNotification && n.direction == ScrollDirection.idle) {
-      if (_drag > _dismissThreshold) _dismiss();
-      return false;
-    }
-
-    // Following the finger: sustained top overscroll → how far it's pulled.
-    if (n is ScrollUpdateNotification || n is OverscrollNotification) {
-      final overscroll =
-          (n.metrics.minScrollExtent - n.metrics.pixels).clamp(0.0, _maxDrag);
-      _setDrag(overscroll);
-    }
-
-    if (n is ScrollEndNotification) {
-      _fromTop = false;
-      _setDrag(0);
-    }
+    // Close only on a DELIBERATE downward drag at the very top — i.e. the
+    // user's finger is down (dragDetails != null) and they've pulled past
+    // the threshold. We must NOT close on the ballistic overscroll a fast
+    // flick-up-to-top produces (dragDetails == null), which was dismissing
+    // the panel involuntarily.
+    final DragUpdateDetails? drag = n is ScrollUpdateNotification
+        ? n.dragDetails
+        : n is OverscrollNotification
+            ? n.dragDetails
+            : null;
+    if (drag == null || _dismissing) return false;
+    final pull = n.metrics.minScrollExtent - n.metrics.pixels;
+    if (pull > _closeThreshold) _dismiss();
     return false;
   }
 
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
-    final progress = (_drag / _maxDrag).clamp(0.0, 1.0);
-    // Shrink toward the centre, round the corners and ease the close button
-    // out as the sheet is pulled in — the "grab it and squeeze it down" feel.
-    final scale = 1 - 0.18 * progress;
-    final radius = 34.0 * progress;
-
     return Material(
       type: MaterialType.transparency,
-      child: Stack(
-        children: [
-          // The shrinking card. The page behind shows through the transparent
-          // Material around it (the route is pushed opaque:false).
-          Positioned.fill(
-            child: Transform.translate(
-              offset: Offset(0, _drag * 0.18),
-              child: Transform.scale(
-                scale: scale,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(radius),
-                  child: ColoredBox(
-                    color: Colors.black,
-                    child: NotificationListener<ScrollNotification>(
-                      onNotification: _onScroll,
-                      child: widget.child,
-                    ),
-                  ),
-                ),
+      child: ColoredBox(
+        color: Colors.black,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: NotificationListener<ScrollNotification>(
+                onNotification: _onScroll,
+                child: widget.child,
               ),
             ),
-          ),
-          // Native iOS Liquid Glass close button — fades out as you pull in.
-          Positioned(
-            top: topPad + 8,
-            right: 14,
-            child: IgnorePointer(
-              ignoring: progress > 0.1,
-              child: Opacity(
-                opacity: (1 - progress * 2).clamp(0.0, 1.0),
-                child: _GlassClose(onTap: _dismiss),
-              ),
+            // Native iOS Liquid Glass close button.
+            Positioned(
+              top: topPad + 8,
+              right: 14,
+              child: _GlassClose(onTap: _dismiss),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
