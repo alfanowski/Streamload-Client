@@ -22,7 +22,7 @@ import 'state/github_token_provider.dart';
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: '/search?q=spider',
+    initialLocation: '/onboarding/github',
     debugLogDiagnostics: false,
     redirect: (context, state) {
       final auth = ref.read(authProvider);
@@ -51,7 +51,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // Fully ready — bounce out of onboarding pages.
-      if (isOnboardingGithub || isOnboardingProfile) return '/search?q=spider';
+      if (isOnboardingGithub || isOnboardingProfile) return '/home';
       return null;
     },
     refreshListenable: _RouterRefreshNotifier(ref),
