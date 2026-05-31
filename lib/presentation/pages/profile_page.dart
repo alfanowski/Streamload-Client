@@ -178,7 +178,6 @@ class _AccountSection extends StatelessWidget {
       children: [
         const SectionHeader('Account'),
         const SizedBox(height: 16),
-        _InfoRow(label: 'Username', value: user?.username ?? '—'),
         _InfoRow(label: 'Email', value: user?.email ?? '—'),
         if ((user?.githubUsername ?? '').isNotEmpty)
           _InfoRow(label: 'GitHub', value: '@${user!.githubUsername}'),
@@ -228,7 +227,6 @@ class _SettingsSection extends StatelessWidget {
     (Icons.palette_outlined, 'Aspetto'),
     (Icons.translate_rounded, 'Lingua'),
     (Icons.high_quality_outlined, 'Qualità di riproduzione'),
-    (Icons.extension_outlined, 'Plugin e sorgenti'),
     (Icons.lock_outline_rounded, 'Privacy e sicurezza'),
     (Icons.info_outline_rounded, 'Aiuto e info'),
   ];
@@ -320,7 +318,7 @@ class _SoonChip extends StatelessWidget {
         border: Border.all(color: StreamloadColors.v3BorderGlass),
       ),
       child: Text(
-        'Presto',
+        'soon',
         style: StreamloadTypography.v3Body(
           fontSize: 11,
           color: StreamloadColors.v3TextMuted,
